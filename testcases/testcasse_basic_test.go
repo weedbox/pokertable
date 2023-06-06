@@ -35,7 +35,7 @@ func TestBasicTableGame(t *testing.T) {
 	table = AllPlayersPlaying(t, tableEngine, table)
 
 	// start game (count = 2)
-	_, err = tableEngine.GameOpen(table)
+	table, err = tableEngine.GameOpen(table)
 	assert.Nil(t, err)
 
 	// game count 2: players playing

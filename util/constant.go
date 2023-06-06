@@ -2,7 +2,7 @@ package util
 
 const (
 	// General
-	UnsetIndex = -1
+	UnsetValue = -1
 
 	// Position
 	Position_Unknown = "unknown"

@@ -2,8 +2,9 @@ package position
 
 import (
 	"math/rand"
+	"time"
 
-	"github.com/weedbox/pokertable/pokertable/util"
+	"github.com/weedbox/pokertable/util"
 
 	pokermodel "github.com/weedbox/pokermodel"
 )
@@ -17,7 +18,7 @@ func NewPosition() Position {
 func (pos Position) NewDefaultSeatMap(seatCount int) []int {
 	seatMap := make([]int, seatCount)
 	for seatIdx := 0; seatIdx < seatCount; seatIdx++ {
-		seatMap[seatIdx] = util.UnsetIndex
+		seatMap[seatIdx] = util.UnsetValue
 	}
 	return seatMap
 }
@@ -25,11 +26,11 @@ func (pos Position) NewDefaultSeatMap(seatCount int) []int {
 func (pos Position) RandomSeatIndex(seatMap []int) int {
 	emptySeatIndexes := make([]int, 0)
 	for seatIdx, playerIdx := range seatMap {
-		if playerIdx == util.UnsetIndex {
+		if playerIdx == util.UnsetValue {
 			emptySeatIndexes = append(emptySeatIndexes, seatIdx)
 		}
 	}
-	randomSeatIdx := emptySeatIndexes[util.RandomInt(0, len(emptySeatIndexes)-1)]
+	randomSeatIdx := emptySeatIndexes[pos.randomInt(0, len(emptySeatIndexes)-1)]
 	return randomSeatIdx
 }
 
@@ -53,8 +54,8 @@ func (pos Position) IsBetweenDealerBB(seatIdx, currDealerTableSeatIdx, currBBTab
 	FindDealerPlayerIndex 找到 Dealer 資訊
 	  - @return NewDealerPlayerIndex
 */
-func (pos Position) FindDealerPlayerIndex(gameCount, prevDealerSeatIdx, minPlayingCount, maxSeatCount int, players []pokermodel.TablePlayerState, seatMap []int) int {
-	newDealerIdx := util.UnsetIndex
+func (pos Position) FindDealerPlayerIndex(gameCount, prevDealerSeatIdx, minPlayingCount, maxSeatCount int, players []*pokermodel.TablePlayerState, seatMap []int) int {
+	newDealerIdx := util.UnsetValue
 	if gameCount == 0 {
 		// 第一次開局，隨機挑選一位玩家當 Dealer
 		newDealerIdx = rand.Intn(len(players))
@@ -64,7 +65,7 @@ func (pos Position) FindDealerPlayerIndex(gameCount, prevDealerSeatIdx, minPlayi
 			targetTableSeatIdx := i % maxSeatCount
 			targetPlayerIdx := seatMap[targetTableSeatIdx]
 
-			if targetPlayerIdx != util.UnsetIndex && players[targetPlayerIdx].IsParticipated {
+			if targetPlayerIdx != util.UnsetValue && players[targetPlayerIdx].IsParticipated {
 				newDealerIdx = targetPlayerIdx
 				break
 			}
@@ -80,7 +81,7 @@ func (pos Position) FindDealerPlayerIndex(gameCount, prevDealerSeatIdx, minPlayi
 		- index 1: sb player index
 		- index 2 : bb player index
 */
-func (pos Position) FindPlayingPlayerIndexes(dealerSeatIdx int, seatMap []int, players []pokermodel.TablePlayerState) []int {
+func (pos Position) FindPlayingPlayerIndexes(dealerSeatIdx int, seatMap []int, players []*pokermodel.TablePlayerState) []int {
 	dealerPlayerIndex := seatMap[dealerSeatIdx]
 
 	// 找出正在玩的玩家
@@ -91,10 +92,10 @@ func (pos Position) FindPlayingPlayerIndexes(dealerSeatIdx int, seatMap []int, p
 		seatMapDealerPlayerIdx Dealer Player Index 在 SeatMap 中的 有參加玩家的 Index
 		  - 當在 SeatMap 找有參加玩家時，如果 playerIndex == dealerPlayerIndex 則 seatMapDealerPlayerIdx 就是當前 totalPlayersCount
 	*/
-	seatMapDealerPlayerIdx := util.UnsetIndex
+	seatMapDealerPlayerIdx := util.UnsetValue
 
 	for _, playerIndex := range seatMap {
-		if playerIndex == util.UnsetIndex {
+		if playerIndex == util.UnsetValue {
 			continue
 		}
 		player := players[playerIndex]
@@ -109,12 +110,12 @@ func (pos Position) FindPlayingPlayerIndexes(dealerSeatIdx int, seatMap []int, p
 	}
 
 	// 調整玩家陣列 Index, 以 DealerIndex 當基準當作第一個元素做 Rotations
-	playingPlayerIndexes = util.RotateIntArray(playingPlayerIndexes, seatMapDealerPlayerIdx)
+	playingPlayerIndexes = pos.rotateIntArray(playingPlayerIndexes, seatMapDealerPlayerIdx)
 
 	return playingPlayerIndexes
 }
 
-func (pos Position) GetPlayerPositionMap(rule string, players []pokermodel.TablePlayerState, playingPlayerIndexes []int) map[int][]string {
+func (pos Position) GetPlayerPositionMap(rule pokermodel.CompetitionRule, players []*pokermodel.TablePlayerState, playingPlayerIndexes []int) map[int][]string {
 	playerPositionMap := make(map[int][]string)
 	switch rule {
 	case pokermodel.CompetitionRule_Default, pokermodel.CompetitionRule_Omaha:
@@ -203,4 +204,25 @@ func (pos Position) newPositions(playerCount int) [][]string {
 	default:
 		return make([][]string, 0)
 	}
+}
+
+/*
+	rotateIntArray 給定 source, 以 startIndex 當作第一個元素做 Rotations
+		- @param source Given source array
+		- @param startIndex Base index for the rotation
+		- @return rotated source
+	Example:
+		- Given: []int{0, 1, 2, 3, 4}, startIndex = 2
+		- Output: []int{2, 3, 4, 0, 1}
+*/
+func (pos Position) rotateIntArray(source []int, startIndex int) []int {
+	if startIndex > len(source) {
+		startIndex = startIndex % len(source)
+	}
+	return append(source[startIndex:], source[:startIndex]...)
+}
+
+func (pos Position) randomInt(min int, max int) int {
+	rand.Seed(time.Now().UnixNano())
+	return rand.Intn(max-min+1) + min
 }

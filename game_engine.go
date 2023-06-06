@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/weedbox/pokerface"
-	"github.com/weedbox/pokermodel"
 	"github.com/weedbox/pokertable/model"
 	"github.com/weedbox/pokertable/util"
 )
@@ -41,7 +40,7 @@ func (engine *gameEngine) Start(setting model.GameEngineSetting) (pokerface.Game
 	opts.Deck = pokerface.NewStandardDeckCards()
 
 	// TODO: implement Rule_Omaha
-	if setting.Rule == pokermodel.CompetitionRule_ShortDeck {
+	if setting.Rule == util.CompetitionRule_ShortDeck {
 		opts = pokerface.NewShortDeckGameOptions()
 		opts.Deck = pokerface.NewShortDeckCards()
 	}

@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/thoas/go-funk"
 	"github.com/weedbox/pokerface"
-	"github.com/weedbox/pokermodel"
 	"github.com/weedbox/pokertable/blind"
 	"github.com/weedbox/pokertable/model"
 	"github.com/weedbox/pokertable/position"
@@ -23,15 +22,15 @@ var (
 )
 
 type TableEngine interface {
-	CreateTable(model.TableSetting) (pokermodel.Table, error)                       // 建立桌
-	CloseTable(pokermodel.Table, pokermodel.TableStateStatus) pokermodel.Table      // 關閉桌
-	StartGame(pokermodel.Table) (pokermodel.Table, error)                           // 開打遊戲
-	GameOpen(table pokermodel.Table) (pokermodel.Table, error)                      // 開下一輪遊戲
-	PlayerJoin(pokermodel.Table, model.JoinPlayer) (pokermodel.Table, error)        // 玩家入桌 (報名或補碼)
-	PlayerRedeemChips(pokermodel.Table, model.JoinPlayer) (pokermodel.Table, error) // 增購籌碼
-	PlayersLeave(pokermodel.Table, []string) pokermodel.Table                       // 玩家們離桌
-	PlayerReady(pokermodel.Table, string) (pokermodel.Table, error)                 // 玩家準備動作完成
-	PlayerWager(pokermodel.Table, string, string, int64) (pokermodel.Table, error)  // 玩家下注
+	CreateTable(model.TableSetting) (model.Table, error)                  // 建立桌
+	CloseTable(model.Table, model.TableStateStatus) model.Table           // 關閉桌
+	StartGame(model.Table) (model.Table, error)                           // 開打遊戲
+	GameOpen(table model.Table) (model.Table, error)                      // 開下一輪遊戲
+	PlayerJoin(model.Table, model.JoinPlayer) (model.Table, error)        // 玩家入桌 (報名或補碼)
+	PlayerRedeemChips(model.Table, model.JoinPlayer) (model.Table, error) // 增購籌碼
+	PlayersLeave(model.Table, []string) model.Table                       // 玩家們離桌
+	PlayerReady(model.Table, string) (model.Table, error)                 // 玩家準備動作完成
+	PlayerWager(model.Table, string, string, int64) (model.Table, error)  // 玩家下注
 }
 
 func NewTableEngine(gameEngine GameEngine) TableEngine {
@@ -48,13 +47,13 @@ type tableEngine struct {
 	gameEngine GameEngine
 }
 
-func (engine *tableEngine) CreateTable(tableSetting model.TableSetting) (pokermodel.Table, error) {
+func (engine *tableEngine) CreateTable(tableSetting model.TableSetting) (model.Table, error) {
 	// validate tableSetting
 	if len(tableSetting.JoinPlayers) > tableSetting.CompetitionMeta.TableMaxSeatCount {
-		return pokermodel.Table{}, ErrInvalidCreateTableSetting
+		return model.Table{}, ErrInvalidCreateTableSetting
 	}
 
-	meta := pokermodel.TableMeta{
+	meta := model.TableMeta{
 		ShortID:         tableSetting.ShortID,
 		Code:            tableSetting.Code,
 		Name:            tableSetting.Name,
@@ -72,42 +71,40 @@ func (engine *tableEngine) CreateTable(tableSetting model.TableSetting) (pokermo
 		}
 	}
 
-	blindState := pokermodel.TableBlindState{
+	blindState := model.TableBlindState{
 		FinalBuyInLevelIndex: finalBuyInLevelIdx,
 		InitialLevel:         tableSetting.BlindInitialLevel,
 		CurrentLevelIndex:    util.UnsetValue,
-		LevelStates: funk.Map(tableSetting.CompetitionMeta.Blind.Levels, func(blindLevel pokermodel.BlindLevel) *pokermodel.TableBlindLevelState {
-			return &pokermodel.TableBlindLevelState{
-				BlindLevel: pokermodel.BlindLevel{
-					Level:        blindLevel.Level,
-					SBChips:      blindLevel.SBChips,
-					BBChips:      blindLevel.BBChips,
-					AnteChips:    blindLevel.AnteChips,
-					DurationMins: blindLevel.DurationMins,
-				},
-				LevelEndAt: util.UnsetValue,
+		LevelStates: funk.Map(tableSetting.CompetitionMeta.Blind.Levels, func(blindLevel model.BlindLevel) *model.TableBlindLevelState {
+			return &model.TableBlindLevelState{
+				Level:        blindLevel.Level,
+				SBChips:      blindLevel.SBChips,
+				BBChips:      blindLevel.BBChips,
+				AnteChips:    blindLevel.AnteChips,
+				DurationMins: blindLevel.DurationMins,
+				LevelEndAt:   util.UnsetValue,
 			}
-		}).([]*pokermodel.TableBlindLevelState),
+		}).([]*model.TableBlindLevelState),
 	}
 
-	state := pokermodel.TableState{
+	state := model.TableState{
 		GameCount:              0,
 		StartGameAt:            util.UnsetValue,
 		BlindState:             &blindState,
 		CurrentDealerSeatIndex: util.UnsetValue,
 		CurrentBBSeatIndex:     util.UnsetValue,
 		PlayerSeatMap:          engine.position.NewDefaultSeatMap(tableSetting.CompetitionMeta.TableMaxSeatCount),
-		PlayerStates:           make([]*pokermodel.TablePlayerState, 0),
+		PlayerStates:           make([]*model.TablePlayerState, 0),
 		PlayingPlayerIndexes:   make([]int, 0),
-		Status:                 pokermodel.TableStateStatus_TableGameCreated,
+		Status:                 model.TableStateStatus_TableGameCreated,
 		Rankings:               make([]int, 0),
 	}
 
 	// handle auto join players
 	if len(tableSetting.JoinPlayers) > 0 {
 		// auto join players
-		state.PlayerStates = funk.Map(tableSetting.JoinPlayers, func(p model.JoinPlayer) *pokermodel.TablePlayerState {
-			return &pokermodel.TablePlayerState{
+		state.PlayerStates = funk.Map(tableSetting.JoinPlayers, func(p model.JoinPlayer) *model.TablePlayerState {
+			return &model.TablePlayerState{
 				PlayerID:          p.PlayerID,
 				SeatIndex:         util.UnsetValue,
 				Positions:         []string{util.Position_Unknown},
@@ -115,7 +112,7 @@ func (engine *tableEngine) CreateTable(tableSetting model.TableSetting) (pokermo
 				IsBetweenDealerBB: false,
 				Bankroll:          p.RedeemChips,
 			}
-		}).([]*pokermodel.TablePlayerState)
+		}).([]*model.TablePlayerState)
 
 		// update seats
 		for playerIdx := 0; playerIdx < len(state.PlayerStates); playerIdx++ {
@@ -125,7 +122,7 @@ func (engine *tableEngine) CreateTable(tableSetting model.TableSetting) (pokermo
 		}
 	}
 
-	return pokermodel.Table{
+	return model.Table{
 		ID:       uuid.New().String(),
 		Meta:     meta,
 		State:    &state,
@@ -133,13 +130,13 @@ func (engine *tableEngine) CreateTable(tableSetting model.TableSetting) (pokermo
 	}, nil
 }
 
-func (engine *tableEngine) CloseTable(table pokermodel.Table, status pokermodel.TableStateStatus) pokermodel.Table {
+func (engine *tableEngine) CloseTable(table model.Table, status model.TableStateStatus) model.Table {
 	table.State.Status = status
 	table.Update()
 	return table
 }
 
-func (engine *tableEngine) StartGame(table pokermodel.Table) (pokermodel.Table, error) {
+func (engine *tableEngine) StartGame(table model.Table) (model.Table, error) {
 	// 初始化桌 & 開局
 	table = engine.TableInit(table)
 	return engine.GameOpen(table)
@@ -151,7 +148,7 @@ func (engine *tableEngine) StartGame(table pokermodel.Table) (pokermodel.Table, 
 	    - 報名入桌
 		- 補碼入桌
 */
-func (engine *tableEngine) PlayerJoin(table pokermodel.Table, joinPlayer model.JoinPlayer) (pokermodel.Table, error) {
+func (engine *tableEngine) PlayerJoin(table model.Table, joinPlayer model.JoinPlayer) (model.Table, error) {
 	// find player index in PlayerStates
 	targetPlayerIdx := engine.findPlayerIdx(table.State.PlayerStates, joinPlayer.PlayerID)
 
@@ -162,7 +159,7 @@ func (engine *tableEngine) PlayerJoin(table pokermodel.Table, joinPlayer model.J
 		}
 
 		// BuyIn
-		player := pokermodel.TablePlayerState{
+		player := model.TablePlayerState{
 			PlayerID:          joinPlayer.PlayerID,
 			SeatIndex:         util.UnsetValue,
 			Positions:         []string{util.Position_Unknown},
@@ -194,7 +191,7 @@ func (engine *tableEngine) PlayerJoin(table pokermodel.Table, joinPlayer model.J
 	  - 適用時機:
 	    - 增購
 */
-func (engine *tableEngine) PlayerRedeemChips(table pokermodel.Table, joinPlayer model.JoinPlayer) (pokermodel.Table, error) {
+func (engine *tableEngine) PlayerRedeemChips(table model.Table, joinPlayer model.JoinPlayer) (model.Table, error) {
 	// find player index in PlayerStates
 	playerIdx := engine.findPlayerIdx(table.State.PlayerStates, joinPlayer.PlayerID)
 	if playerIdx == util.UnsetValue {
@@ -220,7 +217,7 @@ func (engine *tableEngine) PlayerRedeemChips(table pokermodel.Table, joinPlayer 
 	    - CASH 離開 (準備結算)
 		- CT/MTT 停止買入後被淘汰
 */
-func (engine *tableEngine) PlayersLeave(table pokermodel.Table, playerIDs []string) pokermodel.Table {
+func (engine *tableEngine) PlayersLeave(table model.Table, playerIDs []string) model.Table {
 	// find player index in PlayerStates
 	leavePlayerIndexes := make([]int, 0)
 	for _, playerID := range playerIDs {
@@ -244,10 +241,10 @@ func (engine *tableEngine) PlayersLeave(table pokermodel.Table, playerIDs []stri
 	}
 
 	// delete target players in PlayerStates
-	table.State.PlayerStates = funk.Filter(table.State.PlayerStates, func(player *pokermodel.TablePlayerState) bool {
+	table.State.PlayerStates = funk.Filter(table.State.PlayerStates, func(player *model.TablePlayerState) bool {
 		_, exist := leavePlayerIDMap[player.PlayerID]
 		return !exist
-	}).([]*pokermodel.TablePlayerState)
+	}).([]*model.TablePlayerState)
 
 	// update current PlayerSeatMap player indexes in PlayerSeatMap
 	for newPlayerIdx, player := range table.State.PlayerStates {
@@ -257,7 +254,7 @@ func (engine *tableEngine) PlayersLeave(table pokermodel.Table, playerIDs []stri
 	return table
 }
 
-func (engine *tableEngine) PlayerReady(table pokermodel.Table, playerID string) (pokermodel.Table, error) {
+func (engine *tableEngine) PlayerReady(table model.Table, playerID string) (model.Table, error) {
 	// find playing player index
 	playingPlayerIdx := engine.findPlayingPlayerIdx(table.State.PlayerStates, table.State.PlayingPlayerIndexes, playerID)
 	if playingPlayerIdx == util.UnsetValue {
@@ -311,7 +308,7 @@ func (engine *tableEngine) PlayerReady(table pokermodel.Table, playerID string) 
 	return table, nil
 }
 
-func (engine *tableEngine) PlayerWager(table pokermodel.Table, playerID string, action string, chips int64) (pokermodel.Table, error) {
+func (engine *tableEngine) PlayerWager(table model.Table, playerID string, action string, chips int64) (model.Table, error) {
 	// find playing player index
 	playingPlayerIdx := engine.findPlayingPlayerIdx(table.State.PlayerStates, table.State.PlayingPlayerIndexes, playerID)
 	if playingPlayerIdx == util.UnsetValue {

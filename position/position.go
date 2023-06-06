@@ -4,9 +4,8 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/weedbox/pokertable/model"
 	"github.com/weedbox/pokertable/util"
-
-	pokermodel "github.com/weedbox/pokermodel"
 )
 
 type Position struct{}
@@ -34,8 +33,8 @@ func (pos Position) RandomSeatIndex(seatMap []int) int {
 	return randomSeatIdx
 }
 
-func (pos Position) IsBetweenDealerBB(seatIdx, currDealerTableSeatIdx, currBBTableSeatIdx, maxPlayerCount int, rule pokermodel.CompetitionRule) bool {
-	if rule == pokermodel.CompetitionRule_ShortDeck {
+func (pos Position) IsBetweenDealerBB(seatIdx, currDealerTableSeatIdx, currBBTableSeatIdx, maxPlayerCount int, rule string) bool {
+	if rule == util.CompetitionRule_ShortDeck {
 		return false
 	}
 
@@ -54,7 +53,7 @@ func (pos Position) IsBetweenDealerBB(seatIdx, currDealerTableSeatIdx, currBBTab
 	FindDealerPlayerIndex 找到 Dealer 資訊
 	  - @return NewDealerPlayerIndex
 */
-func (pos Position) FindDealerPlayerIndex(gameCount, prevDealerSeatIdx, minPlayingCount, maxSeatCount int, players []*pokermodel.TablePlayerState, seatMap []int) int {
+func (pos Position) FindDealerPlayerIndex(gameCount, prevDealerSeatIdx, minPlayingCount, maxSeatCount int, players []*model.TablePlayerState, seatMap []int) int {
 	newDealerIdx := util.UnsetValue
 	if gameCount == 0 {
 		// 第一次開局，隨機挑選一位玩家當 Dealer
@@ -81,7 +80,7 @@ func (pos Position) FindDealerPlayerIndex(gameCount, prevDealerSeatIdx, minPlayi
 		- index 1: sb player index
 		- index 2 : bb player index
 */
-func (pos Position) FindPlayingPlayerIndexes(dealerSeatIdx int, seatMap []int, players []*pokermodel.TablePlayerState) []int {
+func (pos Position) FindPlayingPlayerIndexes(dealerSeatIdx int, seatMap []int, players []*model.TablePlayerState) []int {
 	dealerPlayerIndex := seatMap[dealerSeatIdx]
 
 	// 找出正在玩的玩家
@@ -115,15 +114,15 @@ func (pos Position) FindPlayingPlayerIndexes(dealerSeatIdx int, seatMap []int, p
 	return playingPlayerIndexes
 }
 
-func (pos Position) GetPlayerPositionMap(rule pokermodel.CompetitionRule, players []*pokermodel.TablePlayerState, playingPlayerIndexes []int) map[int][]string {
+func (pos Position) GetPlayerPositionMap(rule string, players []*model.TablePlayerState, playingPlayerIndexes []int) map[int][]string {
 	playerPositionMap := make(map[int][]string)
 	switch rule {
-	case pokermodel.CompetitionRule_Default, pokermodel.CompetitionRule_Omaha:
+	case util.CompetitionRule_Default, util.CompetitionRule_Omaha:
 		positions := pos.newPositions(len(playingPlayerIndexes))
 		for idx, playerIdx := range playingPlayerIndexes {
 			playerPositionMap[playerIdx] = positions[idx]
 		}
-	case pokermodel.CompetitionRule_ShortDeck:
+	case util.CompetitionRule_ShortDeck:
 		dealerPlayerIdx := playingPlayerIndexes[0]
 		playerPositionMap[dealerPlayerIdx] = []string{util.Position_Dealer}
 	}

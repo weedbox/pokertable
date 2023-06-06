@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/weedbox/pokermodel"
+	"github.com/weedbox/pokertable/model"
 	"github.com/weedbox/pokertable/util"
 )
 
 // TableInit 初始化桌
-func (engine *tableEngine) TableInit(table pokermodel.Table) pokermodel.Table {
+func (engine *tableEngine) TableInit(table model.Table) model.Table {
 	// update StartGameAt
 	table.State.StartGameAt = time.Now().Unix()
 
@@ -21,7 +21,7 @@ func (engine *tableEngine) TableInit(table pokermodel.Table) pokermodel.Table {
 }
 
 // GameOpen 開始本手遊戲
-func (engine *tableEngine) GameOpen(table pokermodel.Table) (pokermodel.Table, error) {
+func (engine *tableEngine) GameOpen(table model.Table) (model.Table, error) {
 	// Step 1: 重設桌次狀態
 	table.Reset()
 
@@ -106,13 +106,12 @@ func (engine *tableEngine) GameOpen(table pokermodel.Table) (pokermodel.Table, e
 	}
 
 	// Step 9: 更新當前桌次事件
-	table.State.Status = pokermodel.TableStateStatus_TableGameMatchOpen
+	table.State.Status = model.TableStateStatus_TableGameMatchOpen
 
 	// Step 10: 啟動本手遊戲引擎 & 更新遊戲狀態
-	rule := string(table.Meta.CompetitionMeta.Rule)
-	blind := table.State.BlindState.LevelStates[table.State.BlindState.CurrentLevelIndex].BlindLevel
+	blind := *table.State.BlindState.LevelStates[table.State.BlindState.CurrentLevelIndex]
 	dealerBlindTimes := table.Meta.CompetitionMeta.Blind.DealerBlindTimes
-	gameEngineSetting := engine.newGameEngineSetting(rule, blind, dealerBlindTimes, table.State.PlayerStates, table.State.PlayingPlayerIndexes)
+	gameEngineSetting := engine.newGameEngineSetting(table.Meta.CompetitionMeta.Rule, blind, dealerBlindTimes, table.State.PlayerStates, table.State.PlayingPlayerIndexes)
 	gameState, err := engine.gameEngine.Start(gameEngineSetting)
 	table.State.GameState = gameState
 
@@ -121,7 +120,7 @@ func (engine *tableEngine) GameOpen(table pokermodel.Table) (pokermodel.Table, e
 }
 
 // TableSettlement 本手遊戲結算
-func (engine *tableEngine) TableSettlement(table pokermodel.Table) pokermodel.Table {
+func (engine *tableEngine) TableSettlement(table model.Table) model.Table {
 	// Step 1: 把玩家輸贏籌碼更新到 Bankroll
 	for _, player := range table.State.GameState.Result.Players {
 		playerIdx := table.State.PlayingPlayerIndexes[player.Idx]
@@ -133,11 +132,11 @@ func (engine *tableEngine) TableSettlement(table pokermodel.Table) pokermodel.Ta
 
 	// Step 3: 依照桌次目前狀況更新事件
 	if !table.State.BlindState.IsFinalBuyInLevel() && len(table.AlivePlayers()) < 2 {
-		table.State.Status = pokermodel.TableStateStatus_TableGamePaused
+		table.State.Status = model.TableStateStatus_TableGamePaused
 	} else if table.State.BlindState.IsBreaking() {
-		table.State.Status = pokermodel.TableStateStatus_TableGamePaused
+		table.State.Status = model.TableStateStatus_TableGamePaused
 	} else if engine.isTableClose(table.EndGameAt(), table.AlivePlayers(), table.State.BlindState.IsFinalBuyInLevel()) {
-		table.State.Status = pokermodel.TableStateStatus_TableGameClosed
+		table.State.Status = model.TableStateStatus_TableGameClosed
 	}
 
 	return table

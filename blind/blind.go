@@ -3,7 +3,7 @@ package blind
 import (
 	"time"
 
-	"github.com/weedbox/pokermodel"
+	"github.com/weedbox/pokertable/model"
 )
 
 type Blind struct{}
@@ -12,9 +12,9 @@ func NewBlind() Blind {
 	return Blind{}
 }
 
-func (blind Blind) ActivateBlindState(startGameAt int64, blindState pokermodel.TableBlindState) pokermodel.TableBlindState {
+func (blind Blind) ActivateBlindState(startGameAt int64, blindState model.TableBlindState) model.TableBlindState {
 	for idx, levelState := range blindState.LevelStates {
-		if levelState.BlindLevel.Level == blindState.InitialLevel {
+		if levelState.Level == blindState.InitialLevel {
 			blindState.CurrentLevelIndex = idx
 			break
 		}
@@ -26,7 +26,7 @@ func (blind Blind) ActivateBlindState(startGameAt int64, blindState pokermodel.T
 		} else {
 			blindState.LevelStates[i].LevelEndAt = blindState.LevelStates[i-1].LevelEndAt
 		}
-		blindPassedSeconds := int64((time.Duration(blindState.LevelStates[i].BlindLevel.DurationMins) * time.Minute).Seconds())
+		blindPassedSeconds := int64((time.Duration(blindState.LevelStates[i].DurationMins) * time.Minute).Seconds())
 		blindState.LevelStates[i].LevelEndAt += blindPassedSeconds
 	}
 	return blindState

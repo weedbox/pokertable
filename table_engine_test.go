@@ -5,8 +5,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/weedbox/pokermodel"
 	"github.com/weedbox/pokertable/model"
+	"github.com/weedbox/pokertable/util"
 )
 
 func TestCreateTable(t *testing.T) {
@@ -27,7 +27,7 @@ func TestCreateTable(t *testing.T) {
 		assert.NotZero(t, table.ID)
 		assert.NotZero(t, table.Meta)
 		assert.NotZero(t, table.State)
-		assert.Equal(t, pokermodel.TableStateStatus_TableGameCreated, table.State.Status)
+		assert.Equal(t, model.TableStateStatus_TableGameCreated, table.State.Status)
 		assert.Equal(t, len(tableSetting.JoinPlayers), len(table.State.PlayerStates))
 		seatTakenCount := 0
 		for _, playerIdx := range table.State.PlayerSeatMap {
@@ -43,9 +43,9 @@ func TestCreateTable(t *testing.T) {
 func TestCloseTable(t *testing.T) {
 	gameEngine := NewGameEngine()
 	tableEngine := NewTableEngine(gameEngine)
-	expectedStatus := []pokermodel.TableStateStatus{
-		pokermodel.TableStateStatus_TableGameAutoEnded,
-		pokermodel.TableStateStatus_TableGameKilled,
+	expectedStatus := []model.TableStateStatus{
+		model.TableStateStatus_TableGameAutoEnded,
+		model.TableStateStatus_TableGameKilled,
 	}
 
 	for _, expectedStatus := range expectedStatus {
@@ -76,7 +76,7 @@ func TestStartGame(t *testing.T) {
 	for _, blindLevel := range table.State.BlindState.LevelStates {
 		assert.NotEqual(t, -1, blindLevel.LevelEndAt)
 	}
-	assert.Equal(t, pokermodel.TableStateStatus_TableGameMatchOpen, table.State.Status)
+	assert.Equal(t, model.TableStateStatus_TableGameMatchOpen, table.State.Status)
 	assert.Greater(t, table.State.GameCount, 0)
 	assert.NotZero(t, table.State.GameState)
 }
@@ -210,12 +210,12 @@ func NewDefaultTableSetting(joinPlayers ...model.JoinPlayer) model.TableSetting 
 		Name:              "table name",
 		InvitationCode:    "come_to_play",
 		BlindInitialLevel: 1,
-		CompetitionMeta: pokermodel.CompetitionMeta{
-			Blind: pokermodel.Blind{
+		CompetitionMeta: model.CompetitionMeta{
+			Blind: model.Blind{
 				ID:              uuid.New().String(),
 				Name:            "blind name",
 				FinalBuyInLevel: 2,
-				Levels: []pokermodel.BlindLevel{
+				Levels: []model.BlindLevel{
 					{
 						Level:        1,
 						SBChips:      10,
@@ -239,32 +239,9 @@ func NewDefaultTableSetting(joinPlayers ...model.JoinPlayer) model.TableSetting 
 					},
 				},
 			},
-			Ticket: pokermodel.Ticket{
-				ID:   uuid.New().String(),
-				Name: "ticket name",
-			},
-			Scene:           "scene 1",
-			MaxDurationMins: 60,
-			MinPlayerCount:  10,
-			MaxPlayerCount:  100,
-			Rule:            pokermodel.CompetitionRule_Default,
-			Mode:            pokermodel.CompetitionMode_MTT,
-			BuyInSetting: pokermodel.BuyInSetting{
-				IsFree:     false,
-				MinTickets: 1,
-				MaxTickets: 1,
-			},
-			ReBuySetting: pokermodel.ReBuySetting{
-				MinTicket: 1,
-				MaxTicket: 1,
-				MaxTimes:  5,
-			},
-			AddonSetting: pokermodel.AddonSetting{
-				IsBreakOnly: true,
-				RedeemChips: []int64{1000, 1100, 1200},
-				MaxTimes:    3,
-			},
-			ActionTimeSecs:       10,
+			MaxDurationMins:      60,
+			Rule:                 util.CompetitionRule_Default,
+			Mode:                 util.CompetitionMode_MTT,
 			TableMaxSeatCount:    9,
 			TableMinPlayingCount: 2,
 			MinChipsUnit:         10,

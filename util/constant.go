@@ -4,6 +4,16 @@ const (
 	// General
 	UnsetValue = -1
 
+	// CompetitionMode
+	CompetitionMode_CT   = "ct"   // 倒數錦標賽
+	CompetitionMode_MTT  = "mtt"  // 大型錦標賽
+	CompetitionMode_Cash = "cash" // 現金桌
+
+	// CompetitionRule
+	CompetitionRule_Default   = "default"    // 常牌
+	CompetitionRule_ShortDeck = "short_deck" // 短牌
+	CompetitionRule_Omaha     = "omaha"      // 奧瑪哈
+
 	// Position
 	Position_Unknown = "unknown"
 	Position_Dealer  = "dealer"

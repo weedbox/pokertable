@@ -4,12 +4,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/weedbox/pokermodel"
 	"github.com/weedbox/pokertable"
+	"github.com/weedbox/pokertable/model"
 	"github.com/weedbox/pokertable/util"
 )
 
-func FindCurrentPlayerID(table pokermodel.Table, currPlayerIndex int) string {
+func FindCurrentPlayerID(table model.Table, currPlayerIndex int) string {
 	for playingPlayerIndex, playerIndex := range table.State.PlayingPlayerIndexes {
 		if playingPlayerIndex == currPlayerIndex {
 			return table.State.PlayerStates[playerIndex].PlayerID
@@ -18,7 +18,7 @@ func FindCurrentPlayerID(table pokermodel.Table, currPlayerIndex int) string {
 	return ""
 }
 
-func AllGamePlayersReady(t *testing.T, tableEngine pokertable.TableEngine, table pokermodel.Table) pokermodel.Table {
+func AllGamePlayersReady(t *testing.T, tableEngine pokertable.TableEngine, table model.Table) model.Table {
 	ret := table
 	for _, playingPlayerIdx := range table.State.PlayingPlayerIndexes {
 		player := table.State.PlayerStates[playingPlayerIdx]
@@ -29,7 +29,7 @@ func AllGamePlayersReady(t *testing.T, tableEngine pokertable.TableEngine, table
 	return ret
 }
 
-func AllPlayersPlaying(t *testing.T, tableEngine pokertable.TableEngine, table pokermodel.Table) pokermodel.Table {
+func AllPlayersPlaying(t *testing.T, tableEngine pokertable.TableEngine, table model.Table) model.Table {
 	// game started
 	// all players ready
 	table = AllGamePlayersReady(t, tableEngine, table)

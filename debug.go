@@ -5,10 +5,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/weedbox/pokermodel"
+	"github.com/weedbox/pokertable/model"
 )
 
-func (engine tableEngine) debugPrintTable(message string, table pokermodel.Table) {
+func (engine tableEngine) debugPrintTable(message string, table model.Table) {
 	timeString := func(timestamp int64) string {
 		return time.Unix(timestamp, 0).Format("2006-01-02 15:04:0")
 	}
@@ -74,12 +74,12 @@ func (engine tableEngine) debugPrintTable(message string, table pokermodel.Table
 
 	fmt.Println("[Blind Data]")
 	fmt.Println("InitialLevel: ", table.State.BlindState.InitialLevel)
-	fmt.Printf("CurrentLevel: %+v\n", table.State.BlindState.CurrentBlindLevel().BlindLevel)
+	fmt.Printf("CurrentLevel: %+v\n", table.State.BlindState.CurrentBlindLevel())
 	fmt.Printf("CurrentLevel EndAt: %+v\n", timeString(table.State.BlindState.CurrentBlindLevel().LevelEndAt))
 	fmt.Println("CurrentLevelIndex: ", table.State.BlindState.CurrentLevelIndex)
 	fmt.Println("FinalBuyInLevelIndex: ", table.State.BlindState.FinalBuyInLevelIndex)
 	for _, blindLevelState := range table.State.BlindState.LevelStates {
-		blindLevel := blindLevelState.BlindLevel
+		blindLevel := blindLevelState
 		level := strconv.Itoa(blindLevel.Level)
 		if blindLevel.Level == -1 {
 			level = "中場休息"
@@ -106,8 +106,8 @@ func (engine tableEngine) debugPrintTable(message string, table pokermodel.Table
 	fmt.Println()
 }
 
-func (engine tableEngine) debugPrintGameStateResult(table pokermodel.Table) {
-	playerIDMapper := func(table pokermodel.Table, gameStatePlayerIndex int) string {
+func (engine tableEngine) debugPrintGameStateResult(table model.Table) {
+	playerIDMapper := func(table model.Table, gameStatePlayerIndex int) string {
 		for playingPlayerIndex, playerIndex := range table.State.PlayingPlayerIndexes {
 			if playingPlayerIndex == gameStatePlayerIndex {
 				return table.State.PlayerStates[playerIndex].PlayerID

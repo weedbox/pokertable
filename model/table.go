@@ -41,6 +41,7 @@ type TableMeta struct {
 }
 
 type CompetitionMeta struct {
+	ID                   string `json:"id"`                      // 賽事 ID
 	Rule                 string `json:"rule"`                    // 德州撲克規則, 常牌(default), 短牌(short_deck), 奧瑪哈(omaha)
 	Mode                 string `json:"mode"`                    // 賽事模式 (CT, MTT, Cash)
 	MaxDurationMins      int    `json:"max_duration_mins"`       // 比賽時間總長 (分鐘)

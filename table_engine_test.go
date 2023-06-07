@@ -211,6 +211,7 @@ func NewDefaultTableSetting(joinPlayers ...model.JoinPlayer) model.TableSetting 
 		InvitationCode:    "come_to_play",
 		BlindInitialLevel: 1,
 		CompetitionMeta: model.CompetitionMeta{
+			ID: "competition id",
 			Blind: model.Blind{
 				ID:              uuid.New().String(),
 				Name:            "blind name",

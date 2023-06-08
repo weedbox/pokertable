@@ -55,7 +55,7 @@ func (engine *tableEngine) findPlayingPlayerIdx(players []*model.TablePlayerStat
 }
 
 /*
-	isEnd 計算本桌是否已結束
+	isTableClose 計算本桌是否已結束
 	  - 結束條件 1: 達到賽局結束時間
 	  - 結束條件 2: 停止買入後且存活玩家剩餘 1 人
 */

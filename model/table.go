@@ -54,6 +54,7 @@ type CompetitionMeta struct {
 type Blind struct {
 	ID               string       `json:"id"`                 // ID
 	Name             string       `json:"name"`               // 名稱
+	InitialLevel     int          `json:"initial_level"`      // 起始盲注級別
 	FinalBuyInLevel  int          `json:"final_buy_in_level"` // 最後買入盲注等級
 	DealerBlindTimes int          `json:"dealer_blind_times"` // Dealer 位置要收取的前注倍數 (短牌用)
 	Levels           []BlindLevel `json:"levels"`             // 級別資訊列表

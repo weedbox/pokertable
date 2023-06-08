@@ -205,11 +205,10 @@ func TestPlayerLeave(t *testing.T) {
 
 func NewDefaultTableSetting(joinPlayers ...model.JoinPlayer) model.TableSetting {
 	return model.TableSetting{
-		ShortID:           "ABC123",
-		Code:              "01",
-		Name:              "table name",
-		InvitationCode:    "come_to_play",
-		BlindInitialLevel: 1,
+		ShortID:        "ABC123",
+		Code:           "01",
+		Name:           "table name",
+		InvitationCode: "come_to_play",
 		CompetitionMeta: model.CompetitionMeta{
 			ID: "competition id",
 			Blind: model.Blind{

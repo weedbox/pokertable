@@ -73,7 +73,7 @@ func (engine *tableEngine) CreateTable(tableSetting model.TableSetting) (model.T
 
 	blindState := model.TableBlindState{
 		FinalBuyInLevelIndex: finalBuyInLevelIdx,
-		InitialLevel:         tableSetting.BlindInitialLevel,
+		InitialLevel:         tableSetting.CompetitionMeta.Blind.InitialLevel,
 		CurrentLevelIndex:    util.UnsetValue,
 		LevelStates: funk.Map(tableSetting.CompetitionMeta.Blind.Levels, func(blindLevel model.BlindLevel) *model.TableBlindLevelState {
 			return &model.TableBlindLevelState{

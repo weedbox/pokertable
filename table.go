@@ -76,7 +76,6 @@ type TableState struct {
 	PlayerStates           []*TablePlayerState `json:"player_states"`             // 賽局桌上玩家狀態
 	PlayingPlayerIndexes   []int               `json:"playing_player_indexes"`    // 本手正在玩的 PlayerIndex 陣列 (陣列 index 為從 Dealer 位置開始的 PlayerIndex)，GameEngine 用
 	Status                 TableStateStatus    `json:"status"`                    // 當前桌次狀態
-	Rankings               []int               `json:"ranks"`                     // 當桌即時排名, 名次: 陣列 index + 1, 陣列元素: player_idx, ex: [4, 0, 2]: 第一名: players[4], 第二名: players[0]...
 	GameState              pokerface.GameState `json:"game_state"`                // 本手狀態 (pokerface.GameState)
 }
 

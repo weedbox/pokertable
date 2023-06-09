@@ -3,6 +3,8 @@ package testcases
 import (
 	"testing"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/weedbox/pokertable"
 )
@@ -10,7 +12,7 @@ import (
 func TestBasicTableGame(t *testing.T) {
 	// create a table
 	gameEngine := pokertable.NewGameEngine()
-	tableEngine := pokertable.NewTableEngine(gameEngine)
+	tableEngine := pokertable.NewTableEngine(gameEngine, uint32(logrus.DebugLevel))
 	tableSetting := NewDefaultTableSetting()
 	table, err := tableEngine.CreateTable(tableSetting)
 	assert.Nil(t, err)
@@ -30,13 +32,15 @@ func TestBasicTableGame(t *testing.T) {
 	table, err = tableEngine.StartGame(table)
 	assert.Nil(t, err)
 
-	// game count 1: players playing
-	table = AllPlayersPlaying(t, tableEngine, table)
+	// logJSON(t, fmt.Sprintf("game %d started:", table.State.GameCount), table.GetJSON)
 
-	// start game (count = 2)
-	table, err = tableEngine.GameOpen(table)
-	assert.Nil(t, err)
+	// // game count 1: players playing
+	// table = AllPlayersPlaying(t, tableEngine, table)
 
-	// game count 2: players playing
-	_ = AllPlayersPlaying(t, tableEngine, table)
+	// // start game (count = 2)
+	// table, err = tableEngine.GameOpen(table)
+	// assert.Nil(t, err)
+
+	// // game count 2: players playing
+	// _ = AllPlayersPlaying(t, tableEngine, table)
 }

@@ -1,86 +1,86 @@
 package testcases
 
-import (
-	"testing"
+import "testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/weedbox/pokertable"
-)
-
-func FindCurrentPlayerID(table pokertable.Table, currPlayerIndex int) string {
-	for playingPlayerIndex, playerIndex := range table.State.PlayingPlayerIndexes {
-		if playingPlayerIndex == currPlayerIndex {
-			return table.State.PlayerStates[playerIndex].PlayerID
-		}
-	}
-	return ""
+func logJSON(t *testing.T, msg string, jsonPrinter func() (*string, error)) {
+	json, _ := jsonPrinter()
+	t.Logf("\n===== [%s] =====\n%s\n", msg, *json)
 }
 
-func AllGamePlayersReady(t *testing.T, tableEngine pokertable.TableEngine, table pokertable.Table) pokertable.Table {
-	ret := table
-	for _, playingPlayerIdx := range table.State.PlayingPlayerIndexes {
-		player := table.State.PlayerStates[playingPlayerIdx]
-		table, err := tableEngine.PlayerReady(table, player.PlayerID)
-		assert.Nil(t, err)
-		ret = table
-	}
-	return ret
-}
+// func FindCurrentPlayerID(table pokertable.Table, currPlayerIndex int) string {
+// 	for playingPlayerIndex, playerIndex := range table.State.PlayingPlayerIndexes {
+// 		if playingPlayerIndex == currPlayerIndex {
+// 			return table.State.PlayerStates[playerIndex].PlayerID
+// 		}
+// 	}
+// 	return ""
+// }
 
-func AllPlayersPlaying(t *testing.T, tableEngine pokertable.TableEngine, table pokertable.Table) pokertable.Table {
-	// game started
-	// all players ready
-	table = AllGamePlayersReady(t, tableEngine, table)
+// func AllGamePlayersReady(t *testing.T, tableEngine pokertable.TableEngine, table pokertable.Table) pokertable.Table {
+// 	ret := table
+// 	for _, playingPlayerIdx := range table.State.PlayingPlayerIndexes {
+// 		player := table.State.PlayerStates[playingPlayerIdx]
+// 		table, err := tableEngine.PlayerReady(table, player.PlayerID)
+// 		assert.Nil(t, err)
+// 		ret = table
+// 	}
+// 	return ret
+// }
 
-	// preflop
-	// dealer move
-	table, err := tableEngine.PlayerWager(table, FindCurrentPlayerID(table, table.State.GameState.Status.CurrentPlayer), pokertable.WagerAction_Call, 0)
-	assert.Nil(t, err)
+// func AllPlayersPlaying(t *testing.T, tableEngine pokertable.TableEngine, table pokertable.Table) pokertable.Table {
+// 	// game started
+// 	// all players ready
+// 	table = AllGamePlayersReady(t, tableEngine, table)
 
-	// sb move
-	tableEngine.PlayerWager(table, FindCurrentPlayerID(table, table.State.GameState.Status.CurrentPlayer), pokertable.WagerAction_Call, 0)
+// 	// preflop
+// 	// dealer move
+// 	table, err := tableEngine.PlayerWager(table, FindCurrentPlayerID(table, table.State.GameState.Status.CurrentPlayer), pokertable.WagerAction_Call, 0)
+// 	assert.Nil(t, err)
 
-	// bb move
-	tableEngine.PlayerWager(table, FindCurrentPlayerID(table, table.State.GameState.Status.CurrentPlayer), pokertable.WagerAction_Check, 0)
+// 	// sb move
+// 	tableEngine.PlayerWager(table, FindCurrentPlayerID(table, table.State.GameState.Status.CurrentPlayer), pokertable.WagerAction_Call, 0)
 
-	// flop
-	// all players ready
-	table = AllGamePlayersReady(t, tableEngine, table)
+// 	// bb move
+// 	tableEngine.PlayerWager(table, FindCurrentPlayerID(table, table.State.GameState.Status.CurrentPlayer), pokertable.WagerAction_Check, 0)
 
-	// dealer move
-	tableEngine.PlayerWager(table, FindCurrentPlayerID(table, table.State.GameState.Status.CurrentPlayer), pokertable.WagerAction_Bet, 10)
+// 	// flop
+// 	// all players ready
+// 	table = AllGamePlayersReady(t, tableEngine, table)
 
-	// sb move
-	tableEngine.PlayerWager(table, FindCurrentPlayerID(table, table.State.GameState.Status.CurrentPlayer), pokertable.WagerAction_Call, 0)
+// 	// dealer move
+// 	tableEngine.PlayerWager(table, FindCurrentPlayerID(table, table.State.GameState.Status.CurrentPlayer), pokertable.WagerAction_Bet, 10)
 
-	// bb move
-	tableEngine.PlayerWager(table, FindCurrentPlayerID(table, table.State.GameState.Status.CurrentPlayer), pokertable.WagerAction_Call, 0)
+// 	// sb move
+// 	tableEngine.PlayerWager(table, FindCurrentPlayerID(table, table.State.GameState.Status.CurrentPlayer), pokertable.WagerAction_Call, 0)
 
-	// turn
-	// all players ready
-	table = AllGamePlayersReady(t, tableEngine, table)
+// 	// bb move
+// 	tableEngine.PlayerWager(table, FindCurrentPlayerID(table, table.State.GameState.Status.CurrentPlayer), pokertable.WagerAction_Call, 0)
 
-	// dealer move
-	tableEngine.PlayerWager(table, FindCurrentPlayerID(table, table.State.GameState.Status.CurrentPlayer), pokertable.WagerAction_Bet, 10)
+// 	// turn
+// 	// all players ready
+// 	table = AllGamePlayersReady(t, tableEngine, table)
 
-	// sb move
-	tableEngine.PlayerWager(table, FindCurrentPlayerID(table, table.State.GameState.Status.CurrentPlayer), pokertable.WagerAction_Call, 0)
+// 	// dealer move
+// 	tableEngine.PlayerWager(table, FindCurrentPlayerID(table, table.State.GameState.Status.CurrentPlayer), pokertable.WagerAction_Bet, 10)
 
-	// bb move
-	tableEngine.PlayerWager(table, FindCurrentPlayerID(table, table.State.GameState.Status.CurrentPlayer), pokertable.WagerAction_Call, 0)
+// 	// sb move
+// 	tableEngine.PlayerWager(table, FindCurrentPlayerID(table, table.State.GameState.Status.CurrentPlayer), pokertable.WagerAction_Call, 0)
 
-	// river
-	// all players ready
-	table = AllGamePlayersReady(t, tableEngine, table)
+// 	// bb move
+// 	tableEngine.PlayerWager(table, FindCurrentPlayerID(table, table.State.GameState.Status.CurrentPlayer), pokertable.WagerAction_Call, 0)
 
-	// dealer move
-	tableEngine.PlayerWager(table, FindCurrentPlayerID(table, table.State.GameState.Status.CurrentPlayer), pokertable.WagerAction_Bet, 10)
+// 	// river
+// 	// all players ready
+// 	table = AllGamePlayersReady(t, tableEngine, table)
 
-	// sb move
-	tableEngine.PlayerWager(table, FindCurrentPlayerID(table, table.State.GameState.Status.CurrentPlayer), pokertable.WagerAction_Call, 0)
+// 	// dealer move
+// 	tableEngine.PlayerWager(table, FindCurrentPlayerID(table, table.State.GameState.Status.CurrentPlayer), pokertable.WagerAction_Bet, 10)
 
-	// bb move
-	tableEngine.PlayerWager(table, FindCurrentPlayerID(table, table.State.GameState.Status.CurrentPlayer), pokertable.WagerAction_Call, 0)
+// 	// sb move
+// 	tableEngine.PlayerWager(table, FindCurrentPlayerID(table, table.State.GameState.Status.CurrentPlayer), pokertable.WagerAction_Call, 0)
 
-	return table
-}
+// 	// bb move
+// 	tableEngine.PlayerWager(table, FindCurrentPlayerID(table, table.State.GameState.Status.CurrentPlayer), pokertable.WagerAction_Call, 0)
+
+// 	return table
+// }

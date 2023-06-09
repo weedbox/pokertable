@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func (engine tableEngine) debugPrintTable(message string, table Table) {
+func (te tableEngine) debugPrintTable(message string, table Table) {
 	timeString := func(timestamp int64) string {
 		return time.Unix(timestamp, 0).Format("2006-01-02 15:04:0")
 	}
@@ -104,7 +104,7 @@ func (engine tableEngine) debugPrintTable(message string, table Table) {
 	fmt.Println()
 }
 
-func (engine tableEngine) debugPrintGameStateResult(table Table) {
+func (te tableEngine) debugPrintGameStateResult(table Table) {
 	playerIDMapper := func(table Table, gameStatePlayerIndex int) string {
 		for playingPlayerIndex, playerIndex := range table.State.PlayingPlayerIndexes {
 			if playingPlayerIndex == gameStatePlayerIndex {

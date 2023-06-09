@@ -15,6 +15,11 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (Table, error) {
 		return Table{}, ErrInvalidCreateTableSetting
 	}
 
+	table := Table{
+		ID:       uuid.New().String(),
+		UpdateAt: time.Now().Unix(),
+	}
+
 	meta := TableMeta{
 		ShortID:         tableSetting.ShortID,
 		Code:            tableSetting.Code,
@@ -22,6 +27,7 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (Table, error) {
 		InvitationCode:  tableSetting.InvitationCode,
 		CompetitionMeta: tableSetting.CompetitionMeta,
 	}
+	table.Meta = meta
 
 	finalBuyInLevelIdx := UnsetValue
 	if tableSetting.CompetitionMeta.Blind.FinalBuyInLevel != UnsetValue {
@@ -60,11 +66,12 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (Table, error) {
 		PlayingPlayerIndexes:   make([]int, 0),
 		Status:                 TableStateStatus_TableGameCreated,
 	}
+	table.State = &state
 
 	// handle auto join players
 	if len(tableSetting.JoinPlayers) > 0 {
 		// auto join players
-		state.PlayerStates = funk.Map(tableSetting.JoinPlayers, func(p JoinPlayer) *TablePlayerState {
+		table.State.PlayerStates = funk.Map(tableSetting.JoinPlayers, func(p JoinPlayer) *TablePlayerState {
 			return &TablePlayerState{
 				PlayerID:          p.PlayerID,
 				SeatIndex:         UnsetValue,
@@ -76,19 +83,17 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (Table, error) {
 		}).([]*TablePlayerState)
 
 		// update seats
-		for playerIdx := 0; playerIdx < len(state.PlayerStates); playerIdx++ {
+		for playerIdx := 0; playerIdx < len(table.State.PlayerStates); playerIdx++ {
 			seatIdx := RandomSeatIndex(state.PlayerSeatMap)
-			state.PlayerSeatMap[seatIdx] = playerIdx
-			state.PlayerStates[playerIdx].SeatIndex = seatIdx
+			table.State.PlayerSeatMap[seatIdx] = playerIdx
+			table.State.PlayerStates[playerIdx].SeatIndex = seatIdx
 		}
+
+		// emit event
+		te.onTableUpdated(&table)
 	}
 
-	return Table{
-		ID:       uuid.New().String(),
-		Meta:     meta,
-		State:    &state,
-		UpdateAt: time.Now().Unix(),
-	}, nil
+	return table, nil
 }
 
 func (te *tableEngine) CloseTable(table Table, status TableStateStatus) Table {
@@ -121,6 +126,12 @@ func (te *tableEngine) StartGame(table Table) (Table, error) {
 	}
 
 	return te.GameOpen(table)
+}
+
+func (te *tableEngine) NextRound(table Table) (Table, error) {
+	gameState, err := te.gameEngine.NextRound()
+	table.State.GameState = gameState
+	return table, err
 }
 
 // GameOpen 開始本手遊戲
@@ -241,6 +252,8 @@ func (te *tableEngine) TableSettlement(table Table) Table {
 	} else if te.isTableClose(table.EndGameAt(), table.AlivePlayers(), table.State.BlindState.IsFinalBuyInLevel()) {
 		table.State.Status = TableStateStatus_TableGameClosed
 	}
+
+	te.debugPrintGameStateResult(table) // TODO: test only, remove it later on
 
 	return table
 }

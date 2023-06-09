@@ -13,6 +13,9 @@ func TestBasicTableGame(t *testing.T) {
 	// create a table
 	gameEngine := pokertable.NewGameEngine()
 	tableEngine := pokertable.NewTableEngine(gameEngine, uint32(logrus.DebugLevel))
+	tableEngine.OnTableUpdated(func(model *pokertable.Table) {
+		logJSON(t, "OnTableUpdated", model.GetJSON)
+	})
 	tableSetting := NewDefaultTableSetting()
 	table, err := tableEngine.CreateTable(tableSetting)
 	assert.Nil(t, err)
@@ -34,13 +37,13 @@ func TestBasicTableGame(t *testing.T) {
 
 	// logJSON(t, fmt.Sprintf("game %d started:", table.State.GameCount), table.GetJSON)
 
-	// // game count 1: players playing
-	// table = AllPlayersPlaying(t, tableEngine, table)
+	// game count 1: players playing
+	table = AllPlayersPlaying(t, tableEngine, table)
 
-	// // start game (count = 2)
-	// table, err = tableEngine.GameOpen(table)
-	// assert.Nil(t, err)
+	// start game (count = 2)
+	table, err = tableEngine.GameOpen(table)
+	assert.Nil(t, err)
 
-	// // game count 2: players playing
-	// _ = AllPlayersPlaying(t, tableEngine, table)
+	// game count 2: players playing
+	_ = AllPlayersPlaying(t, tableEngine, table)
 }

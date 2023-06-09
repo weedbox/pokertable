@@ -15,9 +15,11 @@ var (
 
 type TableEngine interface {
 	// Table Actions
+	OnTableUpdated(fn func(*Table)) error                  // 桌次更新監聽器
 	CreateTable(tableSetting TableSetting) (Table, error)  // 建立桌
 	CloseTable(table Table, status TableStateStatus) Table // 關閉桌
 	StartGame(table Table) (Table, error)                  // 開打遊戲
+	NextRound(table Table) (Table, error)                  // 遊戲下一階段
 	TableSettlement(table Table) Table                     // 遊戲結算
 	GameOpen(table Table) (Table, error)                   // 開下一輪遊戲
 
@@ -57,7 +59,7 @@ type tableEngine struct {
 	onTableUpdated func(*Table)
 }
 
-func (te *tableEngine) OnTableStateUpdated(fn func(*Table)) error {
+func (te *tableEngine) OnTableUpdated(fn func(*Table)) error {
 	te.onTableUpdated = fn
 	return nil
 }

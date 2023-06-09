@@ -48,6 +48,7 @@ func NewDefaultTableSetting(joinPlayers ...pokertable.JoinPlayer) pokertable.Tab
 			TableMaxSeatCount:    9,
 			TableMinPlayingCount: 2,
 			MinChipsUnit:         10,
+			ActionTimeSecs:       10,
 		},
 		JoinPlayers: joinPlayers,
 	}

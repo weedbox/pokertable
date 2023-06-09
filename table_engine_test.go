@@ -4,12 +4,13 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestCreateTable(t *testing.T) {
-	gameEngine := NewGameEngine()
-	tableEngine := NewTableEngine(gameEngine)
+	tableEngine := NewTableEngine(uint32(logrus.DebugLevel))
+	tableEngine.OnTableUpdated(func(table *Table) {})
 	tableSettings := []TableSetting{
 		NewDefaultTableSetting(
 			JoinPlayer{PlayerID: "player 1", RedeemChips: 1000},
@@ -39,8 +40,8 @@ func TestCreateTable(t *testing.T) {
 }
 
 func TestCloseTable(t *testing.T) {
-	gameEngine := NewGameEngine()
-	tableEngine := NewTableEngine(gameEngine)
+	tableEngine := NewTableEngine(uint32(logrus.DebugLevel))
+	tableEngine.OnTableUpdated(func(table *Table) {})
 	expectedStatus := []TableStateStatus{
 		TableStateStatus_TableGameAutoEnded,
 		TableStateStatus_TableGameKilled,
@@ -48,16 +49,20 @@ func TestCloseTable(t *testing.T) {
 
 	for _, expectedStatus := range expectedStatus {
 		table, err := tableEngine.CreateTable(NewDefaultTableSetting())
-		table = tableEngine.CloseTable(table, expectedStatus)
-
 		assert.Nil(t, err)
-		assert.Equal(t, expectedStatus, table.State.Status)
+
+		err = tableEngine.CloseTable(table.ID, expectedStatus)
+		assert.Nil(t, err)
+
+		newTable, err := tableEngine.GetTable(table.ID)
+		assert.Nil(t, err)
+		assert.Equal(t, expectedStatus, newTable.State.Status)
 	}
 }
 
 func TestStartGame(t *testing.T) {
-	gameEngine := NewGameEngine()
-	tableEngine := NewTableEngine(gameEngine)
+	tableEngine := NewTableEngine(uint32(logrus.DebugLevel))
+	tableEngine.OnTableUpdated(func(table *Table) {})
 	tableSetting := NewDefaultTableSetting(
 		JoinPlayer{PlayerID: "Jeffrey", RedeemChips: 1000},
 		JoinPlayer{PlayerID: "Chuck", RedeemChips: 1000},
@@ -66,7 +71,7 @@ func TestStartGame(t *testing.T) {
 	table, err := tableEngine.CreateTable(tableSetting)
 	assert.Nil(t, err)
 
-	table, err = tableEngine.StartGame(table)
+	err = tableEngine.StartGame(table.ID)
 
 	assert.Nil(t, err)
 	assert.NotEqual(t, -1, table.State.StartGameAt)
@@ -80,8 +85,8 @@ func TestStartGame(t *testing.T) {
 }
 
 func TestPlayerJoin_BuyIn(t *testing.T) {
-	gameEngine := NewGameEngine()
-	tableEngine := NewTableEngine(gameEngine)
+	tableEngine := NewTableEngine(uint32(logrus.DebugLevel))
+	tableEngine.OnTableUpdated(func(table *Table) {})
 	tableSetting := NewDefaultTableSetting()
 	table, err := tableEngine.CreateTable(tableSetting)
 	assert.Nil(t, err)
@@ -93,7 +98,7 @@ func TestPlayerJoin_BuyIn(t *testing.T) {
 	}
 
 	for _, joinPlayer := range joinPlayers {
-		table, err = tableEngine.PlayerJoin(table, joinPlayer)
+		err = tableEngine.PlayerJoin(table.ID, joinPlayer)
 		assert.Nil(t, err)
 	}
 
@@ -108,8 +113,8 @@ func TestPlayerJoin_BuyIn(t *testing.T) {
 }
 
 func TestPlayerJoin_ReBuy(t *testing.T) {
-	gameEngine := NewGameEngine()
-	tableEngine := NewTableEngine(gameEngine)
+	tableEngine := NewTableEngine(uint32(logrus.DebugLevel))
+	tableEngine.OnTableUpdated(func(table *Table) {})
 	initialPlayers := []JoinPlayer{
 		{PlayerID: "Jeffrey", RedeemChips: 0},
 		{PlayerID: "Chuck", RedeemChips: 1000},
@@ -121,7 +126,7 @@ func TestPlayerJoin_ReBuy(t *testing.T) {
 
 	reBuyPlayer := initialPlayers[0]
 	reBuyPlayer.RedeemChips = 2000
-	table, err = tableEngine.PlayerJoin(table, reBuyPlayer)
+	err = tableEngine.PlayerJoin(table.ID, reBuyPlayer)
 	assert.Nil(t, err)
 
 	assert.Equal(t, len(initialPlayers), len(table.State.PlayerStates))
@@ -141,8 +146,8 @@ func TestPlayerJoin_ReBuy(t *testing.T) {
 }
 
 func TestPlayerRedeemChips(t *testing.T) {
-	gameEngine := NewGameEngine()
-	tableEngine := NewTableEngine(gameEngine)
+	tableEngine := NewTableEngine(uint32(logrus.DebugLevel))
+	tableEngine.OnTableUpdated(func(table *Table) {})
 	initialPlayers := []JoinPlayer{
 		{PlayerID: "Jeffrey", RedeemChips: 1000},
 		{PlayerID: "Chuck", RedeemChips: 1000},
@@ -155,7 +160,7 @@ func TestPlayerRedeemChips(t *testing.T) {
 	addonPlayer := initialPlayers[0]
 	addonPlayer.RedeemChips = 2000
 	expectedAddonPlayerBankroll := initialPlayers[0].RedeemChips + addonPlayer.RedeemChips
-	table, err = tableEngine.PlayerJoin(table, addonPlayer)
+	err = tableEngine.PlayerJoin(table.ID, addonPlayer)
 	assert.Nil(t, err)
 
 	assert.Equal(t, len(initialPlayers), len(table.State.PlayerStates))
@@ -175,8 +180,8 @@ func TestPlayerRedeemChips(t *testing.T) {
 }
 
 func TestPlayerLeave(t *testing.T) {
-	gameEngine := NewGameEngine()
-	tableEngine := NewTableEngine(gameEngine)
+	tableEngine := NewTableEngine(uint32(logrus.DebugLevel))
+	tableEngine.OnTableUpdated(func(table *Table) {})
 	initialPlayers := []JoinPlayer{
 		{PlayerID: "Jeffrey", RedeemChips: 1000},
 		{PlayerID: "Chuck", RedeemChips: 0},
@@ -189,7 +194,8 @@ func TestPlayerLeave(t *testing.T) {
 	leavePlayerIDs := []string{initialPlayers[1].PlayerID}
 	expectedPlayerCount := len(initialPlayers) - len(leavePlayerIDs)
 
-	table = tableEngine.PlayersLeave(table, leavePlayerIDs)
+	err = tableEngine.PlayersLeave(table.ID, leavePlayerIDs)
+	assert.Nil(t, err)
 
 	assert.Equal(t, expectedPlayerCount, len(table.State.PlayerStates))
 	seatTakenCount := 0
@@ -244,6 +250,7 @@ func NewDefaultTableSetting(joinPlayers ...JoinPlayer) TableSetting {
 			TableMaxSeatCount:    9,
 			TableMinPlayingCount: 2,
 			MinChipsUnit:         10,
+			ActionTimeSecs:       10,
 		},
 		JoinPlayers: joinPlayers,
 	}

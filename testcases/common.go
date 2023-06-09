@@ -3,8 +3,6 @@ package testcases
 import (
 	"testing"
 
-	"github.com/weedbox/pokerface"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/weedbox/pokertable"
 )
@@ -14,16 +12,7 @@ func logJSON(t *testing.T, msg string, jsonPrinter func() (*string, error)) {
 	t.Logf("\n===== [%s] =====\n%s\n", msg, *json)
 }
 
-// func FindCurrentPlayerID(table pokertable.Table, currPlayerIndex int) string {
-// 	for playingPlayerIndex, playerIndex := range table.State.PlayingPlayerIndexes {
-// 		if playingPlayerIndex == currPlayerIndex {
-// 			return table.State.PlayerStates[playerIndex].PlayerID
-// 		}
-// 	}
-// 	return ""
-// }
-
-func FindCurrentPlayerID(table pokertable.Table) string {
+func FindCurrentPlayerID(table *pokertable.Table) string {
 	currPlayerIndex := table.State.GameState.Status.CurrentPlayer
 	for playingPlayerIndex, playerIndex := range table.State.PlayingPlayerIndexes {
 		if playingPlayerIndex == currPlayerIndex {
@@ -33,129 +22,93 @@ func FindCurrentPlayerID(table pokertable.Table) string {
 	return ""
 }
 
-func AllGamePlayersReady(t *testing.T, tableEngine pokertable.TableEngine, table pokertable.Table) pokertable.Table {
-	ret := table
+func AllGamePlayersReady(t *testing.T, tableEngine pokertable.TableEngine, table *pokertable.Table) {
 	for _, playingPlayerIdx := range table.State.PlayingPlayerIndexes {
 		player := table.State.PlayerStates[playingPlayerIdx]
-		table, err := tableEngine.PlayerReady(table, player.PlayerID)
+		err := tableEngine.PlayerReady(table.ID, player.PlayerID)
 		assert.Nil(t, err)
-		ret = table
 	}
-	return ret
 }
 
-func NextRound(t *testing.T, tableEngine pokertable.TableEngine, table pokertable.Table) pokertable.Table {
-	if table.State.GameState.Status.CurrentEvent.Name == pokerface.GameEventSymbols[pokerface.GameEvent_RoundClosed] {
-		newTable, err := tableEngine.NextRound(table)
-		assert.Nil(t, err)
-		return newTable
-	}
-	return table
-}
-
-func TableSettlement(t *testing.T, tableEngine pokertable.TableEngine, table pokertable.Table) pokertable.Table {
-	if table.State.GameState.Status.CurrentEvent.Name == pokerface.GameEventSymbols[pokerface.GameEvent_GameClosed] {
-		newTable := tableEngine.TableSettlement(table)
-		return newTable
-	}
-	return table
-}
-
-func AllPlayersPlaying(t *testing.T, tableEngine pokertable.TableEngine, table pokertable.Table) pokertable.Table {
+func AllPlayersPlaying(t *testing.T, tableEngine pokertable.TableEngine, tableID string) {
 	// game started
 	// all players ready
-	newTable := AllGamePlayersReady(t, tableEngine, table)
-	table = newTable
+	table, _ := tableEngine.GetTable(tableID)
+	AllGamePlayersReady(t, tableEngine, table)
 	// logJSON(t, fmt.Sprintf("Game %d - all players ready", table.State.GameCount), table.GetJSON)
 
 	// preflop
 	// pay sb
-	newTable, err := tableEngine.PlayerPaySB(table, FindCurrentPlayerID(table))
+	err := tableEngine.PlayerPaySB(tableID, FindCurrentPlayerID(table))
 	assert.Nil(t, err)
-	table = newTable
 
 	// pay bb
-	newTable, err = tableEngine.PlayerPayBB(table, FindCurrentPlayerID(table))
+	err = tableEngine.PlayerPayBB(tableID, FindCurrentPlayerID(table))
 	assert.Nil(t, err)
-	table = newTable
 
 	// rest players ready
-	newTable = AllGamePlayersReady(t, tableEngine, table)
-	table = newTable
+	AllGamePlayersReady(t, tableEngine, table)
+	// logJSON(t, fmt.Sprintf("Game %d - preflop all players ready", table.State.GameCount), table.GetJSON)
 
 	// dealer move
-	newTable, err = tableEngine.PlayerCall(table, FindCurrentPlayerID(table))
+	err = tableEngine.PlayerCall(tableID, FindCurrentPlayerID(table))
 	assert.Nil(t, err)
-	table = newTable
 
 	// sb move
-	newTable, err = tableEngine.PlayerCall(table, FindCurrentPlayerID(table))
+	err = tableEngine.PlayerCall(tableID, FindCurrentPlayerID(table))
 	assert.Nil(t, err)
-	table = newTable
 
 	// bb move
-	newTable, err = tableEngine.PlayerCheck(table, FindCurrentPlayerID(table))
+	err = tableEngine.PlayerCheck(tableID, FindCurrentPlayerID(table))
 	assert.Nil(t, err)
-	table = newTable
 
-	// next round
-	newTable = NextRound(t, tableEngine, table)
-	table = newTable
+	// logJSON(t, fmt.Sprintf("Game %d - preflop all players done actions", table.State.GameCount), table.GetJSON)
 
 	// flop
 	// all players ready
-	table = AllGamePlayersReady(t, tableEngine, table)
+	AllGamePlayersReady(t, tableEngine, table)
 
 	// sb move
-	table, err = tableEngine.PlayerBet(table, FindCurrentPlayerID(table), 10)
+	err = tableEngine.PlayerBet(tableID, FindCurrentPlayerID(table), 10)
+	assert.Nil(t, err)
 
 	// bb move
-	table, err = tableEngine.PlayerCall(table, FindCurrentPlayerID(table))
+	err = tableEngine.PlayerCall(tableID, FindCurrentPlayerID(table))
+	assert.Nil(t, err)
 
 	// dealer move
-	table, err = tableEngine.PlayerCall(table, FindCurrentPlayerID(table))
-
-	// next round
-	newTable = NextRound(t, tableEngine, table)
-	table = newTable
+	err = tableEngine.PlayerCall(tableID, FindCurrentPlayerID(table))
+	assert.Nil(t, err)
 
 	// turn
 	// all players ready
-	table = AllGamePlayersReady(t, tableEngine, table)
+	AllGamePlayersReady(t, tableEngine, table)
 
 	// sb move
-	table, err = tableEngine.PlayerBet(table, FindCurrentPlayerID(table), 10)
+	err = tableEngine.PlayerBet(tableID, FindCurrentPlayerID(table), 10)
+	assert.Nil(t, err)
 
 	// bb move
-	table, err = tableEngine.PlayerCall(table, FindCurrentPlayerID(table))
+	err = tableEngine.PlayerCall(tableID, FindCurrentPlayerID(table))
+	assert.Nil(t, err)
 
 	// dealer move
-	table, err = tableEngine.PlayerCall(table, FindCurrentPlayerID(table))
-
-	// next round
-	newTable = NextRound(t, tableEngine, table)
-	table = newTable
+	err = tableEngine.PlayerCall(tableID, FindCurrentPlayerID(table))
+	assert.Nil(t, err)
 
 	// river
 	// all players ready
-	table = AllGamePlayersReady(t, tableEngine, table)
+	AllGamePlayersReady(t, tableEngine, table)
 
 	// sb move
-	table, err = tableEngine.PlayerBet(table, FindCurrentPlayerID(table), 10)
+	err = tableEngine.PlayerBet(tableID, FindCurrentPlayerID(table), 10)
+	assert.Nil(t, err)
 
 	// bb move
-	table, err = tableEngine.PlayerCall(table, FindCurrentPlayerID(table))
+	err = tableEngine.PlayerCall(tableID, FindCurrentPlayerID(table))
+	assert.Nil(t, err)
 
 	// dealer move
-	table, err = tableEngine.PlayerCall(table, FindCurrentPlayerID(table))
-
-	// next round
-	newTable = NextRound(t, tableEngine, table)
-	table = newTable
-
-	// settlement
-	newTable = TableSettlement(t, tableEngine, table)
-	table = newTable
-
-	return table
+	err = tableEngine.PlayerCall(tableID, FindCurrentPlayerID(table))
+	assert.Nil(t, err)
 }

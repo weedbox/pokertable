@@ -47,6 +47,7 @@ type CompetitionMeta struct {
 	TableMinPlayingCount int    `json:"table_min_playing_count"` // 每桌最小開打數
 	MinChipsUnit         int64  `json:"min_chips_unit"`          // 最小單位籌碼量
 	Blind                Blind  `json:"blind"`                   // 盲注資訊
+	ActionTimeSecs       int    `json:"action_time_secs"`        // 玩家動作思考時間 (秒數)
 }
 
 type Blind struct {
@@ -105,24 +106,303 @@ type TableBlindLevelState struct {
 }
 
 // Setters
-func (table *Table) Update() {
-	table.UpdateAt = time.Now().Unix()
+func (t *Table) RefreshUpdateAt() {
+	t.UpdateAt = time.Now().Unix()
 }
 
-func (table *Table) Reset() {
-	table.State.PlayingPlayerIndexes = []int{}
-	for i := 0; i < len(table.State.PlayerStates); i++ {
-		table.State.PlayerStates[i].Positions = make([]string, 0)
+func (t *Table) Reset() {
+	t.State.PlayingPlayerIndexes = []int{}
+	for i := 0; i < len(t.State.PlayerStates); i++ {
+		t.State.PlayerStates[i].Positions = make([]string, 0)
+	}
+}
+
+func (t *Table) ConfigureWithSetting(setting TableSetting) {
+	// configure meta
+	meta := TableMeta{
+		ShortID:         setting.ShortID,
+		Code:            setting.Code,
+		Name:            setting.Name,
+		InvitationCode:  setting.InvitationCode,
+		CompetitionMeta: setting.CompetitionMeta,
+	}
+	t.Meta = meta
+
+	// configure state
+	finalBuyInLevelIdx := UnsetValue
+	if setting.CompetitionMeta.Blind.FinalBuyInLevel != UnsetValue {
+		for idx, blindLevel := range setting.CompetitionMeta.Blind.Levels {
+			if blindLevel.Level == setting.CompetitionMeta.Blind.FinalBuyInLevel {
+				finalBuyInLevelIdx = idx
+				break
+			}
+		}
+	}
+
+	blindState := TableBlindState{
+		FinalBuyInLevelIndex: finalBuyInLevelIdx,
+		InitialLevel:         setting.CompetitionMeta.Blind.InitialLevel,
+		CurrentLevelIndex:    UnsetValue,
+		LevelStates: funk.Map(setting.CompetitionMeta.Blind.Levels, func(blindLevel BlindLevel) *TableBlindLevelState {
+			return &TableBlindLevelState{
+				Level:        blindLevel.Level,
+				SBChips:      blindLevel.SBChips,
+				BBChips:      blindLevel.BBChips,
+				AnteChips:    blindLevel.AnteChips,
+				DurationMins: blindLevel.DurationMins,
+				LevelEndAt:   UnsetValue,
+			}
+		}).([]*TableBlindLevelState),
+	}
+	state := TableState{
+		GameCount:              0,
+		StartGameAt:            UnsetValue,
+		BlindState:             &blindState,
+		CurrentDealerSeatIndex: UnsetValue,
+		CurrentBBSeatIndex:     UnsetValue,
+		PlayerSeatMap:          NewDefaultSeatMap(setting.CompetitionMeta.TableMaxSeatCount),
+		PlayerStates:           make([]*TablePlayerState, 0),
+		PlayingPlayerIndexes:   make([]int, 0),
+		Status:                 TableStateStatus_TableGameCreated,
+	}
+	t.State = &state
+
+	// handle auto join players
+	if len(setting.JoinPlayers) > 0 {
+		// auto join players
+		t.State.PlayerStates = funk.Map(setting.JoinPlayers, func(p JoinPlayer) *TablePlayerState {
+			return &TablePlayerState{
+				PlayerID:          p.PlayerID,
+				SeatIndex:         UnsetValue,
+				Positions:         []string{Position_Unknown},
+				IsParticipated:    true,
+				IsBetweenDealerBB: false,
+				Bankroll:          p.RedeemChips,
+			}
+		}).([]*TablePlayerState)
+
+		// update seats
+		for playerIdx := 0; playerIdx < len(t.State.PlayerStates); playerIdx++ {
+			seatIdx := RandomSeatIndex(state.PlayerSeatMap)
+			t.State.PlayerSeatMap[seatIdx] = playerIdx
+			t.State.PlayerStates[playerIdx].SeatIndex = seatIdx
+		}
+	}
+}
+
+func (t *Table) ActivateBlindState() {
+	for idx, levelState := range t.State.BlindState.LevelStates {
+		if levelState.Level == t.State.BlindState.InitialLevel {
+			t.State.BlindState.CurrentLevelIndex = idx
+			break
+		}
+	}
+	blindStartAt := t.State.StartGameAt
+	for i := (t.State.BlindState.InitialLevel - 1); i < len(t.State.BlindState.LevelStates); i++ {
+		if i == t.State.BlindState.InitialLevel-1 {
+			t.State.BlindState.LevelStates[i].LevelEndAt = blindStartAt
+		} else {
+			t.State.BlindState.LevelStates[i].LevelEndAt = t.State.BlindState.LevelStates[i-1].LevelEndAt
+		}
+		blindPassedSeconds := int64((time.Duration(t.State.BlindState.LevelStates[i].DurationMins) * time.Minute).Seconds())
+		t.State.BlindState.LevelStates[i].LevelEndAt += blindPassedSeconds
+	}
+}
+
+func (t *Table) GameOpen(gameEngine *GameEngine) error {
+	// Step 1: 重設桌次狀態
+	t.Reset()
+
+	// Step 2: 檢查參賽資格
+	for i := 0; i < len(t.State.PlayerStates); i++ {
+		// 先讓沒有坐在 大盲、Dealer 之間的玩家參賽
+		if t.State.PlayerStates[i].IsParticipated || t.State.PlayerStates[i].IsBetweenDealerBB {
+			continue
+		}
+
+		// 檢查後手 (有錢的玩家可參賽)
+		t.State.PlayerStates[i].IsParticipated = t.State.PlayerStates[i].Bankroll > 0
+	}
+
+	// Step 3: 處理可參賽玩家剩餘一人時，桌上有其他玩家情形
+	if len(t.ParticipatedPlayers()) < 2 {
+		for i := 0; i < len(t.State.PlayerStates); i++ {
+			if t.State.PlayerStates[i].Bankroll == 0 {
+				continue
+			}
+
+			t.State.PlayerStates[i].IsParticipated = true
+			t.State.PlayerStates[i].IsBetweenDealerBB = false
+		}
+	}
+
+	// Step 4: 計算新 Dealer SeatIndex & PlayerIndex
+	newDealerPlayerIdx := FindDealerPlayerIndex(t.State.GameCount, t.State.CurrentDealerSeatIndex, t.Meta.CompetitionMeta.TableMinPlayingCount, t.Meta.CompetitionMeta.TableMaxSeatCount, t.State.PlayerStates, t.State.PlayerSeatMap)
+	newDealerTableSeatIdx := t.State.PlayerStates[newDealerPlayerIdx].SeatIndex
+
+	// Step 5: 處理玩家參賽狀態，確認玩家在 BB-Dealer 的參賽權
+	for i := 0; i < len(t.State.PlayerStates); i++ {
+		if !t.State.PlayerStates[i].IsBetweenDealerBB {
+			continue
+		}
+
+		if newDealerTableSeatIdx-t.State.CurrentDealerSeatIndex < 0 {
+			for j := t.State.CurrentDealerSeatIndex + 1; j < newDealerTableSeatIdx+t.Meta.CompetitionMeta.TableMaxSeatCount; j++ {
+				if (j % t.Meta.CompetitionMeta.TableMaxSeatCount) != t.State.PlayerStates[i].SeatIndex {
+					continue
+				}
+
+				t.State.PlayerStates[i].IsParticipated = true
+				t.State.PlayerStates[i].IsBetweenDealerBB = false
+			}
+		} else {
+			for j := t.State.CurrentDealerSeatIndex + 1; j < newDealerTableSeatIdx; j++ {
+				if j != t.State.PlayerStates[i].SeatIndex {
+					continue
+				}
+
+				t.State.PlayerStates[i].IsParticipated = true
+				t.State.PlayerStates[i].IsBetweenDealerBB = false
+			}
+		}
+	}
+
+	// Step 6: 計算 & 更新本手參與玩家的 PlayerIndex 陣列
+	playingPlayerIndexes := FindPlayingPlayerIndexes(newDealerTableSeatIdx, t.State.PlayerSeatMap, t.State.PlayerStates)
+	t.State.PlayingPlayerIndexes = playingPlayerIndexes
+
+	// Step 7: 計算 & 更新本手參與玩家位置資訊
+	positionMap := GetPlayerPositionMap(t.Meta.CompetitionMeta.Rule, t.State.PlayerStates, playingPlayerIndexes)
+	for playerIdx := 0; playerIdx < len(t.State.PlayerStates); playerIdx++ {
+		positions, exist := positionMap[playerIdx]
+		if exist && t.State.PlayerStates[playerIdx].IsParticipated {
+			t.State.PlayerStates[playerIdx].Positions = positions
+		}
+	}
+
+	// Step 8: 更新桌次狀態 (GameCount, 當前 Dealer & BB 位置)
+	t.State.GameCount = t.State.GameCount + 1
+	t.State.CurrentDealerSeatIndex = newDealerTableSeatIdx
+	if len(playingPlayerIndexes) == 2 {
+		bbPlayerIdx := playingPlayerIndexes[1]
+		t.State.CurrentBBSeatIndex = t.State.PlayerStates[bbPlayerIdx].SeatIndex
+	} else if len(playingPlayerIndexes) > 2 {
+		bbPlayerIdx := playingPlayerIndexes[2]
+		t.State.CurrentBBSeatIndex = t.State.PlayerStates[bbPlayerIdx].SeatIndex
+	} else {
+		t.State.CurrentBBSeatIndex = UnsetValue
+	}
+
+	// Step 9: 更新當前桌次事件
+	t.State.Status = TableStateStatus_TableGameMatchOpen
+
+	// Step 10: 啟動本手遊戲引擎 & 更新遊戲狀態
+	blind := *t.State.BlindState.LevelStates[t.State.BlindState.CurrentLevelIndex]
+	dealerBlindTimes := t.Meta.CompetitionMeta.Blind.DealerBlindTimes
+	gameEngineSetting := NewGameEngineSetting(t.Meta.CompetitionMeta.Rule, blind, dealerBlindTimes, t.State.PlayerStates, t.State.PlayingPlayerIndexes)
+	if err := gameEngine.Start(gameEngineSetting); err != nil {
+		return err
+	}
+
+	t.debugPrintTable(fmt.Sprintf("第 (%d) 手開局資訊", t.State.GameCount)) // TODO: test only, remove it later on
+	return nil
+}
+
+func (t *Table) Settlement() {
+	// Step 1: 把玩家輸贏籌碼更新到 Bankroll
+	for _, player := range t.State.GameState.Result.Players {
+		playerIdx := t.State.PlayingPlayerIndexes[player.Idx]
+		t.State.PlayerStates[playerIdx].Bankroll = player.Final
+	}
+
+	// Step 2: 更新盲注 Level
+	t.State.BlindState.Update()
+
+	// Step 3: 依照桌次目前狀況更新事件
+	if !t.State.BlindState.IsFinalBuyInLevel() && len(t.AlivePlayers()) < 2 {
+		t.State.Status = TableStateStatus_TableGamePaused
+	} else if t.State.BlindState.IsBreaking() {
+		t.State.Status = TableStateStatus_TableGamePaused
+	} else if t.IsClose(t.EndGameAt(), t.AlivePlayers(), t.State.BlindState.IsFinalBuyInLevel()) {
+		t.State.Status = TableStateStatus_TableGameClosed
+	}
+
+	t.debugPrintGameStateResult() // TODO: test only, remove it later on
+}
+
+func (t *Table) PlayerJoin(playerID string, redeemChips int64) error {
+	// find player index in PlayerStates
+	targetPlayerIdx := t.findPlayerIdx(playerID)
+
+	if targetPlayerIdx == UnsetValue {
+		if len(t.State.PlayerStates) == t.Meta.CompetitionMeta.TableMaxSeatCount {
+			return ErrNoEmptySeats
+		}
+
+		// BuyIn
+		player := TablePlayerState{
+			PlayerID:          playerID,
+			SeatIndex:         UnsetValue,
+			Positions:         []string{Position_Unknown},
+			IsParticipated:    true,
+			IsBetweenDealerBB: false,
+			Bankroll:          redeemChips,
+		}
+		t.State.PlayerStates = append(t.State.PlayerStates, &player)
+
+		// update seat
+		newPlayerIdx := len(t.State.PlayerStates) - 1
+		seatIdx := RandomSeatIndex(t.State.PlayerSeatMap)
+		t.State.PlayerSeatMap[seatIdx] = newPlayerIdx
+		t.State.PlayerStates[newPlayerIdx].SeatIndex = seatIdx
+		t.State.PlayerStates[newPlayerIdx].IsBetweenDealerBB = IsBetweenDealerBB(seatIdx, t.State.CurrentDealerSeatIndex, t.State.CurrentBBSeatIndex, t.Meta.CompetitionMeta.TableMaxSeatCount, t.Meta.CompetitionMeta.Rule)
+	} else {
+		// ReBuy
+		// 補碼要檢查玩家是否介於 Dealer-BB 之間
+		t.State.PlayerStates[targetPlayerIdx].IsBetweenDealerBB = IsBetweenDealerBB(t.State.PlayerStates[targetPlayerIdx].SeatIndex, t.State.CurrentDealerSeatIndex, t.State.CurrentBBSeatIndex, t.Meta.CompetitionMeta.TableMaxSeatCount, t.Meta.CompetitionMeta.Rule)
+		t.State.PlayerStates[targetPlayerIdx].Bankroll += redeemChips
+		t.State.PlayerStates[targetPlayerIdx].IsParticipated = true
+	}
+
+	return nil
+}
+
+func (t *Table) PlayerRedeemChips(playerIdx int, redeemChips int64) {
+	// 如果是 Bankroll 為 0 的情況，增購要檢查玩家是否介於 Dealer-BB 之間
+	if t.State.PlayerStates[playerIdx].Bankroll == 0 {
+		t.State.PlayerStates[playerIdx].IsBetweenDealerBB = IsBetweenDealerBB(t.State.PlayerStates[playerIdx].SeatIndex, t.State.CurrentDealerSeatIndex, t.State.CurrentBBSeatIndex, t.Meta.CompetitionMeta.TableMaxSeatCount, t.Meta.CompetitionMeta.Rule)
+	}
+	t.State.PlayerStates[playerIdx].Bankroll += redeemChips
+}
+
+func (t *Table) PlayersLeave(leavePlayerIndexes []int) {
+	// set leave PlayerIdx int seatMap to UnsetValue
+	leavePlayerIDMap := make(map[string]interface{})
+	for _, leavePlayerIdx := range leavePlayerIndexes {
+		leavePlayer := t.State.PlayerStates[leavePlayerIdx]
+		leavePlayerIDMap[leavePlayer.PlayerID] = struct{}{}
+		t.State.PlayerSeatMap[leavePlayer.SeatIndex] = UnsetValue
+	}
+
+	// delete target players in PlayerStates
+	t.State.PlayerStates = funk.Filter(t.State.PlayerStates, func(player *TablePlayerState) bool {
+		_, exist := leavePlayerIDMap[player.PlayerID]
+		return !exist
+	}).([]*TablePlayerState)
+
+	// update current PlayerSeatMap player indexes in PlayerSeatMap
+	for newPlayerIdx, player := range t.State.PlayerStates {
+		t.State.PlayerSeatMap[player.SeatIndex] = newPlayerIdx
 	}
 }
 
 // Table Getters
-func (table Table) ModeRule() string {
-	return fmt.Sprintf("%s_%s_holdem", table.Meta.CompetitionMeta.Mode, table.Meta.CompetitionMeta.Rule)
+func (t Table) ModeRule() string {
+	return fmt.Sprintf("%s_%s_holdem", t.Meta.CompetitionMeta.Mode, t.Meta.CompetitionMeta.Rule)
 }
 
-func (table Table) GetJSON() (*string, error) {
-	encoded, err := json.Marshal(table)
+func (t Table) GetJSON() (*string, error) {
+	encoded, err := json.Marshal(t)
 	if err != nil {
 		return nil, err
 	}
@@ -130,8 +410,8 @@ func (table Table) GetJSON() (*string, error) {
 	return &json, nil
 }
 
-func (table Table) ParticipatedPlayers() []*TablePlayerState {
-	return funk.Filter(table.State.PlayerStates, func(player *TablePlayerState) bool {
+func (t Table) ParticipatedPlayers() []*TablePlayerState {
+	return funk.Filter(t.State.PlayerStates, func(player *TablePlayerState) bool {
 		return player.IsParticipated
 	}).([]*TablePlayerState)
 }
@@ -144,6 +424,39 @@ func (t Table) AlivePlayers() []*TablePlayerState {
 	return funk.Filter(t.State.PlayerStates, func(player *TablePlayerState) bool {
 		return player.Bankroll > 0
 	}).([]*TablePlayerState)
+}
+
+func (t Table) PlayingPlayerIndex(playerID string) int {
+	playerIdx := UnsetValue
+	for idx, player := range t.State.PlayerStates {
+		if player.PlayerID == playerID {
+			playerIdx = idx
+			break
+		}
+	}
+
+	if playerIdx == UnsetValue || !funk.Contains(t.State.PlayingPlayerIndexes, playerIdx) {
+		return UnsetValue
+	}
+	return playerIdx
+}
+
+/*
+	isTableClose 計算本桌是否已結束
+	  - 結束條件 1: 達到賽局結束時間
+	  - 結束條件 2: 停止買入後且存活玩家剩餘 1 人
+*/
+func (t Table) IsClose(endGameAt int64, alivePlayers []*TablePlayerState, isFinalBuyInLevel bool) bool {
+	return time.Now().Unix() > endGameAt || (isFinalBuyInLevel && len(alivePlayers) == 1)
+}
+
+func (t Table) findPlayerIdx(playerID string) int {
+	for idx, player := range t.State.PlayerStates {
+		if player.PlayerID == playerID {
+			return idx
+		}
+	}
+	return UnsetValue
 }
 
 // TableBlindState Setters

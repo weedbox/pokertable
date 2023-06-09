@@ -4,42 +4,19 @@ import (
 	"github.com/weedbox/pokerface"
 )
 
-type GameEngine interface {
-	// Getters
-	GameState() pokerface.GameState
-
-	// Core Actions
-	Start(setting GameEngineSetting) (pokerface.GameState, error)
-	NextRound() (pokerface.GameState, error)
-
-	// Player Actions
-	PlayerReady(playerIdx int) (pokerface.GameState, error)
-	AllPlayersReady() (pokerface.GameState, error)
-	PayAnte() (pokerface.GameState, error)
-	PaySB() (pokerface.GameState, error)
-	PayBB() (pokerface.GameState, error)
-	Pay(chips int64) (pokerface.GameState, error)
-	Bet(chips int64) (pokerface.GameState, error)
-	Raise(chipLevel int64) (pokerface.GameState, error)
-	Call() (pokerface.GameState, error)
-	Allin() (pokerface.GameState, error)
-	Check() (pokerface.GameState, error)
-	Fold() (pokerface.GameState, error)
-}
-
-type gameEngine struct {
+type GameEngine struct {
 	game pokerface.Game
 }
 
-func NewGameEngine() GameEngine {
-	return &gameEngine{}
+func NewGameEngine() *GameEngine {
+	return &GameEngine{}
 }
 
-func (engine *gameEngine) GameState() pokerface.GameState {
-	return *engine.game.GetState()
+func (ge *GameEngine) GameState() pokerface.GameState {
+	return *ge.game.GetState()
 }
 
-func (engine *gameEngine) Start(setting GameEngineSetting) (pokerface.GameState, error) {
+func (ge *GameEngine) Start(setting GameEngineSetting) error {
 	// creating pokerface game
 	pf := pokerface.NewPokerFace()
 	opts := pokerface.NewStardardGameOptions()
@@ -61,84 +38,66 @@ func (engine *gameEngine) Start(setting GameEngineSetting) (pokerface.GameState,
 	opts.Players = setting.Players
 
 	// set to engine
-	engine.game = pf.NewGame(opts)
+	ge.game = pf.NewGame(opts)
 
 	// start game
-	err := engine.game.Start()
+	err := ge.game.Start()
 
-	return engine.GameState(), err
+	return err
 }
 
-func (engine *gameEngine) NextRound() (pokerface.GameState, error) {
-	err := engine.game.Next()
-	return engine.GameState(), err
+func (ge *GameEngine) NextRound() error {
+	return ge.game.Next()
 }
 
-func (engine *gameEngine) AllPlayersReady() (pokerface.GameState, error) {
-	err := engine.game.ReadyForAll()
-	return engine.GameState(), err
+func (ge *GameEngine) AllPlayersReady() error {
+	return ge.game.ReadyForAll()
 }
 
-func (engine *gameEngine) PlayerReady(playerIdx int) (pokerface.GameState, error) {
-	err := engine.game.Ready(playerIdx)
-	return engine.GameState(), err
+func (ge *GameEngine) PlayerReady(playerIdx int) error {
+	return ge.game.Ready(playerIdx)
 }
 
-func (engine *gameEngine) PayAnte() (pokerface.GameState, error) {
-	err := engine.game.PayAnte()
-	if err != nil {
-		return engine.GameState(), err
-	}
-	return engine.GameState(), nil
+func (ge *GameEngine) PayAnte() error {
+	return ge.game.PayAnte()
 }
 
-func (engine *gameEngine) PaySB() (pokerface.GameState, error) {
-	err := engine.game.Pay(engine.GameState().Meta.Blind.SB)
-	if err != nil {
-		return engine.GameState(), err
-	}
-	return engine.GameState(), nil
+func (ge *GameEngine) PaySB() error {
+	return ge.Pay(ge.GameState().Meta.Blind.SB)
 }
 
-func (engine *gameEngine) PayBB() (pokerface.GameState, error) {
-	err := engine.game.Pay(engine.GameState().Meta.Blind.BB)
-	if err != nil {
-		return engine.GameState(), err
-	}
-	return engine.GameState(), nil
+func (ge *GameEngine) PayBB() error {
+	return ge.Pay(ge.GameState().Meta.Blind.BB)
 }
 
-func (engine *gameEngine) Pay(chips int64) (pokerface.GameState, error) {
-	err := engine.game.Pay(chips)
-	return engine.GameState(), err
+func (ge *GameEngine) Pay(chips int64) error {
+	return ge.game.Pay(chips)
 }
 
-func (engine *gameEngine) Bet(chips int64) (pokerface.GameState, error) {
-	err := engine.game.Bet(chips)
-	return engine.GameState(), err
+func (ge *GameEngine) Bet(chips int64) error {
+	return ge.game.Bet(chips)
 }
 
-func (engine *gameEngine) Raise(chipLevel int64) (pokerface.GameState, error) {
-	err := engine.game.Raise(chipLevel)
-	return engine.GameState(), err
+func (ge *GameEngine) Raise(chipLevel int64) error {
+	return ge.game.Raise(chipLevel)
 }
 
-func (engine *gameEngine) Call() (pokerface.GameState, error) {
-	err := engine.game.Call()
-	return engine.GameState(), err
+func (ge *GameEngine) Call() error {
+	return ge.game.Call()
 }
 
-func (engine *gameEngine) Allin() (pokerface.GameState, error) {
-	err := engine.game.Allin()
-	return engine.GameState(), err
+func (ge *GameEngine) Allin() error {
+	return ge.game.Allin()
 }
 
-func (engine *gameEngine) Check() (pokerface.GameState, error) {
-	err := engine.game.Check()
-	return engine.GameState(), err
+func (ge *GameEngine) Check() error {
+	return ge.game.Check()
 }
 
-func (engine *gameEngine) Fold() (pokerface.GameState, error) {
-	err := engine.game.Fold()
-	return engine.GameState(), err
+func (ge *GameEngine) Fold() error {
+	return ge.game.Fold()
+}
+
+func (ge *GameEngine) GameEventName(event pokerface.GameEvent) string {
+	return pokerface.GameEventSymbols[event]
 }

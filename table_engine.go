@@ -26,8 +26,6 @@ type TableEngine interface {
 	CloseTable(tableID string, status TableStateStatus) error // 關閉桌
 	StartGame(tableID string) error                           // 開打遊戲
 	GameOpen(tableID string) error                            // 開下一輪遊戲
-	// NextRound(tableID string) error                           // 遊戲下一階段
-	// TableSettlement(tableID string) error                     // 遊戲結算
 
 	// Player Actions
 	// Player Table Actions

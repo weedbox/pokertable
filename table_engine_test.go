@@ -7,11 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func testLogPrinter(t *testing.T, msg string, jsonPrinter func() (*string, error)) {
-	json, _ := jsonPrinter()
-	t.Logf("\n===== [%s] =====\n%s\n", msg, *json)
-}
-
 func TestCreateTable(t *testing.T) {
 	gameEngine := NewGameEngine()
 	tableEngine := NewTableEngine(gameEngine)

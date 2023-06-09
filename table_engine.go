@@ -597,8 +597,10 @@ func (te *tableEngine) autoNextRound(table *Table) error {
 		if table.State.GameState.Status.CurrentEvent.Name == te.gameEngine.GameEventName(pokerface.GameEvent_GameClosed) {
 			table.Settlement()
 
-			// auto start next game
-			te.GameOpen(table.ID)
+			if table.State.Status == TableStateStatus_TableGameMatchOpen {
+				// auto start next game
+				te.GameOpen(table.ID)
+			}
 		}
 	}
 	te.logger.Debug("[tableEngine#autoNextRound] entering ", te.gameEngine.GameState().Status.Round)

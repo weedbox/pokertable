@@ -5,17 +5,20 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/weedbox/pokertable/model"
-	"github.com/weedbox/pokertable/util"
 )
+
+func testLogPrinter(t *testing.T, msg string, jsonPrinter func() (*string, error)) {
+	json, _ := jsonPrinter()
+	t.Logf("\n===== [%s] =====\n%s\n", msg, *json)
+}
 
 func TestCreateTable(t *testing.T) {
 	gameEngine := NewGameEngine()
 	tableEngine := NewTableEngine(gameEngine)
-	tableSettings := []model.TableSetting{
+	tableSettings := []TableSetting{
 		NewDefaultTableSetting(
-			model.JoinPlayer{PlayerID: "player 1", RedeemChips: 1000},
-			model.JoinPlayer{PlayerID: "player 2", RedeemChips: 1000},
+			JoinPlayer{PlayerID: "player 1", RedeemChips: 1000},
+			JoinPlayer{PlayerID: "player 2", RedeemChips: 1000},
 		),
 		NewDefaultTableSetting(),
 	}
@@ -27,7 +30,7 @@ func TestCreateTable(t *testing.T) {
 		assert.NotZero(t, table.ID)
 		assert.NotZero(t, table.Meta)
 		assert.NotZero(t, table.State)
-		assert.Equal(t, model.TableStateStatus_TableGameCreated, table.State.Status)
+		assert.Equal(t, TableStateStatus_TableGameCreated, table.State.Status)
 		assert.Equal(t, len(tableSetting.JoinPlayers), len(table.State.PlayerStates))
 		seatTakenCount := 0
 		for _, playerIdx := range table.State.PlayerSeatMap {
@@ -43,9 +46,9 @@ func TestCreateTable(t *testing.T) {
 func TestCloseTable(t *testing.T) {
 	gameEngine := NewGameEngine()
 	tableEngine := NewTableEngine(gameEngine)
-	expectedStatus := []model.TableStateStatus{
-		model.TableStateStatus_TableGameAutoEnded,
-		model.TableStateStatus_TableGameKilled,
+	expectedStatus := []TableStateStatus{
+		TableStateStatus_TableGameAutoEnded,
+		TableStateStatus_TableGameKilled,
 	}
 
 	for _, expectedStatus := range expectedStatus {
@@ -61,9 +64,9 @@ func TestStartGame(t *testing.T) {
 	gameEngine := NewGameEngine()
 	tableEngine := NewTableEngine(gameEngine)
 	tableSetting := NewDefaultTableSetting(
-		model.JoinPlayer{PlayerID: "Jeffrey", RedeemChips: 1000},
-		model.JoinPlayer{PlayerID: "Chuck", RedeemChips: 1000},
-		model.JoinPlayer{PlayerID: "Fred", RedeemChips: 1000},
+		JoinPlayer{PlayerID: "Jeffrey", RedeemChips: 1000},
+		JoinPlayer{PlayerID: "Chuck", RedeemChips: 1000},
+		JoinPlayer{PlayerID: "Fred", RedeemChips: 1000},
 	)
 	table, err := tableEngine.CreateTable(tableSetting)
 	assert.Nil(t, err)
@@ -76,7 +79,7 @@ func TestStartGame(t *testing.T) {
 	for _, blindLevel := range table.State.BlindState.LevelStates {
 		assert.NotEqual(t, -1, blindLevel.LevelEndAt)
 	}
-	assert.Equal(t, model.TableStateStatus_TableGameMatchOpen, table.State.Status)
+	assert.Equal(t, TableStateStatus_TableGameMatchOpen, table.State.Status)
 	assert.Greater(t, table.State.GameCount, 0)
 	assert.NotZero(t, table.State.GameState)
 }
@@ -88,7 +91,7 @@ func TestPlayerJoin_BuyIn(t *testing.T) {
 	table, err := tableEngine.CreateTable(tableSetting)
 	assert.Nil(t, err)
 
-	joinPlayers := []model.JoinPlayer{
+	joinPlayers := []JoinPlayer{
 		{PlayerID: "Jeffrey", RedeemChips: 1000},
 		{PlayerID: "Chuck", RedeemChips: 1000},
 		{PlayerID: "Fred", RedeemChips: 1000},
@@ -112,7 +115,7 @@ func TestPlayerJoin_BuyIn(t *testing.T) {
 func TestPlayerJoin_ReBuy(t *testing.T) {
 	gameEngine := NewGameEngine()
 	tableEngine := NewTableEngine(gameEngine)
-	initialPlayers := []model.JoinPlayer{
+	initialPlayers := []JoinPlayer{
 		{PlayerID: "Jeffrey", RedeemChips: 0},
 		{PlayerID: "Chuck", RedeemChips: 1000},
 		{PlayerID: "Fred", RedeemChips: 1000},
@@ -145,7 +148,7 @@ func TestPlayerJoin_ReBuy(t *testing.T) {
 func TestPlayerRedeemChips(t *testing.T) {
 	gameEngine := NewGameEngine()
 	tableEngine := NewTableEngine(gameEngine)
-	initialPlayers := []model.JoinPlayer{
+	initialPlayers := []JoinPlayer{
 		{PlayerID: "Jeffrey", RedeemChips: 1000},
 		{PlayerID: "Chuck", RedeemChips: 1000},
 		{PlayerID: "Fred", RedeemChips: 1000},
@@ -179,7 +182,7 @@ func TestPlayerRedeemChips(t *testing.T) {
 func TestPlayerLeave(t *testing.T) {
 	gameEngine := NewGameEngine()
 	tableEngine := NewTableEngine(gameEngine)
-	initialPlayers := []model.JoinPlayer{
+	initialPlayers := []JoinPlayer{
 		{PlayerID: "Jeffrey", RedeemChips: 1000},
 		{PlayerID: "Chuck", RedeemChips: 0},
 		{PlayerID: "Fred", RedeemChips: 1000},
@@ -203,19 +206,20 @@ func TestPlayerLeave(t *testing.T) {
 	assert.Equal(t, expectedPlayerCount, seatTakenCount)
 }
 
-func NewDefaultTableSetting(joinPlayers ...model.JoinPlayer) model.TableSetting {
-	return model.TableSetting{
+func NewDefaultTableSetting(joinPlayers ...JoinPlayer) TableSetting {
+	return TableSetting{
 		ShortID:        "ABC123",
 		Code:           "01",
 		Name:           "table name",
 		InvitationCode: "come_to_play",
-		CompetitionMeta: model.CompetitionMeta{
+		CompetitionMeta: CompetitionMeta{
 			ID: "competition id",
-			Blind: model.Blind{
+			Blind: Blind{
 				ID:              uuid.New().String(),
 				Name:            "blind name",
+				InitialLevel:    1,
 				FinalBuyInLevel: 2,
-				Levels: []model.BlindLevel{
+				Levels: []BlindLevel{
 					{
 						Level:        1,
 						SBChips:      10,
@@ -240,8 +244,8 @@ func NewDefaultTableSetting(joinPlayers ...model.JoinPlayer) model.TableSetting 
 				},
 			},
 			MaxDurationMins:      60,
-			Rule:                 util.CompetitionRule_Default,
-			Mode:                 util.CompetitionMode_MTT,
+			Rule:                 CompetitionRule_Default,
+			Mode:                 CompetitionMode_MTT,
 			TableMaxSeatCount:    9,
 			TableMinPlayingCount: 2,
 			MinChipsUnit:         10,

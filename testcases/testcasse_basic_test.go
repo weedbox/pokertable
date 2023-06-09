@@ -5,7 +5,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/weedbox/pokertable"
-	"github.com/weedbox/pokertable/model"
 )
 
 func TestBasicTableGame(t *testing.T) {
@@ -17,7 +16,7 @@ func TestBasicTableGame(t *testing.T) {
 	assert.Nil(t, err)
 
 	// buy in 3 players
-	players := []model.JoinPlayer{
+	players := []pokertable.JoinPlayer{
 		{PlayerID: "Jeffrey", RedeemChips: 150},
 		{PlayerID: "Chuck", RedeemChips: 150},
 		{PlayerID: "Fred", RedeemChips: 150},

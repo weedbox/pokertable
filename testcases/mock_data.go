@@ -2,24 +2,23 @@ package testcases
 
 import (
 	"github.com/google/uuid"
-	"github.com/weedbox/pokertable/model"
-	"github.com/weedbox/pokertable/util"
+	"github.com/weedbox/pokertable"
 )
 
-func NewDefaultTableSetting(joinPlayers ...model.JoinPlayer) model.TableSetting {
-	return model.TableSetting{
+func NewDefaultTableSetting(joinPlayers ...pokertable.JoinPlayer) pokertable.TableSetting {
+	return pokertable.TableSetting{
 		ShortID:        "ABC123",
 		Code:           "01",
 		Name:           "table name",
 		InvitationCode: "come_to_play",
-		CompetitionMeta: model.CompetitionMeta{
+		CompetitionMeta: pokertable.CompetitionMeta{
 			ID: "competition id",
-			Blind: model.Blind{
+			Blind: pokertable.Blind{
 				ID:              uuid.New().String(),
 				Name:            "blind name",
-				FinalBuyInLevel: 2,
 				InitialLevel:    1,
-				Levels: []model.BlindLevel{
+				FinalBuyInLevel: 2,
+				Levels: []pokertable.BlindLevel{
 					{
 						Level:        1,
 						SBChips:      10,
@@ -44,8 +43,8 @@ func NewDefaultTableSetting(joinPlayers ...model.JoinPlayer) model.TableSetting 
 				},
 			},
 			MaxDurationMins:      60,
-			Rule:                 util.CompetitionRule_Default,
-			Mode:                 util.CompetitionMode_MTT,
+			Rule:                 pokertable.CompetitionRule_Default,
+			Mode:                 pokertable.CompetitionMode_MTT,
 			TableMaxSeatCount:    9,
 			TableMinPlayingCount: 2,
 			MinChipsUnit:         10,

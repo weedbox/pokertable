@@ -4,13 +4,11 @@ import (
 	"fmt"
 
 	"github.com/weedbox/pokerface"
-	"github.com/weedbox/pokertable/model"
-	"github.com/weedbox/pokertable/util"
 )
 
 type GameEngine interface {
 	GameState() pokerface.GameState
-	Start(model.GameEngineSetting) (pokerface.GameState, error)
+	Start(GameEngineSetting) (pokerface.GameState, error)
 	PlayerReady(int) (pokerface.GameState, error)
 	AllPlayersReady() (pokerface.GameState, error)
 	PayAnte() (pokerface.GameState, error)
@@ -31,7 +29,7 @@ func (engine *gameEngine) GameState() pokerface.GameState {
 	return *engine.game.GetState()
 }
 
-func (engine *gameEngine) Start(setting model.GameEngineSetting) (pokerface.GameState, error) {
+func (engine *gameEngine) Start(setting GameEngineSetting) (pokerface.GameState, error) {
 	// creating pokerface game
 	pf := pokerface.NewPokerFace()
 	opts := pokerface.NewStardardGameOptions()
@@ -40,7 +38,7 @@ func (engine *gameEngine) Start(setting model.GameEngineSetting) (pokerface.Game
 	opts.Deck = pokerface.NewStandardDeckCards()
 
 	// TODO: implement Rule_Omaha
-	if setting.Rule == util.CompetitionRule_ShortDeck {
+	if setting.Rule == CompetitionRule_ShortDeck {
 		opts = pokerface.NewShortDeckGameOptions()
 		opts.Deck = pokerface.NewShortDeckCards()
 	}
@@ -106,17 +104,17 @@ func (engine *gameEngine) PaySB_BB() (pokerface.GameState, error) {
 func (engine *gameEngine) PlayerWager(action string, chips int64) (pokerface.GameState, error) {
 	var err error
 	switch action {
-	case util.WagerAction_Fold:
+	case WagerAction_Fold:
 		err = engine.game.Fold()
-	case util.WagerAction_Check:
+	case WagerAction_Check:
 		err = engine.game.Check()
-	case util.WagerAction_Call:
+	case WagerAction_Call:
 		err = engine.game.Call()
-	case util.WagerAction_AllIn:
+	case WagerAction_AllIn:
 		err = engine.game.Allin()
-	case util.WagerAction_Bet:
+	case WagerAction_Bet:
 		err = engine.game.Bet(chips)
-	case util.WagerAction_Raise:
+	case WagerAction_Raise:
 		err = engine.game.Raise(chips)
 	}
 	return engine.GameState(), err

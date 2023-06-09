@@ -1,4 +1,4 @@
-package model
+package pokertable
 
 import (
 	"github.com/weedbox/pokerface"

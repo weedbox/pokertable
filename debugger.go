@@ -4,11 +4,9 @@ import (
 	"fmt"
 	"strconv"
 	"time"
-
-	"github.com/weedbox/pokertable/model"
 )
 
-func (engine tableEngine) debugPrintTable(message string, table model.Table) {
+func (engine tableEngine) debugPrintTable(message string, table Table) {
 	timeString := func(timestamp int64) string {
 		return time.Unix(timestamp, 0).Format("2006-01-02 15:04:0")
 	}
@@ -106,8 +104,8 @@ func (engine tableEngine) debugPrintTable(message string, table model.Table) {
 	fmt.Println()
 }
 
-func (engine tableEngine) debugPrintGameStateResult(table model.Table) {
-	playerIDMapper := func(table model.Table, gameStatePlayerIndex int) string {
+func (engine tableEngine) debugPrintGameStateResult(table Table) {
+	playerIDMapper := func(table Table, gameStatePlayerIndex int) string {
 		for playingPlayerIndex, playerIndex := range table.State.PlayingPlayerIndexes {
 			if playingPlayerIndex == gameStatePlayerIndex {
 				return table.State.PlayerStates[playerIndex].PlayerID

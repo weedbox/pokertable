@@ -1,40 +1,31 @@
-package position
+package pokertable
 
 import (
 	"math/rand"
 	"time"
-
-	"github.com/weedbox/pokertable/model"
-	"github.com/weedbox/pokertable/util"
 )
 
-type Position struct{}
-
-func NewPosition() Position {
-	return Position{}
-}
-
-func (pos Position) NewDefaultSeatMap(seatCount int) []int {
+func NewDefaultSeatMap(seatCount int) []int {
 	seatMap := make([]int, seatCount)
 	for seatIdx := 0; seatIdx < seatCount; seatIdx++ {
-		seatMap[seatIdx] = util.UnsetValue
+		seatMap[seatIdx] = UnsetValue
 	}
 	return seatMap
 }
 
-func (pos Position) RandomSeatIndex(seatMap []int) int {
+func RandomSeatIndex(seatMap []int) int {
 	emptySeatIndexes := make([]int, 0)
 	for seatIdx, playerIdx := range seatMap {
-		if playerIdx == util.UnsetValue {
+		if playerIdx == UnsetValue {
 			emptySeatIndexes = append(emptySeatIndexes, seatIdx)
 		}
 	}
-	randomSeatIdx := emptySeatIndexes[pos.randomInt(0, len(emptySeatIndexes)-1)]
+	randomSeatIdx := emptySeatIndexes[randomInt(0, len(emptySeatIndexes)-1)]
 	return randomSeatIdx
 }
 
-func (pos Position) IsBetweenDealerBB(seatIdx, currDealerTableSeatIdx, currBBTableSeatIdx, maxPlayerCount int, rule string) bool {
-	if rule == util.CompetitionRule_ShortDeck {
+func IsBetweenDealerBB(seatIdx, currDealerTableSeatIdx, currBBTableSeatIdx, maxPlayerCount int, rule string) bool {
+	if rule == CompetitionRule_ShortDeck {
 		return false
 	}
 
@@ -53,8 +44,8 @@ func (pos Position) IsBetweenDealerBB(seatIdx, currDealerTableSeatIdx, currBBTab
 	FindDealerPlayerIndex 找到 Dealer 資訊
 	  - @return NewDealerPlayerIndex
 */
-func (pos Position) FindDealerPlayerIndex(gameCount, prevDealerSeatIdx, minPlayingCount, maxSeatCount int, players []*model.TablePlayerState, seatMap []int) int {
-	newDealerIdx := util.UnsetValue
+func FindDealerPlayerIndex(gameCount, prevDealerSeatIdx, minPlayingCount, maxSeatCount int, players []*TablePlayerState, seatMap []int) int {
+	newDealerIdx := UnsetValue
 	if gameCount == 0 {
 		// 第一次開局，隨機挑選一位玩家當 Dealer
 		newDealerIdx = rand.Intn(len(players))
@@ -64,7 +55,7 @@ func (pos Position) FindDealerPlayerIndex(gameCount, prevDealerSeatIdx, minPlayi
 			targetTableSeatIdx := i % maxSeatCount
 			targetPlayerIdx := seatMap[targetTableSeatIdx]
 
-			if targetPlayerIdx != util.UnsetValue && players[targetPlayerIdx].IsParticipated {
+			if targetPlayerIdx != UnsetValue && players[targetPlayerIdx].IsParticipated {
 				newDealerIdx = targetPlayerIdx
 				break
 			}
@@ -80,7 +71,7 @@ func (pos Position) FindDealerPlayerIndex(gameCount, prevDealerSeatIdx, minPlayi
 		- index 1: sb player index
 		- index 2 : bb player index
 */
-func (pos Position) FindPlayingPlayerIndexes(dealerSeatIdx int, seatMap []int, players []*model.TablePlayerState) []int {
+func FindPlayingPlayerIndexes(dealerSeatIdx int, seatMap []int, players []*TablePlayerState) []int {
 	dealerPlayerIndex := seatMap[dealerSeatIdx]
 
 	// 找出正在玩的玩家
@@ -91,10 +82,10 @@ func (pos Position) FindPlayingPlayerIndexes(dealerSeatIdx int, seatMap []int, p
 		seatMapDealerPlayerIdx Dealer Player Index 在 SeatMap 中的 有參加玩家的 Index
 		  - 當在 SeatMap 找有參加玩家時，如果 playerIndex == dealerPlayerIndex 則 seatMapDealerPlayerIdx 就是當前 totalPlayersCount
 	*/
-	seatMapDealerPlayerIdx := util.UnsetValue
+	seatMapDealerPlayerIdx := UnsetValue
 
 	for _, playerIndex := range seatMap {
-		if playerIndex == util.UnsetValue {
+		if playerIndex == UnsetValue {
 			continue
 		}
 		player := players[playerIndex]
@@ -109,96 +100,96 @@ func (pos Position) FindPlayingPlayerIndexes(dealerSeatIdx int, seatMap []int, p
 	}
 
 	// 調整玩家陣列 Index, 以 DealerIndex 當基準當作第一個元素做 Rotations
-	playingPlayerIndexes = pos.rotateIntArray(playingPlayerIndexes, seatMapDealerPlayerIdx)
+	playingPlayerIndexes = rotateIntArray(playingPlayerIndexes, seatMapDealerPlayerIdx)
 
 	return playingPlayerIndexes
 }
 
-func (pos Position) GetPlayerPositionMap(rule string, players []*model.TablePlayerState, playingPlayerIndexes []int) map[int][]string {
+func GetPlayerPositionMap(rule string, players []*TablePlayerState, playingPlayerIndexes []int) map[int][]string {
 	playerPositionMap := make(map[int][]string)
 	switch rule {
-	case util.CompetitionRule_Default, util.CompetitionRule_Omaha:
-		positions := pos.newPositions(len(playingPlayerIndexes))
+	case CompetitionRule_Default, CompetitionRule_Omaha:
+		positions := newPositions(len(playingPlayerIndexes))
 		for idx, playerIdx := range playingPlayerIndexes {
 			playerPositionMap[playerIdx] = positions[idx]
 		}
-	case util.CompetitionRule_ShortDeck:
+	case CompetitionRule_ShortDeck:
 		dealerPlayerIdx := playingPlayerIndexes[0]
-		playerPositionMap[dealerPlayerIdx] = []string{util.Position_Dealer}
+		playerPositionMap[dealerPlayerIdx] = []string{Position_Dealer}
 	}
 
 	return playerPositionMap
 }
 
-func (pos Position) newPositions(playerCount int) [][]string {
+func newPositions(playerCount int) [][]string {
 	switch playerCount {
 	case 9:
 		return [][]string{
-			[]string{util.Position_Dealer},
-			[]string{util.Position_SB},
-			[]string{util.Position_BB},
-			[]string{util.Position_UG},
-			[]string{util.Position_UG1},
-			[]string{util.Position_UG2},
-			[]string{util.Position_UG3},
-			[]string{util.Position_HJ},
-			[]string{util.Position_CO},
+			[]string{Position_Dealer},
+			[]string{Position_SB},
+			[]string{Position_BB},
+			[]string{Position_UG},
+			[]string{Position_UG1},
+			[]string{Position_UG2},
+			[]string{Position_UG3},
+			[]string{Position_HJ},
+			[]string{Position_CO},
 		}
 	case 8:
 		return [][]string{
-			[]string{util.Position_Dealer},
-			[]string{util.Position_SB},
-			[]string{util.Position_BB},
-			[]string{util.Position_UG},
-			[]string{util.Position_UG1},
-			[]string{util.Position_UG2},
-			[]string{util.Position_HJ},
-			[]string{util.Position_CO},
+			[]string{Position_Dealer},
+			[]string{Position_SB},
+			[]string{Position_BB},
+			[]string{Position_UG},
+			[]string{Position_UG1},
+			[]string{Position_UG2},
+			[]string{Position_HJ},
+			[]string{Position_CO},
 		}
 	case 7:
 		return [][]string{
-			[]string{util.Position_Dealer},
-			[]string{util.Position_SB},
-			[]string{util.Position_BB},
-			[]string{util.Position_UG},
-			[]string{util.Position_UG1},
-			[]string{util.Position_HJ},
-			[]string{util.Position_CO},
+			[]string{Position_Dealer},
+			[]string{Position_SB},
+			[]string{Position_BB},
+			[]string{Position_UG},
+			[]string{Position_UG1},
+			[]string{Position_HJ},
+			[]string{Position_CO},
 		}
 	case 6:
 		return [][]string{
-			[]string{util.Position_Dealer},
-			[]string{util.Position_SB},
-			[]string{util.Position_BB},
-			[]string{util.Position_UG},
-			[]string{util.Position_UG1},
-			[]string{util.Position_CO},
+			[]string{Position_Dealer},
+			[]string{Position_SB},
+			[]string{Position_BB},
+			[]string{Position_UG},
+			[]string{Position_UG1},
+			[]string{Position_CO},
 		}
 	case 5:
 		return [][]string{
-			[]string{util.Position_Dealer},
-			[]string{util.Position_SB},
-			[]string{util.Position_BB},
-			[]string{util.Position_UG},
-			[]string{util.Position_CO},
+			[]string{Position_Dealer},
+			[]string{Position_SB},
+			[]string{Position_BB},
+			[]string{Position_UG},
+			[]string{Position_CO},
 		}
 	case 4:
 		return [][]string{
-			[]string{util.Position_Dealer},
-			[]string{util.Position_SB},
-			[]string{util.Position_BB},
-			[]string{util.Position_UG},
+			[]string{Position_Dealer},
+			[]string{Position_SB},
+			[]string{Position_BB},
+			[]string{Position_UG},
 		}
 	case 3:
 		return [][]string{
-			[]string{util.Position_Dealer},
-			[]string{util.Position_SB},
-			[]string{util.Position_BB},
+			[]string{Position_Dealer},
+			[]string{Position_SB},
+			[]string{Position_BB},
 		}
 	case 2:
 		return [][]string{
-			[]string{util.Position_Dealer, util.Position_SB},
-			[]string{util.Position_BB},
+			[]string{Position_Dealer, Position_SB},
+			[]string{Position_BB},
 		}
 	default:
 		return make([][]string, 0)
@@ -214,14 +205,14 @@ func (pos Position) newPositions(playerCount int) [][]string {
 		- Given: []int{0, 1, 2, 3, 4}, startIndex = 2
 		- Output: []int{2, 3, 4, 0, 1}
 */
-func (pos Position) rotateIntArray(source []int, startIndex int) []int {
+func rotateIntArray(source []int, startIndex int) []int {
 	if startIndex > len(source) {
 		startIndex = startIndex % len(source)
 	}
 	return append(source[startIndex:], source[:startIndex]...)
 }
 
-func (pos Position) randomInt(min int, max int) int {
+func randomInt(min int, max int) int {
 	rand.Seed(time.Now().UnixNano())
 	return rand.Intn(max-min+1) + min
 }

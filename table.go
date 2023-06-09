@@ -1,11 +1,9 @@
-package model
+package pokertable
 
 import (
 	"encoding/json"
 	"fmt"
 	"time"
-
-	"github.com/weedbox/pokertable/util"
 
 	"github.com/thoas/go-funk"
 	"github.com/weedbox/pokerface"
@@ -166,7 +164,7 @@ func (bs *TableBlindState) Update() {
 
 // TableBlindState Getters
 func (bs TableBlindState) IsFinalBuyInLevel() bool {
-	if bs.FinalBuyInLevelIndex == util.UnsetValue {
+	if bs.FinalBuyInLevelIndex == UnsetValue {
 		return false
 	}
 

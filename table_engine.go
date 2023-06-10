@@ -36,7 +36,7 @@ type TableEngine interface {
 	// Player Game Actions
 	PlayerReady(tableID, playerID string) error                  // 玩家準備動作完成
 	PlayerPay(tableID, playerID string, chips int64) error       // 玩家付籌碼
-	PlayerPayAnte(tableID, playerID string) error                // 玩家付前注
+	PlayersPayAnte(tableID string) error                         // 玩家們付前注
 	PlayerPaySB(tableID, playerID string) error                  // 玩家付大盲
 	PlayerPayBB(tableID, playerID string) error                  // 玩家付小盲
 	PlayerBet(tableID, playerID string, chips int64) error       // 玩家下注
@@ -45,6 +45,7 @@ type TableEngine interface {
 	PlayerAllin(tableID, playerID string) error                  // 玩家全下
 	PlayerCheck(tableID, playerID string) error                  // 玩家過牌
 	PlayerFold(tableID, playerID string) error                   // 玩家棄牌
+	PlayerPass(tableID, playerID string) error                   // 玩家 Pass
 }
 
 func NewTableEngine() TableEngine {
@@ -269,7 +270,7 @@ func (te *tableEngine) PlayerPay(tableID, playerID string, chips int64) error {
 	}
 
 	// do action
-	if err := tableGame.Game.Pay(chips); err != nil {
+	if err := tableGame.Game.GetCurrentPlayer().Pay(chips); err != nil {
 		return err
 	}
 
@@ -277,15 +278,10 @@ func (te *tableEngine) PlayerPay(tableID, playerID string, chips int64) error {
 	return nil
 }
 
-func (te *tableEngine) PlayerPayAnte(tableID, playerID string) error {
+func (te *tableEngine) PlayersPayAnte(tableID string) error {
 	tableGame, exist := te.tableGameMap[tableID]
 	if !exist {
 		return ErrTableNotFound
-	}
-
-	// validate player action
-	if err := te.validatePlayerMove(tableGame, playerID); err != nil {
-		return err
 	}
 
 	// do action
@@ -310,7 +306,7 @@ func (te *tableEngine) PlayerPaySB(tableID, playerID string) error {
 	}
 
 	// do action
-	if err := tableGame.Game.Pay(tableGame.Game.GetState().Meta.Blind.SB); err != nil {
+	if err := tableGame.Game.GetCurrentPlayer().Pay(tableGame.Game.GetState().Meta.Blind.SB); err != nil {
 		return err
 	}
 
@@ -330,7 +326,7 @@ func (te *tableEngine) PlayerPayBB(tableID, playerID string) error {
 	}
 
 	// do action
-	if err := tableGame.Game.Pay(tableGame.Game.GetState().Meta.Blind.BB); err != nil {
+	if err := tableGame.Game.GetCurrentPlayer().Pay(tableGame.Game.GetState().Meta.Blind.BB); err != nil {
 		return err
 	}
 
@@ -350,7 +346,7 @@ func (te *tableEngine) PlayerBet(tableID, playerID string, chips int64) error {
 	}
 
 	// do action
-	if err := tableGame.Game.Bet(chips); err != nil {
+	if err := tableGame.Game.GetCurrentPlayer().Bet(chips); err != nil {
 		return err
 	}
 
@@ -370,7 +366,7 @@ func (te *tableEngine) PlayerRaise(tableID, playerID string, chipLevel int64) er
 	}
 
 	// do action
-	if err := tableGame.Game.Raise(chipLevel); err != nil {
+	if err := tableGame.Game.GetCurrentPlayer().Raise(chipLevel); err != nil {
 		return err
 	}
 
@@ -390,7 +386,7 @@ func (te *tableEngine) PlayerCall(tableID, playerID string) error {
 	}
 
 	// do action
-	if err := tableGame.Game.Call(); err != nil {
+	if err := tableGame.Game.GetCurrentPlayer().Call(); err != nil {
 		return err
 	}
 
@@ -414,7 +410,7 @@ func (te *tableEngine) PlayerAllin(tableID, playerID string) error {
 	}
 
 	// do action
-	if err := tableGame.Game.Allin(); err != nil {
+	if err := tableGame.Game.GetCurrentPlayer().Allin(); err != nil {
 		return err
 	}
 
@@ -438,7 +434,7 @@ func (te *tableEngine) PlayerCheck(tableID, playerID string) error {
 	}
 
 	// do action
-	if err := tableGame.Game.Check(); err != nil {
+	if err := tableGame.Game.GetCurrentPlayer().Check(); err != nil {
 		return err
 	}
 
@@ -462,7 +458,31 @@ func (te *tableEngine) PlayerFold(tableID, playerID string) error {
 	}
 
 	// do action
-	if err := tableGame.Game.Fold(); err != nil {
+	if err := tableGame.Game.GetCurrentPlayer().Fold(); err != nil {
+		return err
+	}
+
+	if err := te.autoNextRound(tableGame); err != nil {
+		return err
+	}
+
+	te.EmitEvent(tableGame.Table)
+	return nil
+}
+
+func (te *tableEngine) PlayerPass(tableID, playerID string) error {
+	tableGame, exist := te.tableGameMap[tableID]
+	if !exist {
+		return ErrTableNotFound
+	}
+
+	// validate player action
+	if err := te.validatePlayerMove(tableGame, playerID); err != nil {
+		return err
+	}
+
+	// do action
+	if err := tableGame.Game.GetCurrentPlayer().Pass(); err != nil {
 		return err
 	}
 

@@ -14,10 +14,11 @@ func NewDefaultTableSetting(joinPlayers ...pokertable.JoinPlayer) pokertable.Tab
 		CompetitionMeta: pokertable.CompetitionMeta{
 			ID: "competition id",
 			Blind: pokertable.Blind{
-				ID:              uuid.New().String(),
-				Name:            "blind name",
-				InitialLevel:    1,
-				FinalBuyInLevel: 2,
+				ID:               uuid.New().String(),
+				Name:             "blind name",
+				InitialLevel:     1,
+				FinalBuyInLevel:  2,
+				DealerBlindTimes: 1,
 				Levels: []pokertable.BlindLevel{
 					{
 						Level:        1,
@@ -44,7 +45,7 @@ func NewDefaultTableSetting(joinPlayers ...pokertable.JoinPlayer) pokertable.Tab
 			},
 			MaxDurationMins:      60,
 			Rule:                 pokertable.CompetitionRule_Default,
-			Mode:                 pokertable.CompetitionMode_MTT,
+			Mode:                 pokertable.CompetitionMode_CT,
 			TableMaxSeatCount:    9,
 			TableMinPlayingCount: 2,
 			MinChipsUnit:         10,

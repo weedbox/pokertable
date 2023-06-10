@@ -22,9 +22,14 @@ func NewGame(table *Table) pokerface.Game {
 	}
 
 	// preparing blind
+	dealer := int64(0)
+	if dealerBlindTimes > 0 {
+		dealer = blind.AnteChips * (int64(dealerBlindTimes) - 1)
+	}
+
 	opts.Ante = blind.AnteChips
 	opts.Blind = pokerface.BlindSetting{
-		Dealer: blind.AnteChips * (int64(dealerBlindTimes) - 1),
+		Dealer: dealer,
 		SB:     blind.SBChips,
 		BB:     blind.BBChips,
 	}

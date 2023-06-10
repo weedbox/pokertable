@@ -435,10 +435,16 @@ func (t Table) PlayingPlayerIndex(playerID string) int {
 		}
 	}
 
-	if playerIdx == UnsetValue || !funk.Contains(t.State.PlayingPlayerIndexes, playerIdx) {
+	if playerIdx == UnsetValue {
 		return UnsetValue
 	}
-	return playerIdx
+
+	for gamePlayerIdx, playingPlayerIndex := range t.State.PlayingPlayerIndexes {
+		if playerIdx == playingPlayerIndex {
+			return gamePlayerIdx
+		}
+	}
+	return UnsetValue
 }
 
 /*

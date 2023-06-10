@@ -510,20 +510,44 @@ func (te *tableEngine) findPlayerIdx(players []*TablePlayerState, targetPlayerID
 }
 
 func (te *tableEngine) autoNextRound(tableGame *TableGame) error {
-	if tableGame.Table.State.GameState.Status.CurrentEvent.Name == GameEventName(pokerface.GameEvent_RoundClosed) {
+	event := tableGame.Table.State.GameState.Status.CurrentEvent.Name
+	round := tableGame.Table.State.GameState.Status.Round
+
+	settleGame := func() error {
+		tableGame.Table.Settlement()
+		debugPrintGameStateResult(tableGame.Table) // TODO: test only, remove it later on
+
+		if tableGame.Table.State.Status == TableStateStatus_TableGameMatchOpen {
+			// auto start next game
+			te.GameOpen(tableGame.Table.ID)
+		}
+		return nil
+	}
+
+	// round not closed yet
+	if event != GameEventName(pokerface.GameEvent_RoundClosed) {
+		return nil
+	}
+
+	// walk situation
+	if round == GameRound_Preflod && event == GameEventName(pokerface.GameEvent_GameClosed) {
+		return settleGame()
+	}
+
+	// auto next round situation
+	for {
 		if err := tableGame.Game.Next(); err != nil {
 			return err
 		}
+		event = tableGame.Game.GetState().Status.CurrentEvent.Name
 
-		if tableGame.Table.State.GameState.Status.CurrentEvent.Name == GameEventName(pokerface.GameEvent_GameClosed) {
-			tableGame.Table.Settlement()
-			debugPrintGameStateResult(tableGame.Table) // TODO: test only, remove it later on
+		// new round started
+		if event == GameEventName(pokerface.GameEvent_RoundInitialized) {
+			return nil
+		}
 
-			if tableGame.Table.State.Status == TableStateStatus_TableGameMatchOpen {
-				// auto start next game
-				te.GameOpen(tableGame.Table.ID)
-			}
+		if event == GameEventName(pokerface.GameEvent_GameClosed) {
+			return settleGame()
 		}
 	}
-	return nil
 }

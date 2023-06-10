@@ -65,18 +65,18 @@ func FindDealerPlayerIndex(gameCount, prevDealerSeatIdx, minPlayingCount, maxSea
 }
 
 /*
-	FindPlayingPlayerIndexes 找出參與本手的玩家 PlayerIndex 陣列
-	  - @return playingPlayerIndexes
+	FindGamePlayerIndexes 找出參與本手的玩家 PlayerIndex 陣列
+	  - @return gamePlayerIndexes
 	    - index 0: dealer player index
 		- index 1: sb player index
 		- index 2 : bb player index
 */
-func FindPlayingPlayerIndexes(dealerSeatIdx int, seatMap []int, players []*TablePlayerState) []int {
+func FindGamePlayerIndexes(dealerSeatIdx int, seatMap []int, players []*TablePlayerState) []int {
 	dealerPlayerIndex := seatMap[dealerSeatIdx]
 
 	// 找出正在玩的玩家
 	totalPlayersCount := 0
-	playingPlayerIndexes := make([]int, 0)
+	gamePlayerIndexes := make([]int, 0)
 
 	/*
 		seatMapDealerPlayerIdx Dealer Player Index 在 SeatMap 中的 有參加玩家的 Index
@@ -95,26 +95,26 @@ func FindPlayingPlayerIndexes(dealerSeatIdx int, seatMap []int, players []*Table
 			}
 
 			totalPlayersCount++
-			playingPlayerIndexes = append(playingPlayerIndexes, playerIndex)
+			gamePlayerIndexes = append(gamePlayerIndexes, playerIndex)
 		}
 	}
 
 	// 調整玩家陣列 Index, 以 DealerIndex 當基準當作第一個元素做 Rotations
-	playingPlayerIndexes = rotateIntArray(playingPlayerIndexes, seatMapDealerPlayerIdx)
+	gamePlayerIndexes = rotateIntArray(gamePlayerIndexes, seatMapDealerPlayerIdx)
 
-	return playingPlayerIndexes
+	return gamePlayerIndexes
 }
 
-func GetPlayerPositionMap(rule string, players []*TablePlayerState, playingPlayerIndexes []int) map[int][]string {
+func GetPlayerPositionMap(rule string, players []*TablePlayerState, gamePlayerIndexes []int) map[int][]string {
 	playerPositionMap := make(map[int][]string)
 	switch rule {
 	case CompetitionRule_Default, CompetitionRule_Omaha:
-		positions := newPositions(len(playingPlayerIndexes))
-		for idx, playerIdx := range playingPlayerIndexes {
-			playerPositionMap[playerIdx] = positions[idx]
+		positions := newPositions(len(gamePlayerIndexes))
+		for gamePlayerIdx, playerIdx := range gamePlayerIndexes {
+			playerPositionMap[playerIdx] = positions[gamePlayerIdx]
 		}
 	case CompetitionRule_ShortDeck:
-		dealerPlayerIdx := playingPlayerIndexes[0]
+		dealerPlayerIdx := gamePlayerIndexes[0]
 		playerPositionMap[dealerPlayerIdx] = []string{Position_Dealer}
 	}
 

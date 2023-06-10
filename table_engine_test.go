@@ -4,12 +4,11 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestCreateTable(t *testing.T) {
-	tableEngine := NewTableEngine(uint32(logrus.DebugLevel))
+	tableEngine := NewTableEngine()
 	tableEngine.OnTableUpdated(func(table *Table) {})
 	tableSettings := []TableSetting{
 		NewDefaultTableSetting(
@@ -40,7 +39,7 @@ func TestCreateTable(t *testing.T) {
 }
 
 func TestCloseTable(t *testing.T) {
-	tableEngine := NewTableEngine(uint32(logrus.DebugLevel))
+	tableEngine := NewTableEngine()
 	tableEngine.OnTableUpdated(func(table *Table) {})
 	expectedStatus := []TableStateStatus{
 		TableStateStatus_TableGameAutoEnded,
@@ -61,7 +60,7 @@ func TestCloseTable(t *testing.T) {
 }
 
 func TestStartGame(t *testing.T) {
-	tableEngine := NewTableEngine(uint32(logrus.DebugLevel))
+	tableEngine := NewTableEngine()
 	tableEngine.OnTableUpdated(func(table *Table) {})
 	tableSetting := NewDefaultTableSetting(
 		JoinPlayer{PlayerID: "Jeffrey", RedeemChips: 1000},
@@ -85,7 +84,7 @@ func TestStartGame(t *testing.T) {
 }
 
 func TestPlayerJoin_BuyIn(t *testing.T) {
-	tableEngine := NewTableEngine(uint32(logrus.DebugLevel))
+	tableEngine := NewTableEngine()
 	tableEngine.OnTableUpdated(func(table *Table) {})
 	tableSetting := NewDefaultTableSetting()
 	table, err := tableEngine.CreateTable(tableSetting)
@@ -113,7 +112,7 @@ func TestPlayerJoin_BuyIn(t *testing.T) {
 }
 
 func TestPlayerJoin_ReBuy(t *testing.T) {
-	tableEngine := NewTableEngine(uint32(logrus.DebugLevel))
+	tableEngine := NewTableEngine()
 	tableEngine.OnTableUpdated(func(table *Table) {})
 	initialPlayers := []JoinPlayer{
 		{PlayerID: "Jeffrey", RedeemChips: 0},
@@ -146,7 +145,7 @@ func TestPlayerJoin_ReBuy(t *testing.T) {
 }
 
 func TestPlayerRedeemChips(t *testing.T) {
-	tableEngine := NewTableEngine(uint32(logrus.DebugLevel))
+	tableEngine := NewTableEngine()
 	tableEngine.OnTableUpdated(func(table *Table) {})
 	initialPlayers := []JoinPlayer{
 		{PlayerID: "Jeffrey", RedeemChips: 1000},
@@ -180,7 +179,7 @@ func TestPlayerRedeemChips(t *testing.T) {
 }
 
 func TestPlayerLeave(t *testing.T) {
-	tableEngine := NewTableEngine(uint32(logrus.DebugLevel))
+	tableEngine := NewTableEngine()
 	tableEngine.OnTableUpdated(func(table *Table) {})
 	initialPlayers := []JoinPlayer{
 		{PlayerID: "Jeffrey", RedeemChips: 1000},

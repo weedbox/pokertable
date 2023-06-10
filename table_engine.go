@@ -2,12 +2,12 @@ package pokertable
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/weedbox/pokerface"
 
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -47,21 +47,20 @@ type TableEngine interface {
 	PlayerFold(tableID, playerID string) error                   // 玩家棄牌
 }
 
-func NewTableEngine(logLevel uint32) TableEngine {
-	logger := logrus.New()
-	logger.SetLevel(logrus.Level(logLevel))
+func NewTableEngine() TableEngine {
 	return &tableEngine{
-		logger:     logger,
-		gameEngine: NewGameEngine(),
-		tableMap:   make(map[string]*Table),
+		tableGameMap: make(map[string]*TableGame),
 	}
 }
 
+type TableGame struct {
+	Table *Table
+	Game  pokerface.Game
+}
+
 type tableEngine struct {
-	logger         *logrus.Logger
-	gameEngine     *GameEngine
 	onTableUpdated func(*Table)
-	tableMap       map[string]*Table
+	tableGameMap   map[string]*TableGame
 }
 
 func (te *tableEngine) EmitEvent(table *Table) {
@@ -75,11 +74,11 @@ func (te *tableEngine) OnTableUpdated(fn func(*Table)) error {
 }
 
 func (te *tableEngine) GetTable(tableID string) (*Table, error) {
-	table, exist := te.tableMap[tableID]
+	tableGame, exist := te.tableGameMap[tableID]
 	if !exist {
 		return nil, ErrTableNotFound
 	}
-	return table, nil
+	return tableGame.Table, nil
 }
 
 func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
@@ -98,55 +97,63 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
 		te.EmitEvent(table)
 	}
 
-	// update tableMap
-	te.tableMap[table.ID] = table
+	// update tableGameMap
+	te.tableGameMap[table.ID] = &TableGame{Table: table}
 
 	return table, nil
 }
 
 func (te *tableEngine) CloseTable(tableID string, status TableStateStatus) error {
-	table, exist := te.tableMap[tableID]
+	tableGame, exist := te.tableGameMap[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
 
-	table.State.Status = status
+	tableGame.Table.State.Status = status
 
-	te.EmitEvent(table)
+	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
 func (te *tableEngine) StartGame(tableID string) error {
-	table, exist := te.tableMap[tableID]
+	tableGame, exist := te.tableGameMap[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
 
 	// 初始化桌 & 開局
-	table.State.StartGameAt = time.Now().Unix()
-	table.ActivateBlindState()
-	if err := table.GameOpen(te.gameEngine); err != nil {
+	tableGame.Table.State.StartGameAt = time.Now().Unix()
+	tableGame.Table.ActivateBlindState()
+	tableGame.Table.GameOpen()
+
+	// 啟動本手遊戲引擎 & 更新遊戲狀態
+	tableGame.Game = NewGame(tableGame.Table)
+	if err := tableGame.Game.Start(); err != nil {
 		return err
 	}
-	table.State.GameState = te.gameEngine.GameState()
+	tableGame.Table.State.GameState = tableGame.Game.GetState()
 
-	te.EmitEvent(table)
+	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
 // GameOpen 開始本手遊戲
 func (te *tableEngine) GameOpen(tableID string) error {
-	table, exist := te.tableMap[tableID]
+	tableGame, exist := te.tableGameMap[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
 
-	if err := table.GameOpen(te.gameEngine); err != nil {
+	tableGame.Table.GameOpen()
+
+	// 啟動本手遊戲引擎 & 更新遊戲狀態
+	tableGame.Game = NewGame(tableGame.Table)
+	if err := tableGame.Game.Start(); err != nil {
 		return err
 	}
-	table.State.GameState = te.gameEngine.GameState()
+	tableGame.Table.State.GameState = tableGame.Game.GetState()
 
-	te.EmitEvent(table)
+	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
@@ -157,16 +164,16 @@ func (te *tableEngine) GameOpen(tableID string) error {
 		- 補碼入桌
 */
 func (te *tableEngine) PlayerJoin(tableID string, joinPlayer JoinPlayer) error {
-	table, exist := te.tableMap[tableID]
+	tableGame, exist := te.tableGameMap[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
 
-	if err := table.PlayerJoin(joinPlayer.PlayerID, joinPlayer.RedeemChips); err != nil {
+	if err := tableGame.Table.PlayerJoin(joinPlayer.PlayerID, joinPlayer.RedeemChips); err != nil {
 		return err
 	}
 
-	te.EmitEvent(table)
+	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
@@ -176,20 +183,20 @@ func (te *tableEngine) PlayerJoin(tableID string, joinPlayer JoinPlayer) error {
 	    - 增購
 */
 func (te *tableEngine) PlayerRedeemChips(tableID string, joinPlayer JoinPlayer) error {
-	table, exist := te.tableMap[tableID]
+	tableGame, exist := te.tableGameMap[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
 
 	// find player index in PlayerStates
-	playerIdx := table.findPlayerIdx(joinPlayer.PlayerID)
+	playerIdx := tableGame.Table.findPlayerIdx(joinPlayer.PlayerID)
 	if playerIdx == UnsetValue {
 		return ErrPlayerNotFound
 	}
 
-	table.PlayerRedeemChips(playerIdx, joinPlayer.RedeemChips)
+	tableGame.Table.PlayerRedeemChips(playerIdx, joinPlayer.RedeemChips)
 
-	te.EmitEvent(table)
+	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
@@ -203,7 +210,7 @@ func (te *tableEngine) PlayerRedeemChips(tableID string, joinPlayer JoinPlayer) 
 		- CT/MTT 停止買入後被淘汰
 */
 func (te *tableEngine) PlayersLeave(tableID string, playerIDs []string) error {
-	table, exist := te.tableMap[tableID]
+	tableGame, exist := te.tableGameMap[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
@@ -211,7 +218,7 @@ func (te *tableEngine) PlayersLeave(tableID string, playerIDs []string) error {
 	// find player index in PlayerStates
 	leavePlayerIndexes := make([]int, 0)
 	for _, playerID := range playerIDs {
-		playerIdx := te.findPlayerIdx(table.State.PlayerStates, playerID)
+		playerIdx := te.findPlayerIdx(tableGame.Table.State.PlayerStates, playerID)
 		if playerIdx != UnsetValue {
 			leavePlayerIndexes = append(leavePlayerIndexes, playerIdx)
 		}
@@ -221,355 +228,337 @@ func (te *tableEngine) PlayersLeave(tableID string, playerIDs []string) error {
 		return nil
 	}
 
-	table.PlayersLeave(leavePlayerIndexes)
+	tableGame.Table.PlayersLeave(leavePlayerIndexes)
 
-	te.EmitEvent(table)
+	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
 func (te *tableEngine) PlayerReady(tableID, playerID string) error {
-	table, exist := te.tableMap[tableID]
+	tableGame, exist := te.tableGameMap[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
 
-	// find playing player index
-	playingPlayerIdx := te.findPlayingPlayerIdx(table.State.PlayerStates, table.State.PlayingPlayerIndexes, playerID)
-	if playingPlayerIdx == UnsetValue {
+	// find game player index
+	gamePlayerIdx := te.findGamePlayerIdx(tableGame.Table.State.PlayerStates, tableGame.Table.State.GamePlayerIndexes, playerID)
+	if gamePlayerIdx == UnsetValue {
 		return ErrPlayerNotFound
 	}
 
 	// do ready
-	err := te.gameEngine.PlayerReady(playingPlayerIdx)
-	if err != nil {
-		te.logger.Debugf("[tableEngine#PlayerReady] [%s] %s ready error: %+v", te.gameEngine.GameState().Status.Round, playerID, err)
+	if err := tableGame.Game.Ready(gamePlayerIdx); err != nil {
+		fmt.Printf("[tableEngine#PlayerReady] [%s] %s ready error: %+v\n", tableGame.Game.GetState().Status.Round, playerID, err)
 		return err
 	}
-	table.State.GameState = te.gameEngine.GameState()
-	te.logger.Debugf("[tableEngine#PlayerReady] [%s] %s is ready. CurrentEvent: %s", te.gameEngine.GameState().Status.Round, playerID, te.gameEngine.GameState().Status.CurrentEvent.Name)
+	fmt.Printf("[tableEngine#PlayerReady] [%s] %s is ready. CurrentEvent: %s\n", tableGame.Game.GetState().Status.Round, playerID, tableGame.Game.GetState().Status.CurrentEvent.Name)
 
-	te.EmitEvent(table)
+	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
 func (te *tableEngine) PlayerPay(tableID, playerID string, chips int64) error {
-	table, exist := te.tableMap[tableID]
+	tableGame, exist := te.tableGameMap[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
 
 	// validate player action
-	if err := te.validatePlayerMove(*table, playerID); err != nil {
+	if err := te.validatePlayerMove(tableGame, playerID); err != nil {
 		return err
 	}
 
 	// do action
-	err := te.gameEngine.Pay(chips)
-	if err != nil {
-		te.logger.Debugf("[tableEngine#PlayerPay] [%s] %s pay(%d) error: %+v", te.gameEngine.GameState().Status.Round, playerID, chips, err)
+	if err := tableGame.Game.Pay(chips); err != nil {
+		fmt.Printf("[tableEngine#PlayerPay] [%s] %s pay(%d) error: %+v\n", tableGame.Game.GetState().Status.Round, playerID, chips, err)
 		return err
 	}
-	table.State.GameState = te.gameEngine.GameState()
-	te.logger.Debugf("[tableEngine#PlayerPay] dealer receive %d.", chips)
+	fmt.Printf("[tableEngine#PlayerPay] dealer receive %d.\n", chips)
 
-	te.EmitEvent(table)
+	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
 func (te *tableEngine) PlayerPayAnte(tableID, playerID string) error {
-	table, exist := te.tableMap[tableID]
+	tableGame, exist := te.tableGameMap[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
 
 	// validate player action
-	if err := te.validatePlayerMove(*table, playerID); err != nil {
+	if err := te.validatePlayerMove(tableGame, playerID); err != nil {
 		return err
 	}
 
 	// do action
-	err := te.gameEngine.PayAnte()
+	err := tableGame.Game.PayAnte()
 	if err != nil {
-		te.logger.Debugf("[tableEngine#PlayerPay] [%s] %s pay ante error: %+v", te.gameEngine.GameState().Status.Round, playerID, err)
+		fmt.Printf("[tableEngine#PlayerPay] [%s] %s pay ante error: %+v\n", tableGame.Game.GetState().Status.Round, playerID, err)
 		return err
 	}
-	table.State.GameState = te.gameEngine.GameState()
-	te.logger.Debug("[tableEngine#PlayerPayAnte] dealer receive ante from all players.")
 
-	te.EmitEvent(table)
+	fmt.Printf("[tableEngine#PlayerPayAnte] dealer receive ante from all players.\n")
+
+	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
 func (te *tableEngine) PlayerPaySB(tableID, playerID string) error {
-	table, exist := te.tableMap[tableID]
+	tableGame, exist := te.tableGameMap[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
 
 	// validate player action
-	if err := te.validatePlayerMove(*table, playerID); err != nil {
+	if err := te.validatePlayerMove(tableGame, playerID); err != nil {
 		return err
 	}
 
 	// do action
-	err := te.gameEngine.PaySB()
-	if err != nil {
-		te.logger.Debugf("[tableEngine#PlayerPaySB] [%s] %s pay sb error: %+v", te.gameEngine.GameState().Status.Round, playerID, err)
+	if err := tableGame.Game.Pay(tableGame.Game.GetState().Meta.Blind.SB); err != nil {
+		fmt.Printf("[tableEngine#PlayerPaySB] [%s] %s pay sb error: %+v\n", tableGame.Game.GetState().Status.Round, playerID, err)
 		return err
 	}
-	table.State.GameState = te.gameEngine.GameState()
-	te.logger.Debug("[tableEngine#PlayerPaySB] dealer receive sb.")
 
-	te.EmitEvent(table)
+	fmt.Printf("[tableEngine#PlayerPaySB] dealer receive sb.\n")
+
+	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
 func (te *tableEngine) PlayerPayBB(tableID, playerID string) error {
-	table, exist := te.tableMap[tableID]
+	tableGame, exist := te.tableGameMap[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
 
 	// validate player action
-	if err := te.validatePlayerMove(*table, playerID); err != nil {
+	if err := te.validatePlayerMove(tableGame, playerID); err != nil {
 		return err
 	}
 
 	// do action
-	err := te.gameEngine.PayBB()
-	if err != nil {
-		te.logger.Debugf("[tableEngine#PlayerPayBB] [%s] %s pay bb error: %+v", te.gameEngine.GameState().Status.Round, playerID, err)
+	if err := tableGame.Game.Pay(tableGame.Game.GetState().Meta.Blind.BB); err != nil {
+		fmt.Printf("[tableEngine#PlayerPayBB] [%s] %s pay bb error: %+v\n", tableGame.Game.GetState().Status.Round, playerID, err)
 		return err
 	}
-	table.State.GameState = te.gameEngine.GameState()
-	te.logger.Debug("[tableEngine#PlayerPayBB] dealer receive bb.")
 
-	te.EmitEvent(table)
+	fmt.Printf("[tableEngine#PlayerPayBB] dealer receive bb.\n")
+
+	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
 func (te *tableEngine) PlayerBet(tableID, playerID string, chips int64) error {
-	table, exist := te.tableMap[tableID]
+	tableGame, exist := te.tableGameMap[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
 
 	// validate player action
-	if err := te.validatePlayerMove(*table, playerID); err != nil {
+	if err := te.validatePlayerMove(tableGame, playerID); err != nil {
 		return err
 	}
 
 	// do action
-	err := te.gameEngine.Bet(chips)
-	if err != nil {
-		te.logger.Debugf("[tableEngine#PlayerBet] [%s] %s bet(%d) error: %+v", te.gameEngine.GameState().Status.Round, playerID, chips, err)
+	if err := tableGame.Game.Bet(chips); err != nil {
+		fmt.Printf("[tableEngine#PlayerBet] [%s] %s bet(%d) error: %+v\n", tableGame.Game.GetState().Status.Round, playerID, chips, err)
 		return err
 	}
-	table.State.GameState = te.gameEngine.GameState()
 
 	// debug log
 	positions := make([]string, 0)
-	playerIdx := te.findPlayerIdx(table.State.PlayerStates, playerID)
+	playerIdx := te.findPlayerIdx(tableGame.Table.State.PlayerStates, playerID)
 	if playerIdx != UnsetValue {
-		positions = table.State.PlayerStates[playerIdx].Positions
+		positions = tableGame.Table.State.PlayerStates[playerIdx].Positions
 	}
-	te.logger.Debugf("[tableEngine#PlayerBet] [%s] %s(%+v) bet(%d)", te.gameEngine.GameState().Status.Round, playerID, positions, chips)
+	fmt.Printf("[tableEngine#PlayerBet] [%s] %s(%+v) bet(%d)\n", tableGame.Game.GetState().Status.Round, playerID, positions, chips)
 
-	te.EmitEvent(table)
+	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
 func (te *tableEngine) PlayerRaise(tableID, playerID string, chipLevel int64) error {
-	table, exist := te.tableMap[tableID]
+	tableGame, exist := te.tableGameMap[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
 
 	// validate player action
-	if err := te.validatePlayerMove(*table, playerID); err != nil {
+	if err := te.validatePlayerMove(tableGame, playerID); err != nil {
 		return err
 	}
 
 	// do action
-	err := te.gameEngine.Raise(chipLevel)
-	if err != nil {
-		te.logger.Debugf("[tableEngine#PlayerRaise] [%s] %s raise(%d) error: %+v", te.gameEngine.GameState().Status.Round, playerID, chipLevel, err)
+	if err := tableGame.Game.Raise(chipLevel); err != nil {
+		fmt.Printf("[tableEngine#PlayerRaise] [%s] %s raise(%d) error: %+v\n", tableGame.Game.GetState().Status.Round, playerID, chipLevel, err)
 		return err
 	}
-	table.State.GameState = te.gameEngine.GameState()
 
 	// debug log
 	positions := make([]string, 0)
-	playerIdx := te.findPlayerIdx(table.State.PlayerStates, playerID)
+	playerIdx := te.findPlayerIdx(tableGame.Table.State.PlayerStates, playerID)
 	if playerIdx != UnsetValue {
-		positions = table.State.PlayerStates[playerIdx].Positions
+		positions = tableGame.Table.State.PlayerStates[playerIdx].Positions
 	}
-	te.logger.Debugf("[tableEngine#PlayerRaise] [%s] %s(%+v) raise(%d)", te.gameEngine.GameState().Status.Round, playerID, positions, chipLevel)
+	fmt.Printf("[tableEngine#PlayerRaise] [%s] %s(%+v) raise(%d)\n", tableGame.Game.GetState().Status.Round, playerID, positions, chipLevel)
 
-	te.EmitEvent(table)
+	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
 func (te *tableEngine) PlayerCall(tableID, playerID string) error {
-	table, exist := te.tableMap[tableID]
+	tableGame, exist := te.tableGameMap[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
 
 	// validate player action
-	if err := te.validatePlayerMove(*table, playerID); err != nil {
+	if err := te.validatePlayerMove(tableGame, playerID); err != nil {
 		return err
 	}
 
 	// do action
-	err := te.gameEngine.Call()
-	if err != nil {
-		te.logger.Debugf("[tableEngine#PlayerCall] [%s] %s call error: %+v", te.gameEngine.GameState().Status.Round, playerID, err)
+	if err := tableGame.Game.Call(); err != nil {
+		fmt.Printf("[tableEngine#PlayerCall] [%s] %s call error: %+v\n", tableGame.Game.GetState().Status.Round, playerID, err)
 		return err
 	}
-	table.State.GameState = te.gameEngine.GameState()
 
 	// debug log
 	positions := make([]string, 0)
-	playerIdx := te.findPlayerIdx(table.State.PlayerStates, playerID)
+	playerIdx := te.findPlayerIdx(tableGame.Table.State.PlayerStates, playerID)
 	if playerIdx != UnsetValue {
-		positions = table.State.PlayerStates[playerIdx].Positions
+		positions = tableGame.Table.State.PlayerStates[playerIdx].Positions
 	}
-	te.logger.Debugf("[tableEngine#PlayerCall] [%s] %s(%+v) call", te.gameEngine.GameState().Status.Round, playerID, positions)
+	fmt.Printf("[tableEngine#PlayerCall] [%s] %s(%+v) call\n", tableGame.Game.GetState().Status.Round, playerID, positions)
 
-	if err := te.autoNextRound(table); err != nil {
+	if err := te.autoNextRound(tableGame); err != nil {
 		return err
 	}
 
-	te.EmitEvent(table)
+	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
 func (te *tableEngine) PlayerAllin(tableID, playerID string) error {
-	table, exist := te.tableMap[tableID]
+	tableGame, exist := te.tableGameMap[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
 
 	// validate player action
-	if err := te.validatePlayerMove(*table, playerID); err != nil {
+	if err := te.validatePlayerMove(tableGame, playerID); err != nil {
 		return err
 	}
 
 	// do action
-	err := te.gameEngine.Allin()
-	if err != nil {
-		te.logger.Debugf("[tableEngine#PlayerAllin] [%s] %s allin error: %+v", te.gameEngine.GameState().Status.Round, playerID, err)
+	if err := tableGame.Game.Allin(); err != nil {
+		fmt.Printf("[tableEngine#PlayerAllin] [%s] %s allin error: %+v\n", tableGame.Game.GetState().Status.Round, playerID, err)
 		return err
 	}
-	table.State.GameState = te.gameEngine.GameState()
 
 	// debug log
 	positions := make([]string, 0)
-	playerIdx := te.findPlayerIdx(table.State.PlayerStates, playerID)
+	playerIdx := te.findPlayerIdx(tableGame.Table.State.PlayerStates, playerID)
 	if playerIdx != UnsetValue {
-		positions = table.State.PlayerStates[playerIdx].Positions
+		positions = tableGame.Table.State.PlayerStates[playerIdx].Positions
 	}
-	te.logger.Debugf("[tableEngine#PlayerAllin] [%s] %s(%+v) allin", te.gameEngine.GameState().Status.Round, playerID, positions)
+	fmt.Printf("[tableEngine#PlayerAllin] [%s] %s(%+v) allin\n", tableGame.Game.GetState().Status.Round, playerID, positions)
 
-	if err := te.autoNextRound(table); err != nil {
+	if err := te.autoNextRound(tableGame); err != nil {
 		return err
 	}
 
-	te.EmitEvent(table)
+	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
 func (te *tableEngine) PlayerCheck(tableID, playerID string) error {
-	table, exist := te.tableMap[tableID]
+	tableGame, exist := te.tableGameMap[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
 
 	// validate player action
-	if err := te.validatePlayerMove(*table, playerID); err != nil {
+	if err := te.validatePlayerMove(tableGame, playerID); err != nil {
 		return err
 	}
 
 	// do action
-	err := te.gameEngine.Check()
-	if err != nil {
-		te.logger.Debugf("[tableEngine#PlayerCheck] [%s] %s check error: %+v", te.gameEngine.GameState().Status.Round, playerID, err)
+	if err := tableGame.Game.Check(); err != nil {
+		fmt.Printf("[tableEngine#PlayerCheck] [%s] %s check error: %+v\n", tableGame.Game.GetState().Status.Round, playerID, err)
 		return err
 	}
-	table.State.GameState = te.gameEngine.GameState()
 
 	// debug log
 	positions := make([]string, 0)
-	playerIdx := te.findPlayerIdx(table.State.PlayerStates, playerID)
+	playerIdx := te.findPlayerIdx(tableGame.Table.State.PlayerStates, playerID)
 	if playerIdx != UnsetValue {
-		positions = table.State.PlayerStates[playerIdx].Positions
+		positions = tableGame.Table.State.PlayerStates[playerIdx].Positions
 	}
-	te.logger.Debugf("[tableEngine#PlayerCheck] [%s] %s(%+v) check", te.gameEngine.GameState().Status.Round, playerID, positions)
+	fmt.Printf("[tableEngine#PlayerCheck] [%s] %s(%+v) check\n", tableGame.Game.GetState().Status.Round, playerID, positions)
 
-	if err := te.autoNextRound(table); err != nil {
+	if err := te.autoNextRound(tableGame); err != nil {
 		return err
 	}
 
-	te.EmitEvent(table)
+	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
 func (te *tableEngine) PlayerFold(tableID, playerID string) error {
-	table, exist := te.tableMap[tableID]
+	tableGame, exist := te.tableGameMap[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
 
 	// validate player action
-	if err := te.validatePlayerMove(*table, playerID); err != nil {
+	if err := te.validatePlayerMove(tableGame, playerID); err != nil {
 		return err
 	}
 
 	// do action
-	err := te.gameEngine.Fold()
-	if err != nil {
-		te.logger.Debugf("[tableEngine#PlayerFold] [%s] %s fold error: %+v", te.gameEngine.GameState().Status.Round, playerID, err)
+	if err := tableGame.Game.Fold(); err != nil {
+		fmt.Printf("[tableEngine#PlayerFold] [%s] %s fold error: %+v\n", tableGame.Game.GetState().Status.Round, playerID, err)
 		return err
 	}
-	table.State.GameState = te.gameEngine.GameState()
 
 	// debug log
 	positions := make([]string, 0)
-	playerIdx := te.findPlayerIdx(table.State.PlayerStates, playerID)
+	playerIdx := te.findPlayerIdx(tableGame.Table.State.PlayerStates, playerID)
 	if playerIdx != UnsetValue {
-		positions = table.State.PlayerStates[playerIdx].Positions
+		positions = tableGame.Table.State.PlayerStates[playerIdx].Positions
 	}
-	te.logger.Debugf("[tableEngine#PlayerFold] [%s] %s(%+v) fold", te.gameEngine.GameState().Status.Round, playerID, positions)
+	fmt.Printf("[tableEngine#PlayerFold] [%s] %s(%+v) fold\n", tableGame.Game.GetState().Status.Round, playerID, positions)
 
-	if err := te.autoNextRound(table); err != nil {
+	if err := te.autoNextRound(tableGame); err != nil {
 		return err
 	}
 
-	te.EmitEvent(table)
+	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
-func (te *tableEngine) validatePlayerMove(table Table, playerID string) error {
-	// find playing player index
-	playingPlayerIdx := te.findPlayingPlayerIdx(table.State.PlayerStates, table.State.PlayingPlayerIndexes, playerID)
-	if playingPlayerIdx == UnsetValue {
+func (te *tableEngine) validatePlayerMove(tableGame *TableGame, playerID string) error {
+	// find game player index
+	gamePlayerIdx := te.findGamePlayerIdx(tableGame.Table.State.PlayerStates, tableGame.Table.State.GamePlayerIndexes, playerID)
+	if gamePlayerIdx == UnsetValue {
 		return ErrPlayerNotFound
 	}
 
 	// check if player can do action
-	if te.gameEngine.GameState().Status.CurrentPlayer != playingPlayerIdx {
+	if tableGame.Game.GetState().Status.CurrentPlayer != gamePlayerIdx {
 		return ErrPlayerInvalidAction
 	}
 
 	return nil
 }
 
-func (te *tableEngine) findPlayingPlayerIdx(players []*TablePlayerState, playingPlayerIndexes []int, targetPlayerID string) int {
-	for idx, playerIdx := range playingPlayerIndexes {
+func (te *tableEngine) findGamePlayerIdx(players []*TablePlayerState, gamePlayerIndexes []int, targetPlayerID string) int {
+	for gamePlayerIdx, playerIdx := range gamePlayerIndexes {
 		player := players[playerIdx]
 		if player.PlayerID == targetPlayerID {
-			return idx
+			return gamePlayerIdx
 		}
 	}
 	return UnsetValue
@@ -585,24 +574,23 @@ func (te *tableEngine) findPlayerIdx(players []*TablePlayerState, targetPlayerID
 	return UnsetValue
 }
 
-func (te *tableEngine) autoNextRound(table *Table) error {
-	if table.State.GameState.Status.CurrentEvent.Name == te.gameEngine.GameEventName(pokerface.GameEvent_RoundClosed) {
-		err := te.gameEngine.NextRound()
-		if err != nil {
-			te.logger.Debugf("[tableEngine#autoNextRound] entering next round error: %+v", err)
+func (te *tableEngine) autoNextRound(tableGame *TableGame) error {
+	if tableGame.Table.State.GameState.Status.CurrentEvent.Name == GameEventName(pokerface.GameEvent_RoundClosed) {
+		if err := tableGame.Game.Next(); err != nil {
+			fmt.Printf("[tableEngine#autoNextRound] entering next round error: %+v\n", err)
 			return err
 		}
-		table.State.GameState = te.gameEngine.GameState()
 
-		if table.State.GameState.Status.CurrentEvent.Name == te.gameEngine.GameEventName(pokerface.GameEvent_GameClosed) {
-			table.Settlement()
+		fmt.Printf("[tableEngine#autoNextRound] entering %s\n", tableGame.Game.GetState().Status.Round)
 
-			if table.State.Status == TableStateStatus_TableGameMatchOpen {
+		if tableGame.Table.State.GameState.Status.CurrentEvent.Name == GameEventName(pokerface.GameEvent_GameClosed) {
+			tableGame.Table.Settlement()
+
+			if tableGame.Table.State.Status == TableStateStatus_TableGameMatchOpen {
 				// auto start next game
-				te.GameOpen(table.ID)
+				te.GameOpen(tableGame.Table.ID)
 			}
 		}
 	}
-	te.logger.Debug("[tableEngine#autoNextRound] entering ", te.gameEngine.GameState().Status.Round)
 	return nil
 }

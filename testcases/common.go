@@ -13,18 +13,18 @@ func logJSON(t *testing.T, msg string, jsonPrinter func() (*string, error)) {
 }
 
 func FindCurrentPlayerID(table *pokertable.Table) string {
-	currPlayerIndex := table.State.GameState.Status.CurrentPlayer
-	for playingPlayerIndex, playerIndex := range table.State.PlayingPlayerIndexes {
-		if playingPlayerIndex == currPlayerIndex {
-			return table.State.PlayerStates[playerIndex].PlayerID
+	currGamePlayerIdx := table.State.GameState.Status.CurrentPlayer
+	for gamePlayerIdx, playerIdx := range table.State.GamePlayerIndexes {
+		if gamePlayerIdx == currGamePlayerIdx {
+			return table.State.PlayerStates[playerIdx].PlayerID
 		}
 	}
 	return ""
 }
 
 func AllGamePlayersReady(t *testing.T, tableEngine pokertable.TableEngine, table *pokertable.Table) {
-	for _, playingPlayerIdx := range table.State.PlayingPlayerIndexes {
-		player := table.State.PlayerStates[playingPlayerIdx]
+	for _, playerIdx := range table.State.GamePlayerIndexes {
+		player := table.State.PlayerStates[playerIdx]
 		err := tableEngine.PlayerReady(table.ID, player.PlayerID)
 		assert.Nil(t, err)
 	}

@@ -91,8 +91,8 @@ func (t Table) debugPrintTable(message string) {
 		fmt.Printf("Level: %s, (sb,bb,ante): (%d,%d,%d), end: %s\n", level, blindLevel.SBChips, blindLevel.BBChips, blindLevel.AnteChips, endAt)
 	}
 
-	fmt.Println("[Playing Players]")
-	for _, playerIdx := range t.State.PlayingPlayerIndexes {
+	fmt.Println("[Game Players]")
+	for _, playerIdx := range t.State.GamePlayerIndexes {
 		player := t.State.PlayerStates[playerIdx]
 		seat := "X"
 		if player.SeatIndex != -1 {
@@ -105,10 +105,10 @@ func (t Table) debugPrintTable(message string) {
 }
 
 func (t Table) debugPrintGameStateResult() {
-	playerIDMapper := func(t Table, gameStatePlayerIndex int) string {
-		for playingPlayerIndex, playerIndex := range t.State.PlayingPlayerIndexes {
-			if playingPlayerIndex == gameStatePlayerIndex {
-				return t.State.PlayerStates[playerIndex].PlayerID
+	playerIDMapper := func(t Table, gameStatePlayerIdx int) string {
+		for gamePlayerIdx, playerIdx := range t.State.GamePlayerIndexes {
+			if gamePlayerIdx == gameStatePlayerIdx {
+				return t.State.PlayerStates[playerIdx].PlayerID
 			}
 		}
 		return ""

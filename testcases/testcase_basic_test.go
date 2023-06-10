@@ -3,15 +3,13 @@ package testcases
 import (
 	"testing"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/weedbox/pokertable"
 )
 
 func TestBasicTableGame(t *testing.T) {
 	// create a table
-	tableEngine := pokertable.NewTableEngine(uint32(logrus.DebugLevel))
+	tableEngine := pokertable.NewTableEngine()
 	tableEngine.OnTableUpdated(func(model *pokertable.Table) {})
 	tableSetting := NewDefaultTableSetting()
 	table, err := tableEngine.CreateTable(tableSetting)

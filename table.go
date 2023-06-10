@@ -68,16 +68,16 @@ type BlindLevel struct {
 }
 
 type TableState struct {
-	GameCount              int                 `json:"game_count"`                // 執行牌局遊戲次數 (遊戲跑幾輪)
-	StartGameAt            int64               `json:"start_game_at"`             // 開打時間
-	BlindState             *TableBlindState    `json:"blind_state"`               // 盲注狀態
-	CurrentDealerSeatIndex int                 `json:"current_dealer_seat_index"` // 當前 Dealer 座位編號
-	CurrentBBSeatIndex     int                 `json:"current_bb_seat_index"`     // 當前 BB 座位編號
-	PlayerSeatMap          []int               `json:"player_seat_map"`           // 座位入座狀況，index: seat index (0-8), value: TablePlayerState index (-1 by default)
-	PlayerStates           []*TablePlayerState `json:"player_states"`             // 賽局桌上玩家狀態
-	PlayingPlayerIndexes   []int               `json:"playing_player_indexes"`    // 本手正在玩的 PlayerIndex 陣列 (陣列 index 為從 Dealer 位置開始的 PlayerIndex)，GameEngine 用
-	Status                 TableStateStatus    `json:"status"`                    // 當前桌次狀態
-	GameState              pokerface.GameState `json:"game_state"`                // 本手狀態 (pokerface.GameState)
+	GameCount              int                  `json:"game_count"`                // 執行牌局遊戲次數 (遊戲跑幾輪)
+	StartGameAt            int64                `json:"start_game_at"`             // 開打時間
+	BlindState             *TableBlindState     `json:"blind_state"`               // 盲注狀態
+	CurrentDealerSeatIndex int                  `json:"current_dealer_seat_index"` // 當前 Dealer 座位編號
+	CurrentBBSeatIndex     int                  `json:"current_bb_seat_index"`     // 當前 BB 座位編號
+	PlayerSeatMap          []int                `json:"player_seat_map"`           // 座位入座狀況，index: seat index (0-8), value: TablePlayerState index (-1 by default)
+	PlayerStates           []*TablePlayerState  `json:"player_states"`             // 賽局桌上玩家狀態
+	GamePlayerIndexes      []int                `json:"game_player_indexes"`       // 本手正在玩的 PlayerIndex 陣列 (陣列 index 為從 Dealer 位置開始的 PlayerIndex)，GameEngine 用
+	Status                 TableStateStatus     `json:"status"`                    // 當前桌次狀態
+	GameState              *pokerface.GameState `json:"game_state"`                // 本手狀態 (pokerface.GameState)
 }
 
 type TablePlayerState struct {
@@ -111,7 +111,7 @@ func (t *Table) RefreshUpdateAt() {
 }
 
 func (t *Table) Reset() {
-	t.State.PlayingPlayerIndexes = []int{}
+	t.State.GamePlayerIndexes = []int{}
 	for i := 0; i < len(t.State.PlayerStates); i++ {
 		t.State.PlayerStates[i].Positions = make([]string, 0)
 	}
@@ -162,7 +162,7 @@ func (t *Table) ConfigureWithSetting(setting TableSetting) {
 		CurrentBBSeatIndex:     UnsetValue,
 		PlayerSeatMap:          NewDefaultSeatMap(setting.CompetitionMeta.TableMaxSeatCount),
 		PlayerStates:           make([]*TablePlayerState, 0),
-		PlayingPlayerIndexes:   make([]int, 0),
+		GamePlayerIndexes:      make([]int, 0),
 		Status:                 TableStateStatus_TableGameCreated,
 	}
 	t.State = &state
@@ -209,7 +209,7 @@ func (t *Table) ActivateBlindState() {
 	}
 }
 
-func (t *Table) GameOpen(gameEngine *GameEngine) error {
+func (t *Table) GameOpen() {
 	// Step 1: 重設桌次狀態
 	t.Reset()
 
@@ -268,11 +268,11 @@ func (t *Table) GameOpen(gameEngine *GameEngine) error {
 	}
 
 	// Step 6: 計算 & 更新本手參與玩家的 PlayerIndex 陣列
-	playingPlayerIndexes := FindPlayingPlayerIndexes(newDealerTableSeatIdx, t.State.PlayerSeatMap, t.State.PlayerStates)
-	t.State.PlayingPlayerIndexes = playingPlayerIndexes
+	gamePlayerIndexes := FindGamePlayerIndexes(newDealerTableSeatIdx, t.State.PlayerSeatMap, t.State.PlayerStates)
+	t.State.GamePlayerIndexes = FindGamePlayerIndexes(newDealerTableSeatIdx, t.State.PlayerSeatMap, t.State.PlayerStates)
 
 	// Step 7: 計算 & 更新本手參與玩家位置資訊
-	positionMap := GetPlayerPositionMap(t.Meta.CompetitionMeta.Rule, t.State.PlayerStates, playingPlayerIndexes)
+	positionMap := GetPlayerPositionMap(t.Meta.CompetitionMeta.Rule, t.State.PlayerStates, gamePlayerIndexes)
 	for playerIdx := 0; playerIdx < len(t.State.PlayerStates); playerIdx++ {
 		positions, exist := positionMap[playerIdx]
 		if exist && t.State.PlayerStates[playerIdx].IsParticipated {
@@ -283,11 +283,11 @@ func (t *Table) GameOpen(gameEngine *GameEngine) error {
 	// Step 8: 更新桌次狀態 (GameCount, 當前 Dealer & BB 位置)
 	t.State.GameCount = t.State.GameCount + 1
 	t.State.CurrentDealerSeatIndex = newDealerTableSeatIdx
-	if len(playingPlayerIndexes) == 2 {
-		bbPlayerIdx := playingPlayerIndexes[1]
+	if len(gamePlayerIndexes) == 2 {
+		bbPlayerIdx := gamePlayerIndexes[1]
 		t.State.CurrentBBSeatIndex = t.State.PlayerStates[bbPlayerIdx].SeatIndex
-	} else if len(playingPlayerIndexes) > 2 {
-		bbPlayerIdx := playingPlayerIndexes[2]
+	} else if len(gamePlayerIndexes) > 2 {
+		bbPlayerIdx := gamePlayerIndexes[2]
 		t.State.CurrentBBSeatIndex = t.State.PlayerStates[bbPlayerIdx].SeatIndex
 	} else {
 		t.State.CurrentBBSeatIndex = UnsetValue
@@ -296,22 +296,13 @@ func (t *Table) GameOpen(gameEngine *GameEngine) error {
 	// Step 9: 更新當前桌次事件
 	t.State.Status = TableStateStatus_TableGameMatchOpen
 
-	// Step 10: 啟動本手遊戲引擎 & 更新遊戲狀態
-	blind := *t.State.BlindState.LevelStates[t.State.BlindState.CurrentLevelIndex]
-	dealerBlindTimes := t.Meta.CompetitionMeta.Blind.DealerBlindTimes
-	gameEngineSetting := NewGameEngineSetting(t.Meta.CompetitionMeta.Rule, blind, dealerBlindTimes, t.State.PlayerStates, t.State.PlayingPlayerIndexes)
-	if err := gameEngine.Start(gameEngineSetting); err != nil {
-		return err
-	}
-
 	t.debugPrintTable(fmt.Sprintf("第 (%d) 手開局資訊", t.State.GameCount)) // TODO: test only, remove it later on
-	return nil
 }
 
 func (t *Table) Settlement() {
 	// Step 1: 把玩家輸贏籌碼更新到 Bankroll
 	for _, player := range t.State.GameState.Result.Players {
-		playerIdx := t.State.PlayingPlayerIndexes[player.Idx]
+		playerIdx := t.State.GamePlayerIndexes[player.Idx]
 		t.State.PlayerStates[playerIdx].Bankroll = player.Final
 	}
 
@@ -426,22 +417,22 @@ func (t Table) AlivePlayers() []*TablePlayerState {
 	}).([]*TablePlayerState)
 }
 
-func (t Table) PlayingPlayerIndex(playerID string) int {
-	playerIdx := UnsetValue
+func (t Table) GamePlayerIndex(playerID string) int {
+	targetPlayerIdx := UnsetValue
 	for idx, player := range t.State.PlayerStates {
 		if player.PlayerID == playerID {
-			playerIdx = idx
+			targetPlayerIdx = idx
 			break
 		}
 	}
 
-	if playerIdx == UnsetValue {
+	if targetPlayerIdx == UnsetValue {
 		return UnsetValue
 	}
 
-	for gamePlayerIdx, playingPlayerIndex := range t.State.PlayingPlayerIndexes {
-		if playerIdx == playingPlayerIndex {
-			return gamePlayerIdx
+	for gamePlayerIndex, playerIndex := range t.State.GamePlayerIndexes {
+		if targetPlayerIdx == playerIndex {
+			return gamePlayerIndex
 		}
 	}
 	return UnsetValue

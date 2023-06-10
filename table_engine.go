@@ -132,6 +132,7 @@ func (te *tableEngine) StartGame(tableID string) error {
 		return err
 	}
 	tableGame.Table.State.GameState = tableGame.Game.GetState()
+	debugPrintTable(fmt.Sprintf("第 (%d) 手開局資訊", tableGame.Table.State.GameCount), tableGame.Table) // TODO: test only, remove it later on
 
 	te.EmitEvent(tableGame.Table)
 	return nil
@@ -152,6 +153,7 @@ func (te *tableEngine) GameOpen(tableID string) error {
 		return err
 	}
 	tableGame.Table.State.GameState = tableGame.Game.GetState()
+	debugPrintTable(fmt.Sprintf("第 (%d) 手開局資訊", tableGame.Table.State.GameCount), tableGame.Table) // TODO: test only, remove it later on
 
 	te.EmitEvent(tableGame.Table)
 	return nil
@@ -248,10 +250,8 @@ func (te *tableEngine) PlayerReady(tableID, playerID string) error {
 
 	// do ready
 	if err := tableGame.Game.Ready(gamePlayerIdx); err != nil {
-		fmt.Printf("[tableEngine#PlayerReady] [%s] %s ready error: %+v\n", tableGame.Game.GetState().Status.Round, playerID, err)
 		return err
 	}
-	fmt.Printf("[tableEngine#PlayerReady] [%s] %s is ready. CurrentEvent: %s\n", tableGame.Game.GetState().Status.Round, playerID, tableGame.Game.GetState().Status.CurrentEvent.Name)
 
 	te.EmitEvent(tableGame.Table)
 	return nil
@@ -270,10 +270,8 @@ func (te *tableEngine) PlayerPay(tableID, playerID string, chips int64) error {
 
 	// do action
 	if err := tableGame.Game.Pay(chips); err != nil {
-		fmt.Printf("[tableEngine#PlayerPay] [%s] %s pay(%d) error: %+v\n", tableGame.Game.GetState().Status.Round, playerID, chips, err)
 		return err
 	}
-	fmt.Printf("[tableEngine#PlayerPay] dealer receive %d.\n", chips)
 
 	te.EmitEvent(tableGame.Table)
 	return nil
@@ -293,11 +291,8 @@ func (te *tableEngine) PlayerPayAnte(tableID, playerID string) error {
 	// do action
 	err := tableGame.Game.PayAnte()
 	if err != nil {
-		fmt.Printf("[tableEngine#PlayerPay] [%s] %s pay ante error: %+v\n", tableGame.Game.GetState().Status.Round, playerID, err)
 		return err
 	}
-
-	fmt.Printf("[tableEngine#PlayerPayAnte] dealer receive ante from all players.\n")
 
 	te.EmitEvent(tableGame.Table)
 	return nil
@@ -316,11 +311,8 @@ func (te *tableEngine) PlayerPaySB(tableID, playerID string) error {
 
 	// do action
 	if err := tableGame.Game.Pay(tableGame.Game.GetState().Meta.Blind.SB); err != nil {
-		fmt.Printf("[tableEngine#PlayerPaySB] [%s] %s pay sb error: %+v\n", tableGame.Game.GetState().Status.Round, playerID, err)
 		return err
 	}
-
-	fmt.Printf("[tableEngine#PlayerPaySB] dealer receive sb.\n")
 
 	te.EmitEvent(tableGame.Table)
 	return nil
@@ -339,11 +331,8 @@ func (te *tableEngine) PlayerPayBB(tableID, playerID string) error {
 
 	// do action
 	if err := tableGame.Game.Pay(tableGame.Game.GetState().Meta.Blind.BB); err != nil {
-		fmt.Printf("[tableEngine#PlayerPayBB] [%s] %s pay bb error: %+v\n", tableGame.Game.GetState().Status.Round, playerID, err)
 		return err
 	}
-
-	fmt.Printf("[tableEngine#PlayerPayBB] dealer receive bb.\n")
 
 	te.EmitEvent(tableGame.Table)
 	return nil
@@ -362,17 +351,8 @@ func (te *tableEngine) PlayerBet(tableID, playerID string, chips int64) error {
 
 	// do action
 	if err := tableGame.Game.Bet(chips); err != nil {
-		fmt.Printf("[tableEngine#PlayerBet] [%s] %s bet(%d) error: %+v\n", tableGame.Game.GetState().Status.Round, playerID, chips, err)
 		return err
 	}
-
-	// debug log
-	positions := make([]string, 0)
-	playerIdx := te.findPlayerIdx(tableGame.Table.State.PlayerStates, playerID)
-	if playerIdx != UnsetValue {
-		positions = tableGame.Table.State.PlayerStates[playerIdx].Positions
-	}
-	fmt.Printf("[tableEngine#PlayerBet] [%s] %s(%+v) bet(%d)\n", tableGame.Game.GetState().Status.Round, playerID, positions, chips)
 
 	te.EmitEvent(tableGame.Table)
 	return nil
@@ -391,17 +371,8 @@ func (te *tableEngine) PlayerRaise(tableID, playerID string, chipLevel int64) er
 
 	// do action
 	if err := tableGame.Game.Raise(chipLevel); err != nil {
-		fmt.Printf("[tableEngine#PlayerRaise] [%s] %s raise(%d) error: %+v\n", tableGame.Game.GetState().Status.Round, playerID, chipLevel, err)
 		return err
 	}
-
-	// debug log
-	positions := make([]string, 0)
-	playerIdx := te.findPlayerIdx(tableGame.Table.State.PlayerStates, playerID)
-	if playerIdx != UnsetValue {
-		positions = tableGame.Table.State.PlayerStates[playerIdx].Positions
-	}
-	fmt.Printf("[tableEngine#PlayerRaise] [%s] %s(%+v) raise(%d)\n", tableGame.Game.GetState().Status.Round, playerID, positions, chipLevel)
 
 	te.EmitEvent(tableGame.Table)
 	return nil
@@ -420,17 +391,8 @@ func (te *tableEngine) PlayerCall(tableID, playerID string) error {
 
 	// do action
 	if err := tableGame.Game.Call(); err != nil {
-		fmt.Printf("[tableEngine#PlayerCall] [%s] %s call error: %+v\n", tableGame.Game.GetState().Status.Round, playerID, err)
 		return err
 	}
-
-	// debug log
-	positions := make([]string, 0)
-	playerIdx := te.findPlayerIdx(tableGame.Table.State.PlayerStates, playerID)
-	if playerIdx != UnsetValue {
-		positions = tableGame.Table.State.PlayerStates[playerIdx].Positions
-	}
-	fmt.Printf("[tableEngine#PlayerCall] [%s] %s(%+v) call\n", tableGame.Game.GetState().Status.Round, playerID, positions)
 
 	if err := te.autoNextRound(tableGame); err != nil {
 		return err
@@ -453,17 +415,8 @@ func (te *tableEngine) PlayerAllin(tableID, playerID string) error {
 
 	// do action
 	if err := tableGame.Game.Allin(); err != nil {
-		fmt.Printf("[tableEngine#PlayerAllin] [%s] %s allin error: %+v\n", tableGame.Game.GetState().Status.Round, playerID, err)
 		return err
 	}
-
-	// debug log
-	positions := make([]string, 0)
-	playerIdx := te.findPlayerIdx(tableGame.Table.State.PlayerStates, playerID)
-	if playerIdx != UnsetValue {
-		positions = tableGame.Table.State.PlayerStates[playerIdx].Positions
-	}
-	fmt.Printf("[tableEngine#PlayerAllin] [%s] %s(%+v) allin\n", tableGame.Game.GetState().Status.Round, playerID, positions)
 
 	if err := te.autoNextRound(tableGame); err != nil {
 		return err
@@ -486,17 +439,8 @@ func (te *tableEngine) PlayerCheck(tableID, playerID string) error {
 
 	// do action
 	if err := tableGame.Game.Check(); err != nil {
-		fmt.Printf("[tableEngine#PlayerCheck] [%s] %s check error: %+v\n", tableGame.Game.GetState().Status.Round, playerID, err)
 		return err
 	}
-
-	// debug log
-	positions := make([]string, 0)
-	playerIdx := te.findPlayerIdx(tableGame.Table.State.PlayerStates, playerID)
-	if playerIdx != UnsetValue {
-		positions = tableGame.Table.State.PlayerStates[playerIdx].Positions
-	}
-	fmt.Printf("[tableEngine#PlayerCheck] [%s] %s(%+v) check\n", tableGame.Game.GetState().Status.Round, playerID, positions)
 
 	if err := te.autoNextRound(tableGame); err != nil {
 		return err
@@ -519,17 +463,8 @@ func (te *tableEngine) PlayerFold(tableID, playerID string) error {
 
 	// do action
 	if err := tableGame.Game.Fold(); err != nil {
-		fmt.Printf("[tableEngine#PlayerFold] [%s] %s fold error: %+v\n", tableGame.Game.GetState().Status.Round, playerID, err)
 		return err
 	}
-
-	// debug log
-	positions := make([]string, 0)
-	playerIdx := te.findPlayerIdx(tableGame.Table.State.PlayerStates, playerID)
-	if playerIdx != UnsetValue {
-		positions = tableGame.Table.State.PlayerStates[playerIdx].Positions
-	}
-	fmt.Printf("[tableEngine#PlayerFold] [%s] %s(%+v) fold\n", tableGame.Game.GetState().Status.Round, playerID, positions)
 
 	if err := te.autoNextRound(tableGame); err != nil {
 		return err
@@ -577,14 +512,12 @@ func (te *tableEngine) findPlayerIdx(players []*TablePlayerState, targetPlayerID
 func (te *tableEngine) autoNextRound(tableGame *TableGame) error {
 	if tableGame.Table.State.GameState.Status.CurrentEvent.Name == GameEventName(pokerface.GameEvent_RoundClosed) {
 		if err := tableGame.Game.Next(); err != nil {
-			fmt.Printf("[tableEngine#autoNextRound] entering next round error: %+v\n", err)
 			return err
 		}
 
-		fmt.Printf("[tableEngine#autoNextRound] entering %s\n", tableGame.Game.GetState().Status.Round)
-
 		if tableGame.Table.State.GameState.Status.CurrentEvent.Name == GameEventName(pokerface.GameEvent_GameClosed) {
 			tableGame.Table.Settlement()
+			debugPrintGameStateResult(tableGame.Table) // TODO: test only, remove it later on
 
 			if tableGame.Table.State.Status == TableStateStatus_TableGameMatchOpen {
 				// auto start next game

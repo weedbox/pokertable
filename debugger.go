@@ -6,7 +6,8 @@ import (
 	"time"
 )
 
-func (t Table) debugPrintTable(message string) {
+// TODO: test only, should remove this later
+func debugPrintTable(message string, t *Table) {
 	timeString := func(timestamp int64) string {
 		return time.Unix(timestamp, 0).Format("2006-01-02 15:04:0")
 	}
@@ -104,8 +105,8 @@ func (t Table) debugPrintTable(message string) {
 	fmt.Println()
 }
 
-func (t Table) debugPrintGameStateResult() {
-	playerIDMapper := func(t Table, gameStatePlayerIdx int) string {
+func debugPrintGameStateResult(t *Table) {
+	playerIDMapper := func(t *Table, gameStatePlayerIdx int) string {
 		for gamePlayerIdx, playerIdx := range t.State.GamePlayerIndexes {
 			if gamePlayerIdx == gameStatePlayerIdx {
 				return t.State.PlayerStates[playerIdx].PlayerID

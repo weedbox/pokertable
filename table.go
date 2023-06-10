@@ -295,8 +295,6 @@ func (t *Table) GameOpen() {
 
 	// Step 9: 更新當前桌次事件
 	t.State.Status = TableStateStatus_TableGameMatchOpen
-
-	t.debugPrintTable(fmt.Sprintf("第 (%d) 手開局資訊", t.State.GameCount)) // TODO: test only, remove it later on
 }
 
 func (t *Table) Settlement() {
@@ -317,8 +315,6 @@ func (t *Table) Settlement() {
 	} else if t.IsClose(t.EndGameAt(), t.AlivePlayers(), t.State.BlindState.IsFinalBuyInLevel()) {
 		t.State.Status = TableStateStatus_TableGameClosed
 	}
-
-	t.debugPrintGameStateResult() // TODO: test only, remove it later on
 }
 
 func (t *Table) PlayerJoin(playerID string, redeemChips int64) error {

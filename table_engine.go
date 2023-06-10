@@ -539,7 +539,9 @@ func (te *tableEngine) autoNextRound(tableGame *TableGame) error {
 
 		if tableGame.Table.State.Status == TableStateStatus_TableGameMatchOpen {
 			// auto start next game
-			te.GameOpen(tableGame.Table.ID)
+			if err := te.GameOpen(tableGame.Table.ID); err != nil {
+				return err
+			}
 		}
 		return nil
 	}

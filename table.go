@@ -217,6 +217,7 @@ func (t *Table) GameOpen() {
 	for i := 0; i < len(t.State.PlayerStates); i++ {
 		// 先讓沒有坐在 大盲、Dealer 之間的玩家參賽
 		if t.State.PlayerStates[i].IsParticipated || t.State.PlayerStates[i].IsBetweenDealerBB {
+			t.State.PlayerStates[i].IsParticipated = t.State.PlayerStates[i].Bankroll > 0
 			continue
 		}
 

@@ -18,9 +18,9 @@ func TestTableGame_River_Settlement(t *testing.T) {
 
 	// buy in 3 players
 	players := []pokertable.JoinPlayer{
-		{PlayerID: "Jeffrey", RedeemChips: 150},
-		{PlayerID: "Chuck", RedeemChips: 150},
-		{PlayerID: "Fred", RedeemChips: 150},
+		{PlayerID: "Jeffrey", RedeemChips: 15000},
+		{PlayerID: "Chuck", RedeemChips: 15000},
+		{PlayerID: "Fred", RedeemChips: 15000},
 	}
 	for _, joinPlayer := range players {
 		err = tableEngine.PlayerJoin(table.ID, joinPlayer)
@@ -31,13 +31,9 @@ func TestTableGame_River_Settlement(t *testing.T) {
 	err = tableEngine.StartGame(table.ID)
 	assert.Nil(t, err)
 
-	// logJSON(t, fmt.Sprintf("game %d started:", table.State.GameCount), table.GetJSON)
-
-	// game count 1: players playing
-	PlayersPlayingCallCheck(t, tableEngine, table.ID)
-
-	// game count 2: players playing
-	PlayersPlayingCallCheck(t, tableEngine, table.ID)
+	for i := 1; i < 1000; i++ {
+		PlayersPlayingCallCheck(t, tableEngine, table.ID)
+	}
 }
 
 func PlayersPlayingCallCheck(t *testing.T, tableEngine pokertable.TableEngine, tableID string) {

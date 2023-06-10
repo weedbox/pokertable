@@ -10,7 +10,7 @@ import (
 
 func logJSON(t *testing.T, msg string, jsonPrinter func() (*string, error)) {
 	json, _ := jsonPrinter()
-	t.Logf("\n===== [%s] =====\n%s\n", msg, *json)
+	fmt.Printf("\n===== [%s] =====\n%s\n", msg, *json)
 }
 
 func FindCurrentPlayerID(table *pokertable.Table) string {

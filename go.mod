@@ -6,7 +6,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/stretchr/testify v1.8.4
 	github.com/thoas/go-funk v0.9.3
-	github.com/weedbox/pokerface v0.0.0-20230604223057-d954afbd2b09
+	github.com/weedbox/pokerface v0.0.0-20230612023724-9a4ee1b79b76
 )
 
 require (

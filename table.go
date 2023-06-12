@@ -389,13 +389,12 @@ func (t Table) ModeRule() string {
 	return fmt.Sprintf("%s_%s_holdem", t.Meta.CompetitionMeta.Mode, t.Meta.CompetitionMeta.Rule)
 }
 
-func (t Table) GetJSON() (*string, error) {
+func (t Table) GetJSON() (string, error) {
 	encoded, err := json.Marshal(t)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	json := string(encoded)
-	return &json, nil
+	return string(encoded), nil
 }
 
 func (t Table) ParticipatedPlayers() []*TablePlayerState {
@@ -470,8 +469,9 @@ func (bs *TableBlindState) Update() {
 
 // TableBlindState Getters
 func (bs TableBlindState) IsFinalBuyInLevel() bool {
+	// 沒有預設 FinalBuyInLevelIndex 代表不能補碼，永遠都是停止買入階段
 	if bs.FinalBuyInLevelIndex == UnsetValue {
-		return false
+		return true
 	}
 
 	return bs.CurrentLevelIndex > bs.FinalBuyInLevelIndex

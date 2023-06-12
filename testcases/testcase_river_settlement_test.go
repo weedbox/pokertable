@@ -12,6 +12,9 @@ func TestTableGame_River_Settlement(t *testing.T) {
 	// create a table
 	tableEngine := pokertable.NewTableEngine()
 	tableEngine.OnTableUpdated(func(model *pokertable.Table) {})
+	tableEngine.OnTableSettled(func(model *pokertable.Table) {
+		tableEngine.GameOpen(model.ID)
+	})
 	tableSetting := NewDefaultTableSetting()
 	table, err := tableEngine.CreateTable(tableSetting)
 	assert.Nil(t, err)
@@ -33,7 +36,6 @@ func TestTableGame_River_Settlement(t *testing.T) {
 
 	for i := 1; i < 20; i++ {
 		PlayersPlayingCallCheck(t, tableEngine, table.ID)
-		tableEngine.GameOpen(table.ID)
 	}
 }
 

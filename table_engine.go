@@ -20,9 +20,17 @@ var (
 	ErrCloseTable                = errors.New("table close error")
 )
 
+type TableEvent string
+
+const (
+	TableEvent_Updated TableEvent = "table_updated"
+	TableEvent_Settled TableEvent = "table_settled"
+)
+
 type TableEngine interface {
 	// Table Actions
-	OnTableUpdated(fn func(*Table)) error                     // 桌次更新監聽器
+	OnTableUpdated(fn func(*Table))                           // 桌次更新事件監聽器
+	OnTableSettled(fn func(*Table))                           // 桌次結算事件監聽器
 	GetTable(tableID string) (*Table, error)                  // 取得桌次
 	CreateTable(tableSetting TableSetting) (*Table, error)    // 建立桌
 	CloseTable(tableID string, status TableStateStatus) error // 關閉桌
@@ -63,17 +71,27 @@ type TableGame struct {
 
 type tableEngine struct {
 	onTableUpdated func(*Table)
+	onTableSettled func(*Table)
 	tableGameMap   map[string]*TableGame
 }
 
-func (te *tableEngine) EmitEvent(table *Table) {
+func (te *tableEngine) EmitEvent(event TableEvent, table *Table) {
 	table.RefreshUpdateAt()
-	te.onTableUpdated(table)
+
+	switch event {
+	case TableEvent_Updated:
+		te.onTableUpdated(table)
+	case TableEvent_Settled:
+		te.onTableSettled(table)
+	}
 }
 
-func (te *tableEngine) OnTableUpdated(fn func(*Table)) error {
+func (te *tableEngine) OnTableUpdated(fn func(*Table)) {
 	te.onTableUpdated = fn
-	return nil
+}
+
+func (te *tableEngine) OnTableSettled(fn func(*Table)) {
+	te.onTableSettled = fn
 }
 
 func (te *tableEngine) GetTable(tableID string) (*Table, error) {
@@ -97,7 +115,7 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
 	}
 	table.ConfigureWithSetting(tableSetting)
 	if len(tableSetting.JoinPlayers) > 0 {
-		te.EmitEvent(table)
+		te.EmitEvent(TableEvent_Updated, table)
 	}
 
 	// update tableGameMap
@@ -153,7 +171,7 @@ func (te *tableEngine) StartGame(tableID string) error {
 	tableGame.Table.State.GameState = tableGame.Game.GetState()
 	debugPrintTable(fmt.Sprintf("第 (%d) 手開局資訊", tableGame.Table.State.GameCount), tableGame.Table) // TODO: test only, remove it later on
 
-	te.EmitEvent(tableGame.Table)
+	te.EmitEvent(TableEvent_Updated, tableGame.Table)
 	return nil
 }
 
@@ -174,7 +192,7 @@ func (te *tableEngine) GameOpen(tableID string) error {
 	tableGame.Table.State.GameState = tableGame.Game.GetState()
 	debugPrintTable(fmt.Sprintf("第 (%d) 手開局資訊", tableGame.Table.State.GameCount), tableGame.Table) // TODO: test only, remove it later on
 
-	te.EmitEvent(tableGame.Table)
+	te.EmitEvent(TableEvent_Updated, tableGame.Table)
 	return nil
 }
 
@@ -194,7 +212,7 @@ func (te *tableEngine) PlayerJoin(tableID string, joinPlayer JoinPlayer) error {
 		return err
 	}
 
-	te.EmitEvent(tableGame.Table)
+	te.EmitEvent(TableEvent_Updated, tableGame.Table)
 	return nil
 }
 
@@ -217,7 +235,7 @@ func (te *tableEngine) PlayerRedeemChips(tableID string, joinPlayer JoinPlayer) 
 
 	tableGame.Table.PlayerRedeemChips(playerIdx, joinPlayer.RedeemChips)
 
-	te.EmitEvent(tableGame.Table)
+	te.EmitEvent(TableEvent_Updated, tableGame.Table)
 	return nil
 }
 
@@ -251,7 +269,7 @@ func (te *tableEngine) PlayersLeave(tableID string, playerIDs []string) error {
 
 	tableGame.Table.PlayersLeave(leavePlayerIndexes)
 
-	// te.EmitEvent(tableGame.Table)
+	// te.EmitEvent(TableEvent_Updated, tableGame.Table)
 	return nil
 }
 
@@ -272,7 +290,7 @@ func (te *tableEngine) PlayerReady(tableID, playerID string) error {
 		return err
 	}
 
-	te.EmitEvent(tableGame.Table)
+	te.EmitEvent(TableEvent_Updated, tableGame.Table)
 	return nil
 }
 
@@ -292,7 +310,7 @@ func (te *tableEngine) PlayerPay(tableID, playerID string, chips int64) error {
 		return err
 	}
 
-	te.EmitEvent(tableGame.Table)
+	te.EmitEvent(TableEvent_Updated, tableGame.Table)
 	return nil
 }
 
@@ -308,7 +326,7 @@ func (te *tableEngine) PlayersPayAnte(tableID string) error {
 		return err
 	}
 
-	te.EmitEvent(tableGame.Table)
+	te.EmitEvent(TableEvent_Updated, tableGame.Table)
 	return nil
 }
 
@@ -328,7 +346,7 @@ func (te *tableEngine) PlayerPaySB(tableID, playerID string) error {
 		return err
 	}
 
-	te.EmitEvent(tableGame.Table)
+	te.EmitEvent(TableEvent_Updated, tableGame.Table)
 	return nil
 }
 
@@ -348,7 +366,7 @@ func (te *tableEngine) PlayerPayBB(tableID, playerID string) error {
 		return err
 	}
 
-	te.EmitEvent(tableGame.Table)
+	te.EmitEvent(TableEvent_Updated, tableGame.Table)
 	return nil
 }
 
@@ -368,7 +386,7 @@ func (te *tableEngine) PlayerBet(tableID, playerID string, chips int64) error {
 		return err
 	}
 
-	te.EmitEvent(tableGame.Table)
+	te.EmitEvent(TableEvent_Updated, tableGame.Table)
 	return nil
 }
 
@@ -388,7 +406,7 @@ func (te *tableEngine) PlayerRaise(tableID, playerID string, chipLevel int64) er
 		return err
 	}
 
-	te.EmitEvent(tableGame.Table)
+	te.EmitEvent(TableEvent_Updated, tableGame.Table)
 	return nil
 }
 
@@ -412,7 +430,7 @@ func (te *tableEngine) PlayerCall(tableID, playerID string) error {
 		return err
 	}
 
-	te.EmitEvent(tableGame.Table)
+	te.EmitEvent(TableEvent_Updated, tableGame.Table)
 	return nil
 }
 
@@ -436,7 +454,7 @@ func (te *tableEngine) PlayerAllin(tableID, playerID string) error {
 		return err
 	}
 
-	te.EmitEvent(tableGame.Table)
+	te.EmitEvent(TableEvent_Updated, tableGame.Table)
 	return nil
 }
 
@@ -460,7 +478,7 @@ func (te *tableEngine) PlayerCheck(tableID, playerID string) error {
 		return err
 	}
 
-	te.EmitEvent(tableGame.Table)
+	te.EmitEvent(TableEvent_Updated, tableGame.Table)
 	return nil
 }
 
@@ -484,7 +502,7 @@ func (te *tableEngine) PlayerFold(tableID, playerID string) error {
 		return err
 	}
 
-	te.EmitEvent(tableGame.Table)
+	te.EmitEvent(TableEvent_Updated, tableGame.Table)
 	return nil
 }
 
@@ -508,7 +526,7 @@ func (te *tableEngine) PlayerPass(tableID, playerID string) error {
 		return err
 	}
 
-	te.EmitEvent(tableGame.Table)
+	te.EmitEvent(TableEvent_Updated, tableGame.Table)
 	return nil
 }
 
@@ -556,10 +574,15 @@ func (te *tableEngine) autoNextRound(tableGame *TableGame) error {
 		return nil
 	}
 
+	settleTable := func(table *Table) {
+		table.Settlement()
+		debugPrintGameStateResult(tableGame.Table) // TODO: test only, remove it later on
+		te.EmitEvent(TableEvent_Settled, table)
+	}
+
 	// walk situation
 	if round == GameRound_Preflop && event == GameEventName(pokerface.GameEvent_GameClosed) {
-		tableGame.Table.Settlement()
-		debugPrintGameStateResult(tableGame.Table) // TODO: test only, remove it later on
+		settleTable(tableGame.Table)
 		return nil
 	}
 
@@ -576,8 +599,7 @@ func (te *tableEngine) autoNextRound(tableGame *TableGame) error {
 		}
 
 		if event == GameEventName(pokerface.GameEvent_GameClosed) {
-			tableGame.Table.Settlement()
-			debugPrintGameStateResult(tableGame.Table) // TODO: test only, remove it later on
+			settleTable(tableGame.Table)
 			return nil
 		}
 	}

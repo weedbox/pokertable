@@ -12,6 +12,7 @@ func TestTableGame_Flop_Settlement(t *testing.T) {
 	// create a table
 	tableEngine := pokertable.NewTableEngine()
 	tableEngine.OnTableUpdated(func(model *pokertable.Table) {})
+	tableEngine.OnTableSettled(func(model *pokertable.Table) {})
 	tableSetting := NewDefaultTableSetting()
 	table, err := tableEngine.CreateTable(tableSetting)
 	assert.Nil(t, err)

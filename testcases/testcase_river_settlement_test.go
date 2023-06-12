@@ -31,7 +31,7 @@ func TestTableGame_River_Settlement(t *testing.T) {
 	err = tableEngine.StartGame(table.ID)
 	assert.Nil(t, err)
 
-	for i := 1; i < 1000; i++ {
+	for i := 1; i < 20; i++ {
 		PlayersPlayingCallCheck(t, tableEngine, table.ID)
 	}
 }

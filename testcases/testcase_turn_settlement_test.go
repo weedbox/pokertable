@@ -100,6 +100,11 @@ func TestTableGame_Turn_Settlement(t *testing.T) {
 	err = tableEngine.PlayerAllin(tableID, FindCurrentPlayerID(table))
 	assert.Nil(t, err, NewPlayerActionErrorLog(table, FindCurrentPlayerID(table), "all in", err))
 
+	// bb move
+	PrintPlayerActionLog(table, FindCurrentPlayerID(table), "pass")
+	err = tableEngine.PlayerPass(tableID, FindCurrentPlayerID(table))
+	assert.Nil(t, err, NewPlayerActionErrorLog(table, FindCurrentPlayerID(table), "pass", err))
+
 	// dealer move
 	PrintPlayerActionLog(table, FindCurrentPlayerID(table), "allin")
 	err = tableEngine.PlayerAllin(tableID, FindCurrentPlayerID(table))

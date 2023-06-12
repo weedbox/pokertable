@@ -33,6 +33,7 @@ func TestTableGame_River_Settlement(t *testing.T) {
 
 	for i := 1; i < 20; i++ {
 		PlayersPlayingCallCheck(t, tableEngine, table.ID)
+		tableEngine.GameOpen(table.ID)
 	}
 }
 

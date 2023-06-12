@@ -551,19 +551,6 @@ func (te *tableEngine) autoNextRound(tableGame *TableGame) error {
 	event := tableGame.Table.State.GameState.Status.CurrentEvent.Name
 	round := tableGame.Table.State.GameState.Status.Round
 
-	settleGame := func() error {
-		tableGame.Table.Settlement()
-		debugPrintGameStateResult(tableGame.Table) // TODO: test only, remove it later on
-
-		if tableGame.Table.State.Status == TableStateStatus_TableGameMatchOpen {
-			// auto start next game
-			if err := te.GameOpen(tableGame.Table.ID); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-
 	// round not closed yet
 	if event != GameEventName(pokerface.GameEvent_RoundClosed) {
 		return nil
@@ -571,7 +558,9 @@ func (te *tableEngine) autoNextRound(tableGame *TableGame) error {
 
 	// walk situation
 	if round == GameRound_Preflop && event == GameEventName(pokerface.GameEvent_GameClosed) {
-		return settleGame()
+		tableGame.Table.Settlement()
+		debugPrintGameStateResult(tableGame.Table) // TODO: test only, remove it later on
+		return nil
 	}
 
 	// auto next round situation
@@ -587,7 +576,9 @@ func (te *tableEngine) autoNextRound(tableGame *TableGame) error {
 		}
 
 		if event == GameEventName(pokerface.GameEvent_GameClosed) {
-			return settleGame()
+			tableGame.Table.Settlement()
+			debugPrintGameStateResult(tableGame.Table) // TODO: test only, remove it later on
+			return nil
 		}
 	}
 }

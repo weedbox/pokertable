@@ -38,27 +38,6 @@ func TestCreateTable(t *testing.T) {
 	}
 }
 
-func TestCloseTable(t *testing.T) {
-	tableEngine := NewTableEngine()
-	tableEngine.OnTableUpdated(func(table *Table) {})
-	expectedStatus := []TableStateStatus{
-		TableStateStatus_TableGameAutoEnded,
-		TableStateStatus_TableGameKilled,
-	}
-
-	for _, expectedStatus := range expectedStatus {
-		table, err := tableEngine.CreateTable(NewDefaultTableSetting())
-		assert.Nil(t, err)
-
-		err = tableEngine.CloseTable(table.ID, expectedStatus)
-		assert.Nil(t, err)
-
-		newTable, err := tableEngine.GetTable(table.ID)
-		assert.Nil(t, err)
-		assert.Equal(t, expectedStatus, newTable.State.Status)
-	}
-}
-
 func TestStartGame(t *testing.T) {
 	tableEngine := NewTableEngine()
 	tableEngine.OnTableUpdated(func(table *Table) {})

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/thoas/go-funk"
 	"github.com/weedbox/pokerface"
 
 	"github.com/google/uuid"
@@ -16,6 +17,7 @@ var (
 	ErrPlayerNotFound            = errors.New("player not found")
 	ErrNoEmptySeats              = errors.New("no empty seats available")
 	ErrPlayerInvalidAction       = errors.New("player invalid action")
+	ErrCloseTable                = errors.New("table close error")
 )
 
 type TableEngine interface {
@@ -104,15 +106,31 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
 	return table, nil
 }
 
+/*
+	CloseTable 關閉桌
+	  - 適用時機:
+	    - 強制關閉 (Killed)
+		- 自動關閉 (AutoEnded)
+		- 正常關閉 (Closed)
+*/
 func (te *tableEngine) CloseTable(tableID string, status TableStateStatus) error {
-	tableGame, exist := te.tableGameMap[tableID]
+	_, exist := te.tableGameMap[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
 
-	tableGame.Table.State.Status = status
+	validStatuses := []TableStateStatus{
+		TableStateStatus_TableGameKilled,
+		TableStateStatus_TableGameAutoEnded,
+		TableStateStatus_TableGameClosed,
+	}
+	if !funk.Contains(validStatuses, status) {
+		return ErrCloseTable
+	}
 
-	te.EmitEvent(tableGame.Table)
+	// update tableGameMap
+	delete(te.tableGameMap, tableID)
+
 	return nil
 }
 
@@ -552,7 +570,7 @@ func (te *tableEngine) autoNextRound(tableGame *TableGame) error {
 	}
 
 	// walk situation
-	if round == GameRound_Preflod && event == GameEventName(pokerface.GameEvent_GameClosed) {
+	if round == GameRound_Preflop && event == GameEventName(pokerface.GameEvent_GameClosed) {
 		return settleGame()
 	}
 

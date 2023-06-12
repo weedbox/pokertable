@@ -35,8 +35,8 @@ const (
 	WagerAction_Raise = "raise"
 
 	// Round
-	GameRound_Preflod = "preflop"
-	GameRound_Flod    = "flop"
+	GameRound_Preflop = "preflop"
+	GameRound_Flop    = "flop"
 	GameRound_Turn    = "turn"
 	GameRound_River   = "river"
 )

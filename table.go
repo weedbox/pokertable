@@ -107,7 +107,7 @@ type TableBlindLevelState struct {
 
 // Setters
 func (t *Table) RefreshUpdateAt() {
-	t.UpdateAt = time.Now().Unix()
+	t.UpdateAt = time.Now().UnixMilli()
 }
 
 func (t *Table) Reset() {

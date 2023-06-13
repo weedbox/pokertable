@@ -111,7 +111,7 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
 	// create table instance
 	table := &Table{
 		ID:       uuid.New().String(),
-		UpdateAt: time.Now().Unix(),
+		UpdateAt: time.Now().UnixMilli(),
 	}
 	table.ConfigureWithSetting(tableSetting)
 	if len(tableSetting.JoinPlayers) > 0 {

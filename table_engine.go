@@ -269,7 +269,7 @@ func (te *tableEngine) PlayersLeave(tableID string, playerIDs []string) error {
 
 	tableGame.Table.PlayersLeave(leavePlayerIndexes)
 
-	// te.EmitEvent(TableEvent_Updated, tableGame.Table)
+	te.EmitEvent(TableEvent_Updated, tableGame.Table)
 	return nil
 }
 

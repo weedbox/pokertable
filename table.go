@@ -2,7 +2,6 @@ package pokertable
 
 import (
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/thoas/go-funk"
@@ -12,22 +11,26 @@ import (
 type TableStateStatus string
 
 const (
-	// TableStateStatus
-	TableStateStatus_TableGameCreated                 TableStateStatus = "TableGame_Created"                 // 本桌遊戲已建立
-	TableStateStatus_TableGameKilled                  TableStateStatus = "TableGame_Killed"                  // 本桌遊戲已被強制關閉
-	TableStateStatus_TableGameAutoEnded               TableStateStatus = "TableGame_AutoEnded"               // 本桌遊戲已被自動關閉
-	TableStateStatus_TableGamePaused                  TableStateStatus = "TableGame_Paused"                  // 本桌遊戲暫停
-	TableStateStatus_TableGameRestoring               TableStateStatus = "TableGame_Restoring"               // 本桌遊戲轉移中 (Graceful Shutdown)
-	TableStateStatus_TableGameClosed                  TableStateStatus = "TableGame_Closed"                  // 本桌遊戲結束
-	TableStateStatus_TableGameMatchOpen               TableStateStatus = "TableGame_MatchOpen"               // 本手遊戲已開始
-	TableStateStatus_TableGameWaitingDistributeTables TableStateStatus = "TableGame_WaitingDistributeTables" // 等待拆併桌
+	// TableStateStatus: Table
+	TableStateStatus_TableCreated   TableStateStatus = "table_crated"    // 桌次已建立
+	TableStateStatus_TablePausing   TableStateStatus = "table_pausing"   // 桌次暫停中
+	TableStateStatus_TableRestoring TableStateStatus = "table_restoring" // 桌次轉移中 (Graceful Shutdown)
+	TableStateStatus_TableBalancing TableStateStatus = "table_balancing" // 桌次拆併桌中
+	TableStateStatus_TableClosed    TableStateStatus = "table_closed"    // 桌次已結束
+
+	// TableStateStatus: Game
+	TableStateStatus_TableGameStandby TableStateStatus = "table_game_standby" // 桌次內遊戲尚未開始
+	TableStateStatus_TableGameOpened  TableStateStatus = "table_game_opened"  // 桌次內遊戲已開局
+	TableStateStatus_TableGamePlaying TableStateStatus = "table_game_playing" // 桌次內遊戲開打中
+	TableStateStatus_TableGameSettled TableStateStatus = "table_game_settled" // 桌次內遊戲已結算
+	TableStateStatus_TableGameClosed  TableStateStatus = "table_game_closed"  // 桌次內遊戲已結束
 )
 
 type Table struct {
 	ID       string      `json:"id"`
 	Meta     TableMeta   `json:"meta"`
 	State    *TableState `json:"state"`
-	UpdateAt int64       `json:"update_at"`
+	UpdateAt int64       `json:"update_at"` // 更新時間 (MilliSeconds)
 }
 
 type TableMeta struct {
@@ -39,50 +42,50 @@ type TableMeta struct {
 }
 
 type CompetitionMeta struct {
-	ID                   string `json:"id"`                      // 賽事 ID
-	Rule                 string `json:"rule"`                    // 德州撲克規則, 常牌(default), 短牌(short_deck), 奧瑪哈(omaha)
-	Mode                 string `json:"mode"`                    // 賽事模式 (CT, MTT, Cash)
-	MaxDurationMins      int    `json:"max_duration_mins"`       // 比賽時間總長 (分鐘)
-	TableMaxSeatCount    int    `json:"table_max_seat_count"`    // 每桌人數上限
-	TableMinPlayingCount int    `json:"table_min_playing_count"` // 每桌最小開打數
-	MinChipsUnit         int64  `json:"min_chips_unit"`          // 最小單位籌碼量
-	Blind                Blind  `json:"blind"`                   // 盲注資訊
-	ActionTimeSecs       int    `json:"action_time_secs"`        // 玩家動作思考時間 (秒數)
+	ID                  string `json:"id"`                      // 賽事 ID
+	Rule                string `json:"rule"`                    // 德州撲克規則, 常牌(default), 短牌(short_deck), 奧瑪哈(omaha)
+	Mode                string `json:"mode"`                    // 賽事模式 (CT, MTT, Cash)
+	MaxDuration         int    `json:"max_duration"`            // 比賽時間總長 (分鐘)
+	TableMaxSeatCount   int    `json:"table_max_seat_count"`    // 每桌人數上限
+	TableMinPlayerCount int    `json:"table_min_playing_count"` // 每桌最小開打數
+	MinChipUnit         int64  `json:"min_chip_unit"`           // 最小單位籌碼量
+	Blind               Blind  `json:"blind"`                   // 盲注資訊
+	ActionTime          int    `json:"action_time"`             // 玩家動作思考時間 (秒數)
 }
 
 type Blind struct {
-	ID               string       `json:"id"`                 // ID
-	Name             string       `json:"name"`               // 名稱
-	InitialLevel     int          `json:"initial_level"`      // 起始盲注級別
-	FinalBuyInLevel  int          `json:"final_buy_in_level"` // 最後買入盲注等級
-	DealerBlindTimes int          `json:"dealer_blind_times"` // Dealer 位置要收取的前注倍數 (短牌用)
-	Levels           []BlindLevel `json:"levels"`             // 級別資訊列表
+	ID              string       `json:"id"`                 // ID
+	Name            string       `json:"name"`               // 名稱
+	InitialLevel    int          `json:"initial_level"`      // 起始盲注級別
+	FinalBuyInLevel int          `json:"final_buy_in_level"` // 最後買入盲注等級
+	DealerBlindTime int          `json:"dealer_blind_time"`  // Dealer 位置要收取的前注倍數 (短牌用)
+	Levels          []BlindLevel `json:"levels"`             // 級別資訊列表
 }
 
 type BlindLevel struct {
-	Level        int   `json:"level"`         // 盲注等級(-1 表示中場休息)
-	SBChips      int64 `json:"sb_chips"`      // 小盲籌碼量
-	BBChips      int64 `json:"bb_chips"`      // 大盲籌碼量
-	AnteChips    int64 `json:"ante_chips"`    // 前注籌碼量
-	DurationMins int   `json:"duration_mins"` // 等級持續時間
+	Level    int   `json:"level"`    // 盲注等級(-1 表示中場休息)
+	SB       int64 `json:"sb"`       // 小盲籌碼量
+	BB       int64 `json:"bb"`       // 大盲籌碼量
+	Ante     int64 `json:"ante"`     // 前注籌碼量
+	Duration int   `json:"duration"` // 等級持續時間
 }
 
 type TableState struct {
-	GameCount              int                  `json:"game_count"`                // 執行牌局遊戲次數 (遊戲跑幾輪)
-	StartGameAt            int64                `json:"start_game_at"`             // 開打時間
-	BlindState             *TableBlindState     `json:"blind_state"`               // 盲注狀態
-	CurrentDealerSeatIndex int                  `json:"current_dealer_seat_index"` // 當前 Dealer 座位編號
-	CurrentBBSeatIndex     int                  `json:"current_bb_seat_index"`     // 當前 BB 座位編號
-	PlayerSeatMap          []int                `json:"player_seat_map"`           // 座位入座狀況，index: seat index (0-8), value: TablePlayerState index (-1 by default)
-	PlayerStates           []*TablePlayerState  `json:"player_states"`             // 賽局桌上玩家狀態
-	GamePlayerIndexes      []int                `json:"game_player_indexes"`       // 本手正在玩的 PlayerIndex 陣列 (陣列 index 為從 Dealer 位置開始的 PlayerIndex)，GameEngine 用
-	Status                 TableStateStatus     `json:"status"`                    // 當前桌次狀態
-	GameState              *pokerface.GameState `json:"game_state"`                // 本手狀態 (pokerface.GameState)
+	Status            TableStateStatus     `json:"status"`              // 當前桌次狀態
+	StartAt           int64                `json:"start_at"`            // 開打時間 (Seconds)
+	SeatMap           []int                `json:"seat_map"`            // 座位入座狀況，index: seat index (0-8), value: TablePlayerState index (-1 by default)
+	BlindState        *TableBlindState     `json:"blind_state"`         // 盲注狀態
+	CurrentDealerSeat int                  `json:"current_dealer_seat"` // 當前 Dealer 座位編號
+	CurrentBBSeat     int                  `json:"current_bb_seat"`     // 當前 BB 座位編號
+	PlayerStates      []*TablePlayerState  `json:"player_states"`       // 賽局桌上玩家狀態
+	GameCount         int                  `json:"game_count"`          // 執行牌局遊戲次數 (遊戲跑幾輪)
+	GamePlayerIndexes []int                `json:"game_player_indexes"` // 本手正在玩的 PlayerIndex 陣列 (陣列 index 為從 Dealer 位置開始的 PlayerIndex)，GameEngine 用
+	GameState         *pokerface.GameState `json:"game_state"`          // 本手狀態 (pokerface.GameState)
 }
 
 type TablePlayerState struct {
 	PlayerID          string   `json:"player_id"`            // 玩家 ID
-	SeatIndex         int      `json:"seat_index"`           // 座位編號 0 ~ 8
+	Seat              int      `json:"seat"`                 // 座位編號 0 ~ 8
 	Positions         []string `json:"positions"`            // 場上位置
 	IsParticipated    bool     `json:"is_participated"`      // 玩家是否參戰，入座 ≠ 參戰
 	IsBetweenDealerBB bool     `json:"is_between_dealer_bb"` // 玩家入場時是否在 Dealer & BB 之間
@@ -97,12 +100,8 @@ type TableBlindState struct {
 }
 
 type TableBlindLevelState struct {
-	Level        int   `json:"level"`         // 盲注等級(-1 表示中場休息)
-	SBChips      int64 `json:"sb_chips"`      // 小盲籌碼量
-	BBChips      int64 `json:"bb_chips"`      // 大盲籌碼量
-	AnteChips    int64 `json:"ante_chips"`    // 前注籌碼量
-	DurationMins int   `json:"duration_mins"` // 等級持續時間
-	LevelEndAt   int64 `json:"level_end_at"`  // 等級結束時間
+	BlindLevel BlindLevel `json:"blind_level"` // 盲注等級資訊
+	EndAt      int64      `json:"end_at"`      // 等級結束時間 (Seconds)
 }
 
 // Setters
@@ -117,7 +116,7 @@ func (t *Table) Reset() {
 	}
 }
 
-func (t *Table) ConfigureWithSetting(setting TableSetting) {
+func (t *Table) ConfigureWithSetting(setting TableSetting, status TableStateStatus) {
 	// configure meta
 	meta := TableMeta{
 		ShortID:         setting.ShortID,
@@ -145,25 +144,21 @@ func (t *Table) ConfigureWithSetting(setting TableSetting) {
 		CurrentLevelIndex:    UnsetValue,
 		LevelStates: funk.Map(setting.CompetitionMeta.Blind.Levels, func(blindLevel BlindLevel) *TableBlindLevelState {
 			return &TableBlindLevelState{
-				Level:        blindLevel.Level,
-				SBChips:      blindLevel.SBChips,
-				BBChips:      blindLevel.BBChips,
-				AnteChips:    blindLevel.AnteChips,
-				DurationMins: blindLevel.DurationMins,
-				LevelEndAt:   UnsetValue,
+				BlindLevel: blindLevel,
+				EndAt:      UnsetValue,
 			}
 		}).([]*TableBlindLevelState),
 	}
 	state := TableState{
-		GameCount:              0,
-		StartGameAt:            UnsetValue,
-		BlindState:             &blindState,
-		CurrentDealerSeatIndex: UnsetValue,
-		CurrentBBSeatIndex:     UnsetValue,
-		PlayerSeatMap:          NewDefaultSeatMap(setting.CompetitionMeta.TableMaxSeatCount),
-		PlayerStates:           make([]*TablePlayerState, 0),
-		GamePlayerIndexes:      make([]int, 0),
-		Status:                 TableStateStatus_TableGameCreated,
+		GameCount:         0,
+		StartAt:           UnsetValue,
+		BlindState:        &blindState,
+		CurrentDealerSeat: UnsetValue,
+		CurrentBBSeat:     UnsetValue,
+		SeatMap:           NewDefaultSeatMap(setting.CompetitionMeta.TableMaxSeatCount),
+		PlayerStates:      make([]*TablePlayerState, 0),
+		GamePlayerIndexes: make([]int, 0),
+		Status:            status,
 	}
 	t.State = &state
 
@@ -173,7 +168,7 @@ func (t *Table) ConfigureWithSetting(setting TableSetting) {
 		t.State.PlayerStates = funk.Map(setting.JoinPlayers, func(p JoinPlayer) *TablePlayerState {
 			return &TablePlayerState{
 				PlayerID:          p.PlayerID,
-				SeatIndex:         UnsetValue,
+				Seat:              UnsetValue,
 				Positions:         []string{Position_Unknown},
 				IsParticipated:    true,
 				IsBetweenDealerBB: false,
@@ -183,35 +178,37 @@ func (t *Table) ConfigureWithSetting(setting TableSetting) {
 
 		// update seats
 		for playerIdx := 0; playerIdx < len(t.State.PlayerStates); playerIdx++ {
-			seatIdx := RandomSeatIndex(state.PlayerSeatMap)
-			t.State.PlayerSeatMap[seatIdx] = playerIdx
-			t.State.PlayerStates[playerIdx].SeatIndex = seatIdx
+			seatIdx := RandomSeat(state.SeatMap)
+			t.State.SeatMap[seatIdx] = playerIdx
+			t.State.PlayerStates[playerIdx].Seat = seatIdx
 		}
 	}
+
+	t.RefreshUpdateAt()
 }
 
 func (t *Table) ActivateBlindState() {
 	for idx, levelState := range t.State.BlindState.LevelStates {
-		if levelState.Level == t.State.BlindState.InitialLevel {
+		if levelState.BlindLevel.Level == t.State.BlindState.InitialLevel {
 			t.State.BlindState.CurrentLevelIndex = idx
 			break
 		}
 	}
-	blindStartAt := t.State.StartGameAt
+	blindStartAt := t.State.StartAt
 	for i := (t.State.BlindState.InitialLevel - 1); i < len(t.State.BlindState.LevelStates); i++ {
 		if i == t.State.BlindState.InitialLevel-1 {
-			t.State.BlindState.LevelStates[i].LevelEndAt = blindStartAt
+			t.State.BlindState.LevelStates[i].EndAt = blindStartAt
 		} else {
-			t.State.BlindState.LevelStates[i].LevelEndAt = t.State.BlindState.LevelStates[i-1].LevelEndAt
+			t.State.BlindState.LevelStates[i].EndAt = t.State.BlindState.LevelStates[i-1].EndAt
 		}
-		blindPassedSeconds := int64((time.Duration(t.State.BlindState.LevelStates[i].DurationMins) * time.Minute).Seconds())
-		t.State.BlindState.LevelStates[i].LevelEndAt += blindPassedSeconds
+		blindPassedSeconds := int64((time.Duration(t.State.BlindState.LevelStates[i].BlindLevel.Duration) * time.Minute).Seconds())
+		t.State.BlindState.LevelStates[i].EndAt += blindPassedSeconds
 	}
 }
 
-func (t *Table) GameOpen() {
-	// Step 1: 重設桌次狀態
-	t.Reset()
+func (t *Table) OpenGame() {
+	// Step 1: 更新狀態
+	t.State.Status = TableStateStatus_TableGameOpened
 
 	// Step 2: 檢查參賽資格
 	for i := 0; i < len(t.State.PlayerStates); i++ {
@@ -237,9 +234,9 @@ func (t *Table) GameOpen() {
 		}
 	}
 
-	// Step 4: 計算新 Dealer SeatIndex & PlayerIndex
-	newDealerPlayerIdx := FindDealerPlayerIndex(t.State.GameCount, t.State.CurrentDealerSeatIndex, t.Meta.CompetitionMeta.TableMinPlayingCount, t.Meta.CompetitionMeta.TableMaxSeatCount, t.State.PlayerStates, t.State.PlayerSeatMap)
-	newDealerTableSeatIdx := t.State.PlayerStates[newDealerPlayerIdx].SeatIndex
+	// Step 4: 計算新 Dealer Seat & PlayerIndex
+	newDealerPlayerIdx := FindDealerPlayerIndex(t.State.GameCount, t.State.CurrentDealerSeat, t.Meta.CompetitionMeta.TableMinPlayerCount, t.Meta.CompetitionMeta.TableMaxSeatCount, t.State.PlayerStates, t.State.SeatMap)
+	newDealerTableSeatIdx := t.State.PlayerStates[newDealerPlayerIdx].Seat
 
 	// Step 5: 處理玩家參賽狀態，確認玩家在 BB-Dealer 的參賽權
 	for i := 0; i < len(t.State.PlayerStates); i++ {
@@ -247,9 +244,9 @@ func (t *Table) GameOpen() {
 			continue
 		}
 
-		if newDealerTableSeatIdx-t.State.CurrentDealerSeatIndex < 0 {
-			for j := t.State.CurrentDealerSeatIndex + 1; j < newDealerTableSeatIdx+t.Meta.CompetitionMeta.TableMaxSeatCount; j++ {
-				if (j % t.Meta.CompetitionMeta.TableMaxSeatCount) != t.State.PlayerStates[i].SeatIndex {
+		if newDealerTableSeatIdx-t.State.CurrentDealerSeat < 0 {
+			for j := t.State.CurrentDealerSeat + 1; j < newDealerTableSeatIdx+t.Meta.CompetitionMeta.TableMaxSeatCount; j++ {
+				if (j % t.Meta.CompetitionMeta.TableMaxSeatCount) != t.State.PlayerStates[i].Seat {
 					continue
 				}
 
@@ -257,8 +254,8 @@ func (t *Table) GameOpen() {
 				t.State.PlayerStates[i].IsBetweenDealerBB = false
 			}
 		} else {
-			for j := t.State.CurrentDealerSeatIndex + 1; j < newDealerTableSeatIdx; j++ {
-				if j != t.State.PlayerStates[i].SeatIndex {
+			for j := t.State.CurrentDealerSeat + 1; j < newDealerTableSeatIdx; j++ {
+				if j != t.State.PlayerStates[i].Seat {
 					continue
 				}
 
@@ -269,8 +266,8 @@ func (t *Table) GameOpen() {
 	}
 
 	// Step 6: 計算 & 更新本手參與玩家的 PlayerIndex 陣列
-	gamePlayerIndexes := FindGamePlayerIndexes(newDealerTableSeatIdx, t.State.PlayerSeatMap, t.State.PlayerStates)
-	t.State.GamePlayerIndexes = FindGamePlayerIndexes(newDealerTableSeatIdx, t.State.PlayerSeatMap, t.State.PlayerStates)
+	gamePlayerIndexes := FindGamePlayerIndexes(newDealerTableSeatIdx, t.State.SeatMap, t.State.PlayerStates)
+	t.State.GamePlayerIndexes = FindGamePlayerIndexes(newDealerTableSeatIdx, t.State.SeatMap, t.State.PlayerStates)
 
 	// Step 7: 計算 & 更新本手參與玩家位置資訊
 	positionMap := GetPlayerPositionMap(t.Meta.CompetitionMeta.Rule, t.State.PlayerStates, gamePlayerIndexes)
@@ -283,39 +280,40 @@ func (t *Table) GameOpen() {
 
 	// Step 8: 更新桌次狀態 (GameCount, 當前 Dealer & BB 位置)
 	t.State.GameCount = t.State.GameCount + 1
-	t.State.CurrentDealerSeatIndex = newDealerTableSeatIdx
+	t.State.CurrentDealerSeat = newDealerTableSeatIdx
 	if len(gamePlayerIndexes) == 2 {
 		bbPlayerIdx := gamePlayerIndexes[1]
-		t.State.CurrentBBSeatIndex = t.State.PlayerStates[bbPlayerIdx].SeatIndex
+		t.State.CurrentBBSeat = t.State.PlayerStates[bbPlayerIdx].Seat
 	} else if len(gamePlayerIndexes) > 2 {
 		bbPlayerIdx := gamePlayerIndexes[2]
-		t.State.CurrentBBSeatIndex = t.State.PlayerStates[bbPlayerIdx].SeatIndex
+		t.State.CurrentBBSeat = t.State.PlayerStates[bbPlayerIdx].Seat
 	} else {
-		t.State.CurrentBBSeatIndex = UnsetValue
+		t.State.CurrentBBSeat = UnsetValue
 	}
-
-	// Step 9: 更新當前桌次事件
-	t.State.Status = TableStateStatus_TableGameMatchOpen
 }
 
-func (t *Table) Settlement() {
-	// Step 1: 把玩家輸贏籌碼更新到 Bankroll
+func (t *Table) SettleGameResult() {
+	t.State.Status = TableStateStatus_TableGameSettled
+
+	// Step 1: 更新盲注 Level
+	t.State.BlindState.Update()
+
+	// Step 2: 把玩家輸贏籌碼更新到 Bankroll
 	for _, player := range t.State.GameState.Result.Players {
 		playerIdx := t.State.GamePlayerIndexes[player.Idx]
 		t.State.PlayerStates[playerIdx].Bankroll = player.Final
 	}
+}
 
-	// Step 2: 更新盲注 Level
-	t.State.BlindState.Update()
-
-	// Step 3: 依照桌次目前狀況更新事件
-	if !t.State.BlindState.IsFinalBuyInLevel() && len(t.AlivePlayers()) < 2 {
-		t.State.Status = TableStateStatus_TableGamePaused
-	} else if t.State.BlindState.IsBreaking() {
-		t.State.Status = TableStateStatus_TableGamePaused
-	} else if t.IsClose(t.EndGameAt(), t.AlivePlayers(), t.State.BlindState.IsFinalBuyInLevel()) {
-		t.State.Status = TableStateStatus_TableGameClosed
+func (t *Table) ContinueGame() {
+	shouldPause := t.State.BlindState.IsBreaking() || (!t.State.BlindState.IsFinalBuyInLevel() && len(t.AlivePlayers()) < 2)
+	if shouldPause {
+		t.State.Status = TableStateStatus_TablePausing
+	} else {
+		t.State.Status = TableStateStatus_TableGameStandby
 	}
+
+	t.Reset()
 }
 
 func (t *Table) PlayerJoin(playerID string, redeemChips int64) error {
@@ -330,7 +328,7 @@ func (t *Table) PlayerJoin(playerID string, redeemChips int64) error {
 		// BuyIn
 		player := TablePlayerState{
 			PlayerID:          playerID,
-			SeatIndex:         UnsetValue,
+			Seat:              UnsetValue,
 			Positions:         []string{Position_Unknown},
 			IsParticipated:    true,
 			IsBetweenDealerBB: false,
@@ -340,14 +338,14 @@ func (t *Table) PlayerJoin(playerID string, redeemChips int64) error {
 
 		// update seat
 		newPlayerIdx := len(t.State.PlayerStates) - 1
-		seatIdx := RandomSeatIndex(t.State.PlayerSeatMap)
-		t.State.PlayerSeatMap[seatIdx] = newPlayerIdx
-		t.State.PlayerStates[newPlayerIdx].SeatIndex = seatIdx
-		t.State.PlayerStates[newPlayerIdx].IsBetweenDealerBB = IsBetweenDealerBB(seatIdx, t.State.CurrentDealerSeatIndex, t.State.CurrentBBSeatIndex, t.Meta.CompetitionMeta.TableMaxSeatCount, t.Meta.CompetitionMeta.Rule)
+		seatIdx := RandomSeat(t.State.SeatMap)
+		t.State.SeatMap[seatIdx] = newPlayerIdx
+		t.State.PlayerStates[newPlayerIdx].Seat = seatIdx
+		t.State.PlayerStates[newPlayerIdx].IsBetweenDealerBB = IsBetweenDealerBB(seatIdx, t.State.CurrentDealerSeat, t.State.CurrentBBSeat, t.Meta.CompetitionMeta.TableMaxSeatCount, t.Meta.CompetitionMeta.Rule)
 	} else {
 		// ReBuy
 		// 補碼要檢查玩家是否介於 Dealer-BB 之間
-		t.State.PlayerStates[targetPlayerIdx].IsBetweenDealerBB = IsBetweenDealerBB(t.State.PlayerStates[targetPlayerIdx].SeatIndex, t.State.CurrentDealerSeatIndex, t.State.CurrentBBSeatIndex, t.Meta.CompetitionMeta.TableMaxSeatCount, t.Meta.CompetitionMeta.Rule)
+		t.State.PlayerStates[targetPlayerIdx].IsBetweenDealerBB = IsBetweenDealerBB(t.State.PlayerStates[targetPlayerIdx].Seat, t.State.CurrentDealerSeat, t.State.CurrentBBSeat, t.Meta.CompetitionMeta.TableMaxSeatCount, t.Meta.CompetitionMeta.Rule)
 		t.State.PlayerStates[targetPlayerIdx].Bankroll += redeemChips
 		t.State.PlayerStates[targetPlayerIdx].IsParticipated = true
 	}
@@ -358,7 +356,7 @@ func (t *Table) PlayerJoin(playerID string, redeemChips int64) error {
 func (t *Table) PlayerRedeemChips(playerIdx int, redeemChips int64) {
 	// 如果是 Bankroll 為 0 的情況，增購要檢查玩家是否介於 Dealer-BB 之間
 	if t.State.PlayerStates[playerIdx].Bankroll == 0 {
-		t.State.PlayerStates[playerIdx].IsBetweenDealerBB = IsBetweenDealerBB(t.State.PlayerStates[playerIdx].SeatIndex, t.State.CurrentDealerSeatIndex, t.State.CurrentBBSeatIndex, t.Meta.CompetitionMeta.TableMaxSeatCount, t.Meta.CompetitionMeta.Rule)
+		t.State.PlayerStates[playerIdx].IsBetweenDealerBB = IsBetweenDealerBB(t.State.PlayerStates[playerIdx].Seat, t.State.CurrentDealerSeat, t.State.CurrentBBSeat, t.Meta.CompetitionMeta.TableMaxSeatCount, t.Meta.CompetitionMeta.Rule)
 	}
 	t.State.PlayerStates[playerIdx].Bankroll += redeemChips
 }
@@ -369,7 +367,7 @@ func (t *Table) PlayersLeave(leavePlayerIndexes []int) {
 	for _, leavePlayerIdx := range leavePlayerIndexes {
 		leavePlayer := t.State.PlayerStates[leavePlayerIdx]
 		leavePlayerIDMap[leavePlayer.PlayerID] = struct{}{}
-		t.State.PlayerSeatMap[leavePlayer.SeatIndex] = UnsetValue
+		t.State.SeatMap[leavePlayer.Seat] = UnsetValue
 	}
 
 	// delete target players in PlayerStates
@@ -378,17 +376,13 @@ func (t *Table) PlayersLeave(leavePlayerIndexes []int) {
 		return !exist
 	}).([]*TablePlayerState)
 
-	// update current PlayerSeatMap player indexes in PlayerSeatMap
+	// update current SeatMap player indexes in SeatMap
 	for newPlayerIdx, player := range t.State.PlayerStates {
-		t.State.PlayerSeatMap[player.SeatIndex] = newPlayerIdx
+		t.State.SeatMap[player.Seat] = newPlayerIdx
 	}
 }
 
 // Table Getters
-func (t Table) ModeRule() string {
-	return fmt.Sprintf("%s_%s_holdem", t.Meta.CompetitionMeta.Mode, t.Meta.CompetitionMeta.Rule)
-}
-
 func (t Table) GetJSON() (string, error) {
 	encoded, err := json.Marshal(t)
 	if err != nil {
@@ -404,7 +398,7 @@ func (t Table) ParticipatedPlayers() []*TablePlayerState {
 }
 
 func (t Table) EndGameAt() int64 {
-	return time.Unix(t.State.StartGameAt, 0).Add(time.Minute * time.Duration(t.Meta.CompetitionMeta.MaxDurationMins)).Unix()
+	return time.Unix(t.State.StartAt, 0).Add(time.Minute * time.Duration(t.Meta.CompetitionMeta.MaxDuration)).Unix()
 }
 
 func (t Table) AlivePlayers() []*TablePlayerState {
@@ -457,7 +451,7 @@ func (bs *TableBlindState) Update() {
 	// 更新現在盲注資訊
 	now := time.Now().Unix()
 	for idx, levelState := range bs.LevelStates {
-		timeDiff := now - levelState.LevelEndAt
+		timeDiff := now - levelState.EndAt
 		if timeDiff < 0 {
 			bs.CurrentLevelIndex = idx
 			break
@@ -478,7 +472,7 @@ func (bs TableBlindState) IsFinalBuyInLevel() bool {
 }
 
 func (bs TableBlindState) IsBreaking() bool {
-	return bs.LevelStates[bs.CurrentLevelIndex].Level == -1
+	return bs.LevelStates[bs.CurrentLevelIndex].BlindLevel.Level == -1
 }
 
 func (bs TableBlindState) CurrentBlindLevel() TableBlindLevelState {

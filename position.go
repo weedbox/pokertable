@@ -13,14 +13,14 @@ func NewDefaultSeatMap(seatCount int) []int {
 	return seatMap
 }
 
-func RandomSeatIndex(seatMap []int) int {
-	emptySeatIndexes := make([]int, 0)
+func RandomSeat(seatMap []int) int {
+	emptySeates := make([]int, 0)
 	for seatIdx, playerIdx := range seatMap {
 		if playerIdx == UnsetValue {
-			emptySeatIndexes = append(emptySeatIndexes, seatIdx)
+			emptySeates = append(emptySeates, seatIdx)
 		}
 	}
-	randomSeatIdx := emptySeatIndexes[randomInt(0, len(emptySeatIndexes)-1)]
+	randomSeatIdx := emptySeates[randomInt(0, len(emptySeates)-1)]
 	return randomSeatIdx
 }
 

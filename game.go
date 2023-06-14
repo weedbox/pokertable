@@ -6,8 +6,8 @@ import (
 
 func NewGame(table *Table) pokerface.Game {
 	rule := table.Meta.CompetitionMeta.Rule
-	blind := table.State.BlindState.LevelStates[table.State.BlindState.CurrentLevelIndex]
-	dealerBlindTimes := table.Meta.CompetitionMeta.Blind.DealerBlindTimes
+	blind := table.State.BlindState.LevelStates[table.State.BlindState.CurrentLevelIndex].BlindLevel
+	DealerBlindTime := table.Meta.CompetitionMeta.Blind.DealerBlindTime
 
 	// create game options
 	opts := pokerface.NewStardardGameOptions()
@@ -23,15 +23,15 @@ func NewGame(table *Table) pokerface.Game {
 
 	// preparing blind
 	dealer := int64(0)
-	if dealerBlindTimes > 0 {
-		dealer = blind.AnteChips * (int64(dealerBlindTimes) - 1)
+	if DealerBlindTime > 0 {
+		dealer = blind.Ante * (int64(DealerBlindTime) - 1)
 	}
 
-	opts.Ante = blind.AnteChips
+	opts.Ante = blind.Ante
 	opts.Blind = pokerface.BlindSetting{
 		Dealer: dealer,
-		SB:     blind.SBChips,
-		BB:     blind.BBChips,
+		SB:     blind.SB,
+		BB:     blind.BB,
 	}
 
 	// preparing players

@@ -125,71 +125,71 @@ func newPositions(playerCount int) [][]string {
 	switch playerCount {
 	case 9:
 		return [][]string{
-			[]string{Position_Dealer},
-			[]string{Position_SB},
-			[]string{Position_BB},
-			[]string{Position_UG},
-			[]string{Position_UG1},
-			[]string{Position_UG2},
-			[]string{Position_UG3},
-			[]string{Position_HJ},
-			[]string{Position_CO},
+			{Position_Dealer},
+			{Position_SB},
+			{Position_BB},
+			{Position_UG},
+			{Position_UG1},
+			{Position_UG2},
+			{Position_UG3},
+			{Position_HJ},
+			{Position_CO},
 		}
 	case 8:
 		return [][]string{
-			[]string{Position_Dealer},
-			[]string{Position_SB},
-			[]string{Position_BB},
-			[]string{Position_UG},
-			[]string{Position_UG1},
-			[]string{Position_UG2},
-			[]string{Position_HJ},
-			[]string{Position_CO},
+			{Position_Dealer},
+			{Position_SB},
+			{Position_BB},
+			{Position_UG},
+			{Position_UG1},
+			{Position_UG2},
+			{Position_HJ},
+			{Position_CO},
 		}
 	case 7:
 		return [][]string{
-			[]string{Position_Dealer},
-			[]string{Position_SB},
-			[]string{Position_BB},
-			[]string{Position_UG},
-			[]string{Position_UG1},
-			[]string{Position_HJ},
-			[]string{Position_CO},
+			{Position_Dealer},
+			{Position_SB},
+			{Position_BB},
+			{Position_UG},
+			{Position_UG1},
+			{Position_HJ},
+			{Position_CO},
 		}
 	case 6:
 		return [][]string{
-			[]string{Position_Dealer},
-			[]string{Position_SB},
-			[]string{Position_BB},
-			[]string{Position_UG},
-			[]string{Position_UG1},
-			[]string{Position_CO},
+			{Position_Dealer},
+			{Position_SB},
+			{Position_BB},
+			{Position_UG},
+			{Position_UG1},
+			{Position_CO},
 		}
 	case 5:
 		return [][]string{
-			[]string{Position_Dealer},
-			[]string{Position_SB},
-			[]string{Position_BB},
-			[]string{Position_UG},
-			[]string{Position_CO},
+			{Position_Dealer},
+			{Position_SB},
+			{Position_BB},
+			{Position_UG},
+			{Position_CO},
 		}
 	case 4:
 		return [][]string{
-			[]string{Position_Dealer},
-			[]string{Position_SB},
-			[]string{Position_BB},
-			[]string{Position_UG},
+			{Position_Dealer},
+			{Position_SB},
+			{Position_BB},
+			{Position_UG},
 		}
 	case 3:
 		return [][]string{
-			[]string{Position_Dealer},
-			[]string{Position_SB},
-			[]string{Position_BB},
+			{Position_Dealer},
+			{Position_SB},
+			{Position_BB},
 		}
 	case 2:
 		return [][]string{
-			[]string{Position_Dealer, Position_SB},
-			[]string{Position_BB},
+			{Position_Dealer, Position_SB},
+			{Position_BB},
 		}
 	default:
 		return make([][]string, 0)

@@ -42,15 +42,15 @@ type TableMeta struct {
 }
 
 type CompetitionMeta struct {
-	ID                  string `json:"id"`                      // 賽事 ID
-	Rule                string `json:"rule"`                    // 德州撲克規則, 常牌(default), 短牌(short_deck), 奧瑪哈(omaha)
-	Mode                string `json:"mode"`                    // 賽事模式 (CT, MTT, Cash)
-	MaxDuration         int    `json:"max_duration"`            // 比賽時間總長 (分鐘)
-	TableMaxSeatCount   int    `json:"table_max_seat_count"`    // 每桌人數上限
-	TableMinPlayerCount int    `json:"table_min_playing_count"` // 每桌最小開打數
-	MinChipUnit         int64  `json:"min_chip_unit"`           // 最小單位籌碼量
-	Blind               Blind  `json:"blind"`                   // 盲注資訊
-	ActionTime          int    `json:"action_time"`             // 玩家動作思考時間 (秒數)
+	ID                  string `json:"id"`                     // 賽事 ID
+	Rule                string `json:"rule"`                   // 德州撲克規則, 常牌(default), 短牌(short_deck), 奧瑪哈(omaha)
+	Mode                string `json:"mode"`                   // 賽事模式 (CT, MTT, Cash)
+	MaxDuration         int    `json:"max_duration"`           // 比賽時間總長 (分鐘)
+	TableMaxSeatCount   int    `json:"table_max_seat_count"`   // 每桌人數上限
+	TableMinPlayerCount int    `json:"table_min_player_count"` // 每桌最小開打數
+	MinChipUnit         int64  `json:"min_chip_unit"`          // 最小單位籌碼量
+	Blind               Blind  `json:"blind"`                  // 盲注資訊
+	ActionTime          int    `json:"action_time"`            // 玩家動作思考時間 (秒數)
 }
 
 type Blind struct {

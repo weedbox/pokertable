@@ -2,11 +2,10 @@ package pokertable
 
 import (
 	"errors"
-	"fmt"
 	"time"
 
-	"github.com/thoas/go-funk"
 	"github.com/weedbox/pokerface"
+	"github.com/weedbox/timebank"
 
 	"github.com/google/uuid"
 )
@@ -24,18 +23,16 @@ type TableEvent string
 
 const (
 	TableEvent_Updated TableEvent = "table_updated"
-	TableEvent_Settled TableEvent = "table_settled"
 )
 
 type TableEngine interface {
 	// Table Actions
-	OnTableUpdated(fn func(*Table))                           // 桌次更新事件監聽器
-	OnTableSettled(fn func(*Table))                           // 桌次結算事件監聽器
-	GetTable(tableID string) (*Table, error)                  // 取得桌次
-	CreateTable(tableSetting TableSetting) (*Table, error)    // 建立桌
-	CloseTable(tableID string, status TableStateStatus) error // 關閉桌
-	StartGame(tableID string) error                           // 開打遊戲
-	GameOpen(tableID string) error                            // 開下一輪遊戲
+	OnTableUpdated(fn func(*Table))                        // 桌次更新事件監聽器
+	GetTable(tableID string) (*Table, error)               // 取得桌次
+	CreateTable(tableSetting TableSetting) (*Table, error) // 建立桌
+	DeleteTable(tableID string) error                      // 刪除桌
+	StartTableGame(tableID string) error                   // 開打遊戲
+	TableGameOpen(tableID string) error                    // 開下一輪遊戲
 
 	// Player Actions
 	// Player Table Actions
@@ -60,6 +57,7 @@ type TableEngine interface {
 
 func NewTableEngine() TableEngine {
 	return &tableEngine{
+		timebank:     timebank.NewTimeBank(),
 		tableGameMap: make(map[string]*TableGame),
 	}
 }
@@ -70,28 +68,18 @@ type TableGame struct {
 }
 
 type tableEngine struct {
+	timebank       *timebank.TimeBank
 	onTableUpdated func(*Table)
-	onTableSettled func(*Table)
 	tableGameMap   map[string]*TableGame
 }
 
-func (te *tableEngine) EmitEvent(event TableEvent, table *Table) {
+func (te *tableEngine) EmitEvent(table *Table) {
 	table.RefreshUpdateAt()
-
-	switch event {
-	case TableEvent_Updated:
-		te.onTableUpdated(table)
-	case TableEvent_Settled:
-		te.onTableSettled(table)
-	}
+	te.onTableUpdated(table)
 }
 
 func (te *tableEngine) OnTableUpdated(fn func(*Table)) {
 	te.onTableUpdated = fn
-}
-
-func (te *tableEngine) OnTableSettled(fn func(*Table)) {
-	te.onTableSettled = fn
 }
 
 func (te *tableEngine) GetTable(tableID string) (*Table, error) {
@@ -110,12 +98,11 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
 
 	// create table instance
 	table := &Table{
-		ID:       uuid.New().String(),
-		UpdateAt: time.Now().UnixMilli(),
+		ID: uuid.New().String(),
 	}
-	table.ConfigureWithSetting(tableSetting)
+	table.ConfigureWithSetting(tableSetting, TableStateStatus_TableCreated)
 	if len(tableSetting.JoinPlayers) > 0 {
-		te.EmitEvent(TableEvent_Updated, table)
+		te.EmitEvent(table)
 	}
 
 	// update tableGameMap
@@ -125,25 +112,13 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
 }
 
 /*
-	CloseTable 關閉桌
-	  - 適用時機:
-	    - 強制關閉 (Killed)
-		- 自動關閉 (AutoEnded)
-		- 正常關閉 (Closed)
+	DeleteTable 刪除桌
+	  - 適用時機: 強制關閉 (Killed)、自動關閉 (AutoEnded)、正常關閉 (Closed)
 */
-func (te *tableEngine) CloseTable(tableID string, status TableStateStatus) error {
+func (te *tableEngine) DeleteTable(tableID string) error {
 	_, exist := te.tableGameMap[tableID]
 	if !exist {
 		return ErrTableNotFound
-	}
-
-	validStatuses := []TableStateStatus{
-		TableStateStatus_TableGameKilled,
-		TableStateStatus_TableGameAutoEnded,
-		TableStateStatus_TableGameClosed,
-	}
-	if !funk.Contains(validStatuses, status) {
-		return ErrCloseTable
 	}
 
 	// update tableGameMap
@@ -152,55 +127,35 @@ func (te *tableEngine) CloseTable(tableID string, status TableStateStatus) error
 	return nil
 }
 
-func (te *tableEngine) StartGame(tableID string) error {
+func (te *tableEngine) StartTableGame(tableID string) error {
 	tableGame, exist := te.tableGameMap[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
 
-	// 初始化桌 & 開局
-	tableGame.Table.State.StartGameAt = time.Now().Unix()
+	// 初始化桌 & 開局 & 開始遊戲
+	tableGame.Table.State.StartAt = time.Now().Unix()
 	tableGame.Table.ActivateBlindState()
-	tableGame.Table.GameOpen()
-
-	// 啟動本手遊戲引擎 & 更新遊戲狀態
-	tableGame.Game = NewGame(tableGame.Table)
-	if err := tableGame.Game.Start(); err != nil {
-		return err
-	}
-	tableGame.Table.State.GameState = tableGame.Game.GetState()
-	debugPrintTable(fmt.Sprintf("第 (%d) 手開局資訊", tableGame.Table.State.GameCount), tableGame.Table) // TODO: test only, remove it later on
-
-	te.EmitEvent(TableEvent_Updated, tableGame.Table)
-	return nil
+	return te.TableGameOpen(tableID)
 }
 
-// GameOpen 開始本手遊戲
-func (te *tableEngine) GameOpen(tableID string) error {
+func (te *tableEngine) TableGameOpen(tableID string) error {
 	tableGame, exist := te.tableGameMap[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
 
-	tableGame.Table.GameOpen()
+	// 開局
+	tableGame.Table.OpenGame()
+	te.EmitEvent(tableGame.Table)
 
-	// 啟動本手遊戲引擎 & 更新遊戲狀態
-	tableGame.Game = NewGame(tableGame.Table)
-	if err := tableGame.Game.Start(); err != nil {
-		return err
-	}
-	tableGame.Table.State.GameState = tableGame.Game.GetState()
-	debugPrintTable(fmt.Sprintf("第 (%d) 手開局資訊", tableGame.Table.State.GameCount), tableGame.Table) // TODO: test only, remove it later on
-
-	te.EmitEvent(TableEvent_Updated, tableGame.Table)
-	return nil
+	// 開始遊戲
+	return te.startGame(tableGame)
 }
 
 /*
 	PlayerJoin 玩家入桌
-	  - 適用時機:
-	    - 報名入桌
-		- 補碼入桌
+	  - 適用時機: 報名入桌、補碼入桌
 */
 func (te *tableEngine) PlayerJoin(tableID string, joinPlayer JoinPlayer) error {
 	tableGame, exist := te.tableGameMap[tableID]
@@ -212,14 +167,13 @@ func (te *tableEngine) PlayerJoin(tableID string, joinPlayer JoinPlayer) error {
 		return err
 	}
 
-	te.EmitEvent(TableEvent_Updated, tableGame.Table)
+	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
 /*
 	PlayerRedeemChips 增購籌碼
-	  - 適用時機:
-	    - 增購
+	  - 適用時機: 增購
 */
 func (te *tableEngine) PlayerRedeemChips(tableID string, joinPlayer JoinPlayer) error {
 	tableGame, exist := te.tableGameMap[tableID]
@@ -235,7 +189,7 @@ func (te *tableEngine) PlayerRedeemChips(tableID string, joinPlayer JoinPlayer) 
 
 	tableGame.Table.PlayerRedeemChips(playerIdx, joinPlayer.RedeemChips)
 
-	te.EmitEvent(TableEvent_Updated, tableGame.Table)
+	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
@@ -269,7 +223,7 @@ func (te *tableEngine) PlayersLeave(tableID string, playerIDs []string) error {
 
 	tableGame.Table.PlayersLeave(leavePlayerIndexes)
 
-	te.EmitEvent(TableEvent_Updated, tableGame.Table)
+	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
@@ -290,7 +244,7 @@ func (te *tableEngine) PlayerReady(tableID, playerID string) error {
 		return err
 	}
 
-	te.EmitEvent(TableEvent_Updated, tableGame.Table)
+	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
@@ -310,7 +264,7 @@ func (te *tableEngine) PlayerPay(tableID, playerID string, chips int64) error {
 		return err
 	}
 
-	te.EmitEvent(TableEvent_Updated, tableGame.Table)
+	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
@@ -326,7 +280,7 @@ func (te *tableEngine) PlayersPayAnte(tableID string) error {
 		return err
 	}
 
-	te.EmitEvent(TableEvent_Updated, tableGame.Table)
+	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
@@ -346,7 +300,7 @@ func (te *tableEngine) PlayerPaySB(tableID, playerID string) error {
 		return err
 	}
 
-	te.EmitEvent(TableEvent_Updated, tableGame.Table)
+	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
@@ -366,7 +320,7 @@ func (te *tableEngine) PlayerPayBB(tableID, playerID string) error {
 		return err
 	}
 
-	te.EmitEvent(TableEvent_Updated, tableGame.Table)
+	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
@@ -386,7 +340,7 @@ func (te *tableEngine) PlayerBet(tableID, playerID string, chips int64) error {
 		return err
 	}
 
-	te.EmitEvent(TableEvent_Updated, tableGame.Table)
+	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
@@ -406,7 +360,7 @@ func (te *tableEngine) PlayerRaise(tableID, playerID string, chipLevel int64) er
 		return err
 	}
 
-	te.EmitEvent(TableEvent_Updated, tableGame.Table)
+	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
@@ -430,7 +384,7 @@ func (te *tableEngine) PlayerCall(tableID, playerID string) error {
 		return err
 	}
 
-	te.EmitEvent(TableEvent_Updated, tableGame.Table)
+	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
@@ -454,7 +408,7 @@ func (te *tableEngine) PlayerAllin(tableID, playerID string) error {
 		return err
 	}
 
-	te.EmitEvent(TableEvent_Updated, tableGame.Table)
+	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
@@ -478,7 +432,7 @@ func (te *tableEngine) PlayerCheck(tableID, playerID string) error {
 		return err
 	}
 
-	te.EmitEvent(TableEvent_Updated, tableGame.Table)
+	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
@@ -502,7 +456,7 @@ func (te *tableEngine) PlayerFold(tableID, playerID string) error {
 		return err
 	}
 
-	te.EmitEvent(TableEvent_Updated, tableGame.Table)
+	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
@@ -526,7 +480,7 @@ func (te *tableEngine) PlayerPass(tableID, playerID string) error {
 		return err
 	}
 
-	te.EmitEvent(TableEvent_Updated, tableGame.Table)
+	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
@@ -574,15 +528,9 @@ func (te *tableEngine) autoNextRound(tableGame *TableGame) error {
 		return nil
 	}
 
-	settleTable := func(table *Table) {
-		table.Settlement()
-		debugPrintGameStateResult(tableGame.Table) // TODO: test only, remove it later on
-		te.EmitEvent(TableEvent_Settled, table)
-	}
-
 	// walk situation
 	if round == GameRound_Preflop && event == GameEventName(pokerface.GameEvent_GameClosed) {
-		settleTable(tableGame.Table)
+		te.settleTable(tableGame.Table)
 		return nil
 	}
 
@@ -599,8 +547,56 @@ func (te *tableEngine) autoNextRound(tableGame *TableGame) error {
 		}
 
 		if event == GameEventName(pokerface.GameEvent_GameClosed) {
-			settleTable(tableGame.Table)
+			te.settleTable(tableGame.Table)
 			return nil
+		}
+	}
+}
+
+func (te *tableEngine) startGame(tableGame *TableGame) error {
+	// 啟動本手遊戲引擎 & 更新遊戲狀態
+	tableGame.Game = NewGame(tableGame.Table)
+	if err := tableGame.Game.Start(); err != nil {
+		return err
+	}
+	tableGame.Table.State.Status = TableStateStatus_TableGamePlaying
+	tableGame.Table.State.GameState = tableGame.Game.GetState()
+
+	te.EmitEvent(tableGame.Table)
+	return nil
+}
+
+func (te *tableEngine) settleTable(table *Table) {
+	table.SettleGameResult()
+	te.EmitEvent(table)
+
+	table.ContinueGame()
+	te.EmitEvent(table)
+
+	if table.State.Status == TableStateStatus_TablePausing && table.State.BlindState.IsBreaking() {
+		// resume game from breaking
+		endAt := table.State.BlindState.LevelStates[table.State.BlindState.CurrentLevelIndex].EndAt
+		_ = te.timebank.NewTaskWithDeadline(time.Unix(endAt, 0), func(isCancelled bool) {
+			if isCancelled {
+				return
+			}
+
+			_ = te.TableGameOpen(table.ID)
+			te.timebank = timebank.NewTimeBank()
+		})
+	} else if table.State.Status == TableStateStatus_TableGameStandby {
+		gameOpenTime := 1 * time.Second
+		if err := te.timebank.NewTask(gameOpenTime, func(isCancelled bool) {
+			if isCancelled {
+				return
+			}
+
+			if table.State.Status != TableStateStatus_TableGamePlaying {
+				_ = te.TableGameOpen(table.ID)
+			}
+			te.timebank = timebank.NewTimeBank()
+		}); err != nil {
+			_ = te.TableGameOpen(table.ID)
 		}
 	}
 }

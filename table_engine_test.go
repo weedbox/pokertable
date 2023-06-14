@@ -25,10 +25,10 @@ func TestCreateTable(t *testing.T) {
 		assert.NotZero(t, table.ID)
 		assert.NotZero(t, table.Meta)
 		assert.NotZero(t, table.State)
-		assert.Equal(t, TableStateStatus_TableGameCreated, table.State.Status)
+		assert.Equal(t, TableStateStatus_TableCreated, table.State.Status)
 		assert.Equal(t, len(tableSetting.JoinPlayers), len(table.State.PlayerStates))
 		seatTakenCount := 0
-		for _, playerIdx := range table.State.PlayerSeatMap {
+		for _, playerIdx := range table.State.SeatMap {
 			if playerIdx != -1 {
 				seatTakenCount++
 			}
@@ -38,7 +38,7 @@ func TestCreateTable(t *testing.T) {
 	}
 }
 
-func TestStartGame(t *testing.T) {
+func TestStartTableGame(t *testing.T) {
 	tableEngine := NewTableEngine()
 	tableEngine.OnTableUpdated(func(table *Table) {})
 	tableSetting := NewDefaultTableSetting(
@@ -49,15 +49,15 @@ func TestStartGame(t *testing.T) {
 	table, err := tableEngine.CreateTable(tableSetting)
 	assert.Nil(t, err)
 
-	err = tableEngine.StartGame(table.ID)
+	err = tableEngine.StartTableGame(table.ID)
 
 	assert.Nil(t, err)
-	assert.NotEqual(t, -1, table.State.StartGameAt)
+	assert.NotEqual(t, -1, table.State.StartAt)
 	assert.NotEqual(t, -1, table.State.BlindState.CurrentLevelIndex)
 	for _, blindLevel := range table.State.BlindState.LevelStates {
-		assert.NotEqual(t, -1, blindLevel.LevelEndAt)
+		assert.NotEqual(t, -1, blindLevel.EndAt)
 	}
-	assert.Equal(t, TableStateStatus_TableGameMatchOpen, table.State.Status)
+	assert.Equal(t, TableStateStatus_TableGamePlaying, table.State.Status)
 	assert.Greater(t, table.State.GameCount, 0)
 	assert.NotZero(t, table.State.GameState)
 }
@@ -82,7 +82,7 @@ func TestPlayerJoin_BuyIn(t *testing.T) {
 
 	assert.Equal(t, len(joinPlayers), len(table.State.PlayerStates))
 	seatTakenCount := 0
-	for _, playerIdx := range table.State.PlayerSeatMap {
+	for _, playerIdx := range table.State.SeatMap {
 		if playerIdx != -1 {
 			seatTakenCount++
 		}
@@ -109,7 +109,7 @@ func TestPlayerJoin_ReBuy(t *testing.T) {
 
 	assert.Equal(t, len(initialPlayers), len(table.State.PlayerStates))
 	seatTakenCount := 0
-	for _, playerIdx := range table.State.PlayerSeatMap {
+	for _, playerIdx := range table.State.SeatMap {
 		if playerIdx != -1 {
 			seatTakenCount++
 		}
@@ -143,7 +143,7 @@ func TestPlayerRedeemChips(t *testing.T) {
 
 	assert.Equal(t, len(initialPlayers), len(table.State.PlayerStates))
 	seatTakenCount := 0
-	for _, playerIdx := range table.State.PlayerSeatMap {
+	for _, playerIdx := range table.State.SeatMap {
 		if playerIdx != -1 {
 			seatTakenCount++
 		}
@@ -177,7 +177,7 @@ func TestPlayerLeave(t *testing.T) {
 
 	assert.Equal(t, expectedPlayerCount, len(table.State.PlayerStates))
 	seatTakenCount := 0
-	for _, playerIdx := range table.State.PlayerSeatMap {
+	for _, playerIdx := range table.State.SeatMap {
 		if playerIdx != -1 {
 			seatTakenCount++
 		}
@@ -200,35 +200,35 @@ func NewDefaultTableSetting(joinPlayers ...JoinPlayer) TableSetting {
 				FinalBuyInLevel: 2,
 				Levels: []BlindLevel{
 					{
-						Level:        1,
-						SBChips:      10,
-						BBChips:      20,
-						AnteChips:    0,
-						DurationMins: 10,
+						Level:    1,
+						SB:       10,
+						BB:       20,
+						Ante:     0,
+						Duration: 10,
 					},
 					{
-						Level:        2,
-						SBChips:      20,
-						BBChips:      30,
-						AnteChips:    0,
-						DurationMins: 10,
+						Level:    2,
+						SB:       20,
+						BB:       30,
+						Ante:     0,
+						Duration: 10,
 					},
 					{
-						Level:        3,
-						SBChips:      30,
-						BBChips:      40,
-						AnteChips:    0,
-						DurationMins: 10,
+						Level:    3,
+						SB:       30,
+						BB:       40,
+						Ante:     0,
+						Duration: 10,
 					},
 				},
 			},
-			MaxDurationMins:      60,
-			Rule:                 CompetitionRule_Default,
-			Mode:                 CompetitionMode_MTT,
-			TableMaxSeatCount:    9,
-			TableMinPlayingCount: 2,
-			MinChipsUnit:         10,
-			ActionTimeSecs:       10,
+			MaxDuration:         60,
+			Rule:                CompetitionRule_Default,
+			Mode:                CompetitionMode_MTT,
+			TableMaxSeatCount:   9,
+			TableMinPlayerCount: 2,
+			MinChipUnit:         10,
+			ActionTime:          10,
 		},
 		JoinPlayers: joinPlayers,
 	}

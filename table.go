@@ -23,7 +23,6 @@ const (
 	TableStateStatus_TableGameOpened  TableStateStatus = "table_game_opened"  // 桌次內遊戲已開局
 	TableStateStatus_TableGamePlaying TableStateStatus = "table_game_playing" // 桌次內遊戲開打中
 	TableStateStatus_TableGameSettled TableStateStatus = "table_game_settled" // 桌次內遊戲已結算
-	TableStateStatus_TableGameClosed  TableStateStatus = "table_game_closed"  // 桌次內遊戲已結束
 )
 
 type Table struct {

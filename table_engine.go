@@ -30,6 +30,7 @@ type TableEngine interface {
 	OnTableUpdated(fn func(*Table))                        // 桌次更新事件監聽器
 	GetTable(tableID string) (*Table, error)               // 取得桌次
 	CreateTable(tableSetting TableSetting) (*Table, error) // 建立桌
+	BalanceTable(tableID string) error                     // 等待拆併桌中
 	DeleteTable(tableID string) error                      // 刪除桌
 	StartTableGame(tableID string) error                   // 開打遊戲
 	TableGameOpen(tableID string) error                    // 開下一輪遊戲
@@ -109,6 +110,20 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
 	te.tableGameMap[table.ID] = &TableGame{Table: table}
 
 	return table, nil
+}
+
+/*
+	BalanceTable 等待拆併桌
+	  - 適用時機: 該桌次需要拆併桌時
+*/
+func (te *tableEngine) BalanceTable(tableID string) error {
+	tableGame, exist := te.tableGameMap[tableID]
+	if !exist {
+		return ErrTableNotFound
+	}
+
+	tableGame.Table.State.Status = TableStateStatus_TableBalancing
+	return nil
 }
 
 /*
@@ -581,7 +596,10 @@ func (te *tableEngine) settleTable(table *Table) {
 				return
 			}
 
-			_ = te.TableGameOpen(table.ID)
+			t, _ := te.GetTable(table.ID)
+			if t.State.Status != TableStateStatus_TableBalancing {
+				_ = te.TableGameOpen(table.ID)
+			}
 			te.timebank = timebank.NewTimeBank()
 		})
 	} else if table.State.Status == TableStateStatus_TableGameStandby {
@@ -591,7 +609,8 @@ func (te *tableEngine) settleTable(table *Table) {
 				return
 			}
 
-			if table.State.Status != TableStateStatus_TableGamePlaying {
+			// 自動開桌條件: 非 TableStateStatus_TableGamePlaying 或 非 TableStateStatus_TableBalancing
+			if !(table.State.Status == TableStateStatus_TableGamePlaying || table.State.Status == TableStateStatus_TableBalancing) {
 				_ = te.TableGameOpen(table.ID)
 			}
 			te.timebank = timebank.NewTimeBank()

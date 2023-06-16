@@ -102,9 +102,7 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
 		ID: uuid.New().String(),
 	}
 	table.ConfigureWithSetting(tableSetting, TableStateStatus_TableCreated)
-	if len(tableSetting.JoinPlayers) > 0 {
-		te.EmitEvent(table)
-	}
+	te.EmitEvent(table)
 
 	// update tableGameMap
 	te.tableGameMap[table.ID] = &TableGame{Table: table}

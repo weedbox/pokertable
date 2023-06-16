@@ -455,7 +455,9 @@ func (bs *TableBlindState) Update() {
 			bs.CurrentLevelIndex = idx
 			break
 		} else {
-			bs.CurrentLevelIndex = idx + 1
+			if idx+1 < len(bs.LevelStates) {
+				bs.CurrentLevelIndex = idx + 1
+			}
 		}
 	}
 }

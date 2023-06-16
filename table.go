@@ -12,7 +12,7 @@ type TableStateStatus string
 
 const (
 	// TableStateStatus: Table
-	TableStateStatus_TableCreated   TableStateStatus = "table_crated"    // 桌次已建立
+	TableStateStatus_TableCreated   TableStateStatus = "table_created"   // 桌次已建立
 	TableStateStatus_TablePausing   TableStateStatus = "table_pausing"   // 桌次暫停中
 	TableStateStatus_TableRestoring TableStateStatus = "table_restoring" // 桌次轉移中 (Graceful Shutdown)
 	TableStateStatus_TableBalancing TableStateStatus = "table_balancing" // 桌次拆併桌中

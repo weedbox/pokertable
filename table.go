@@ -44,12 +44,12 @@ type CompetitionMeta struct {
 	ID                  string `json:"id"`                     // 賽事 ID
 	Rule                string `json:"rule"`                   // 德州撲克規則, 常牌(default), 短牌(short_deck), 奧瑪哈(omaha)
 	Mode                string `json:"mode"`                   // 賽事模式 (CT, MTT, Cash)
-	MaxDuration         int    `json:"max_duration"`           // 比賽時間總長 (分鐘)
+	MaxDuration         int    `json:"max_duration"`           // 比賽時間總長 (Seconds)
 	TableMaxSeatCount   int    `json:"table_max_seat_count"`   // 每桌人數上限
 	TableMinPlayerCount int    `json:"table_min_player_count"` // 每桌最小開打數
 	MinChipUnit         int64  `json:"min_chip_unit"`          // 最小單位籌碼量
 	Blind               Blind  `json:"blind"`                  // 盲注資訊
-	ActionTime          int    `json:"action_time"`            // 玩家動作思考時間 (秒數)
+	ActionTime          int    `json:"action_time"`            // 玩家動作思考時間 (Seconds)
 }
 
 type Blind struct {
@@ -66,7 +66,7 @@ type BlindLevel struct {
 	SB       int64 `json:"sb"`       // 小盲籌碼量
 	BB       int64 `json:"bb"`       // 大盲籌碼量
 	Ante     int64 `json:"ante"`     // 前注籌碼量
-	Duration int   `json:"duration"` // 等級持續時間
+	Duration int   `json:"duration"` // 等級持續時間 (Seconds)
 }
 
 type TableState struct {
@@ -79,7 +79,7 @@ type TableState struct {
 	PlayerStates      []*TablePlayerState  `json:"player_states"`       // 賽局桌上玩家狀態
 	GameCount         int                  `json:"game_count"`          // 執行牌局遊戲次數 (遊戲跑幾輪)
 	GamePlayerIndexes []int                `json:"game_player_indexes"` // 本手正在玩的 PlayerIndex 陣列 (陣列 index 為從 Dealer 位置開始的 PlayerIndex)，GameEngine 用
-	GameState         *pokerface.GameState `json:"game_state"`          // 本手狀態 (pokerface.GameState)
+	GameState         *pokerface.GameState `json:"game_state"`          // 本手狀態
 }
 
 type TablePlayerState struct {
@@ -200,7 +200,7 @@ func (t *Table) ActivateBlindState() {
 		} else {
 			t.State.BlindState.LevelStates[i].EndAt = t.State.BlindState.LevelStates[i-1].EndAt
 		}
-		blindPassedSeconds := int64((time.Duration(t.State.BlindState.LevelStates[i].BlindLevel.Duration) * time.Minute).Seconds())
+		blindPassedSeconds := int64(t.State.BlindState.LevelStates[i].BlindLevel.Duration)
 		t.State.BlindState.LevelStates[i].EndAt += blindPassedSeconds
 	}
 }
@@ -397,7 +397,7 @@ func (t Table) ParticipatedPlayers() []*TablePlayerState {
 }
 
 func (t Table) EndGameAt() int64 {
-	return time.Unix(t.State.StartAt, 0).Add(time.Minute * time.Duration(t.Meta.CompetitionMeta.MaxDuration)).Unix()
+	return time.Unix(t.State.StartAt, 0).Add(time.Second * time.Duration(t.Meta.CompetitionMeta.MaxDuration)).Unix()
 }
 
 func (t Table) AlivePlayers() []*TablePlayerState {
@@ -428,12 +428,12 @@ func (t Table) GamePlayerIndex(playerID string) int {
 }
 
 /*
-	isTableClose 計算本桌是否已結束
-	  - 結束條件 1: 達到賽局結束時間
+	IsClose 計算本桌是否已達到結束條件
+	  - 結束條件 1: 達到結束時間
 	  - 結束條件 2: 停止買入後且存活玩家剩餘 1 人
 */
-func (t Table) IsClose(endGameAt int64, alivePlayers []*TablePlayerState, isFinalBuyInLevel bool) bool {
-	return time.Now().Unix() > endGameAt || (isFinalBuyInLevel && len(alivePlayers) == 1)
+func (t Table) IsClose() bool {
+	return time.Now().Unix() > t.EndGameAt() || (t.State.BlindState.IsFinalBuyInLevel() && len(t.AlivePlayers()) == 1)
 }
 
 func (t Table) findPlayerIdx(playerID string) int {

@@ -10,44 +10,6 @@ import (
 	"github.com/weedbox/pokertable"
 )
 
-func CreateTableAndStartGame(t *testing.T, playerIDs []string) (pokertable.TableEngine, string) {
-	// create a table
-	tableEngine := pokertable.NewTableEngine()
-	tableEngine.OnTableUpdated(func(table *pokertable.Table) {
-		switch table.State.Status {
-		case pokertable.TableStateStatus_TableGameOpened:
-			DebugPrintTableGameOpened(*table)
-		case pokertable.TableStateStatus_TableGameSettled:
-			DebugPrintTableGameSettled(*table)
-		case pokertable.TableStateStatus_TableGameStandby:
-			tableEngine.TableGameOpen(table.ID)
-		}
-	})
-	tableSetting := NewDefaultTableSetting()
-	table, err := tableEngine.CreateTable(tableSetting)
-	assert.Nil(t, err)
-
-	// buy in
-	redeemChips := int64(15000)
-	players := make([]pokertable.JoinPlayer, 0)
-	for _, playerID := range playerIDs {
-		players = append(players, pokertable.JoinPlayer{
-			PlayerID:    playerID,
-			RedeemChips: redeemChips,
-		})
-	}
-	for _, joinPlayer := range players {
-		err = tableEngine.PlayerJoin(table.ID, joinPlayer)
-		assert.Nil(t, err)
-	}
-
-	// start game
-	err = tableEngine.StartTableGame(table.ID)
-	assert.Nil(t, err)
-
-	return tableEngine, table.ID
-}
-
 func LogJSON(t *testing.T, msg string, jsonPrinter func() (string, error)) {
 	json, _ := jsonPrinter()
 	fmt.Printf("\n===== [%s] =====\n%s\n", msg, json)

@@ -9,7 +9,9 @@ import (
 )
 
 func TestTableGame_Two_People(t *testing.T) {
-	playersAutoPlay := func(tableEngine pokertable.TableEngine, tableID string) {
+	// given conditions
+	playerIDs := []string{"Fred", "Jeffrey"}
+	playersAutoPlayActions := func(tableEngine pokertable.TableEngine, tableID string) {
 		// game started
 		// all players ready
 		table, err := tableEngine.GetTable(tableID)
@@ -85,8 +87,37 @@ func TestTableGame_Two_People(t *testing.T) {
 		assert.Nil(t, err, NewPlayerActionErrorLog(table, FindCurrentPlayerID(table), "call", err))
 	}
 
-	// create & start game
-	playerIDs := []string{"Fred", "Jeffrey"}
-	tableEngine, tableID := CreateTableAndStartGame(t, playerIDs)
-	playersAutoPlay(tableEngine, tableID)
+	// create a table
+	tableEngine := pokertable.NewTableEngine()
+	tableEngine.OnTableUpdated(func(table *pokertable.Table) {
+		switch table.State.Status {
+		case pokertable.TableStateStatus_TableGameOpened:
+			DebugPrintTableGameOpened(*table)
+		case pokertable.TableStateStatus_TableGameSettled:
+			DebugPrintTableGameSettled(*table)
+		}
+	})
+	tableSetting := NewDefaultTableSetting()
+	table, err := tableEngine.CreateTable(tableSetting)
+	assert.Nil(t, err)
+
+	// buy in
+	redeemChips := int64(15000)
+	players := make([]pokertable.JoinPlayer, 0)
+	for _, playerID := range playerIDs {
+		players = append(players, pokertable.JoinPlayer{
+			PlayerID:    playerID,
+			RedeemChips: redeemChips,
+		})
+	}
+	for _, joinPlayer := range players {
+		err = tableEngine.PlayerJoin(table.ID, joinPlayer)
+		assert.Nil(t, err)
+	}
+
+	// start game
+	err = tableEngine.StartTableGame(table.ID)
+	assert.Nil(t, err)
+
+	playersAutoPlayActions(tableEngine, table.ID)
 }

@@ -16,6 +16,7 @@ const (
 	TableStateStatus_TablePausing   TableStateStatus = "table_pausing"   // 桌次暫停中
 	TableStateStatus_TableRestoring TableStateStatus = "table_restoring" // 桌次轉移中 (Graceful Shutdown)
 	TableStateStatus_TableBalancing TableStateStatus = "table_balancing" // 桌次拆併桌中
+	TableStateStatus_TableClosed    TableStateStatus = "table_closed"    // 桌次已結束
 
 	// TableStateStatus: Game
 	TableStateStatus_TableGameStandby TableStateStatus = "table_game_standby" // 桌次內遊戲尚未開始

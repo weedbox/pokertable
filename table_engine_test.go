@@ -38,6 +38,26 @@ func TestCreateTable(t *testing.T) {
 	}
 }
 
+func TestDeleteTable(t *testing.T) {
+	tableEngine := NewTableEngine()
+	tableEngine.OnTableUpdated(func(table *Table) {})
+
+	table, err := tableEngine.CreateTable(NewDefaultTableSetting())
+	assert.Nil(t, err)
+	assert.NotZero(t, table.ID)
+	assert.NotZero(t, table.Meta)
+	assert.NotZero(t, table.State)
+	assert.Equal(t, TableStateStatus_TableCreated, table.State.Status)
+	assert.NotZero(t, table.UpdateAt)
+
+	tableID := table.ID
+	err = tableEngine.DeleteTable(tableID)
+	assert.Nil(t, err)
+
+	_, err = tableEngine.GetTable(tableID)
+	assert.EqualError(t, ErrTableNotFound, err.Error())
+}
+
 func TestStartTableGame(t *testing.T) {
 	tableEngine := NewTableEngine()
 	tableEngine.OnTableUpdated(func(table *Table) {})

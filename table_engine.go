@@ -131,10 +131,13 @@ func (te *tableEngine) BalanceTable(tableID string) error {
 	  - 適用時機: 強制關閉 (Killed)、自動關閉 (AutoEnded)、正常關閉 (Closed)
 */
 func (te *tableEngine) DeleteTable(tableID string) error {
-	_, exist := te.tableGameMap[tableID]
+	tableGame, exist := te.tableGameMap[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
+
+	tableGame.Table.State.Status = TableStateStatus_TableClosed
+	te.EmitEvent(tableGame.Table)
 
 	// update tableGameMap
 	delete(te.tableGameMap, tableID)

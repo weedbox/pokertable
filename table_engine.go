@@ -603,18 +603,9 @@ func (te *tableEngine) settleTable(table *Table) {
 			te.timebank = timebank.NewTimeBank()
 		})
 	} else if table.State.Status == TableStateStatus_TableGameStandby {
-		gameOpenTime := 1 * time.Second
-		if err := te.timebank.NewTask(gameOpenTime, func(isCancelled bool) {
-			if isCancelled {
-				return
-			}
-
-			// 自動開桌條件: 非 TableStateStatus_TableGamePlaying 或 非 TableStateStatus_TableBalancing
-			if !(table.State.Status == TableStateStatus_TableGamePlaying || table.State.Status == TableStateStatus_TableBalancing) {
-				_ = te.TableGameOpen(table.ID)
-			}
-			te.timebank = timebank.NewTimeBank()
-		}); err != nil {
+		// 自動開桌條件: 非 TableStateStatus_TableGamePlaying 或 非 TableStateStatus_TableBalancing
+		stopOpen := table.State.Status == TableStateStatus_TableGamePlaying || table.State.Status == TableStateStatus_TableBalancing
+		if !stopOpen {
 			_ = te.TableGameOpen(table.ID)
 		}
 	}

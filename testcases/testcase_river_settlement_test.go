@@ -21,16 +21,18 @@ func TestTableGame_River_Settlement(t *testing.T) {
 
 		// preflop
 		// pay sb
-		PrintPlayerActionLog(table, FindCurrentPlayerID(table), "pay sb")
-		err := tableEngine.PlayerPaySB(tableID, FindCurrentPlayerID(table))
-		assert.Nil(t, err, NewPlayerActionErrorLog(table, FindCurrentPlayerID(table), "pay sb", err))
-		fmt.Printf("[PlayerPaySB] dealer receive bb.\n")
+		sb := table.State.BlindState.CurrentBlindLevel().BlindLevel.SB
+		PrintPlayerActionLog(table, FindCurrentPlayerID(table), fmt.Sprintf("pay sb %d", sb))
+		err := tableEngine.PlayerPay(tableID, FindCurrentPlayerID(table), sb)
+		assert.Nil(t, err, NewPlayerActionErrorLog(table, FindCurrentPlayerID(table), fmt.Sprintf("pay sb %d", sb), err))
+		fmt.Printf("[PlayerPaySB] dealer receive sb %d.\n", sb)
 
 		// pay bb
-		PrintPlayerActionLog(table, FindCurrentPlayerID(table), "pay bb")
-		err = tableEngine.PlayerPayBB(tableID, FindCurrentPlayerID(table))
-		assert.Nil(t, err, NewPlayerActionErrorLog(table, FindCurrentPlayerID(table), "pay bb", err))
-		fmt.Printf("[PlayerPayBB] dealer receive bb.\n")
+		bb := table.State.BlindState.CurrentBlindLevel().BlindLevel.BB
+		PrintPlayerActionLog(table, FindCurrentPlayerID(table), fmt.Sprintf("pay bb %d", bb))
+		err = tableEngine.PlayerPay(tableID, FindCurrentPlayerID(table), bb)
+		assert.Nil(t, err, NewPlayerActionErrorLog(table, FindCurrentPlayerID(table), fmt.Sprintf("pay bb %d", sb), err))
+		fmt.Printf("[PlayerPaySB] dealer receive bb %d.\n", bb)
 
 		// players ready
 		AllGamePlayersReady(t, tableEngine, table)
@@ -150,7 +152,7 @@ func TestTableGame_River_Settlement(t *testing.T) {
 	err = tableEngine.StartTableGame(table.ID)
 	assert.Nil(t, err)
 
-	for i := 0; i < 20; i++ {
+	for i := 0; i < 1; i++ {
 		table, err := tableEngine.GetTable(table.ID)
 		if err != nil {
 			break

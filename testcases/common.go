@@ -76,6 +76,7 @@ func AllGamePlayersReady(t *testing.T, tableEngine pokertable.TableEngine, table
 		assert.Nil(t, err, NewPlayerActionErrorLog(table, FindCurrentPlayerID(table), "ready", err))
 		PrintPlayerActionLog(table, player.PlayerID, fmt.Sprintf("ready. CurrentEvent: %s", table.State.GameState.Status.CurrentEvent.Name))
 	}
+	time.Sleep(time.Duration(1) * time.Millisecond)
 }
 
 func DebugPrintTableGameOpened(t pokertable.Table) {

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/weedbox/pokerface"
+	"github.com/weedbox/syncsaga"
 	"github.com/weedbox/timebank"
 
 	"github.com/google/uuid"
@@ -17,6 +18,7 @@ var (
 	ErrNoEmptySeats              = errors.New("no empty seats available")
 	ErrPlayerInvalidAction       = errors.New("player invalid action")
 	ErrCloseTable                = errors.New("table close error")
+	ErrTableGameError            = errors.New("table game error")
 )
 
 type TableEvent string
@@ -44,9 +46,6 @@ type TableEngine interface {
 	// Player Game Actions
 	PlayerReady(tableID, playerID string) error                  // 玩家準備動作完成
 	PlayerPay(tableID, playerID string, chips int64) error       // 玩家付籌碼
-	PlayersPayAnte(tableID string) error                         // 玩家們付前注
-	PlayerPaySB(tableID, playerID string) error                  // 玩家付大盲
-	PlayerPayBB(tableID, playerID string) error                  // 玩家付小盲
 	PlayerBet(tableID, playerID string, chips int64) error       // 玩家下注
 	PlayerRaise(tableID, playerID string, chipLevel int64) error // 玩家加注
 	PlayerCall(tableID, playerID string) error                   // 玩家跟注
@@ -58,20 +57,22 @@ type TableEngine interface {
 
 func NewTableEngine() TableEngine {
 	return &tableEngine{
-		timebank:     timebank.NewTimeBank(),
-		tableGameMap: make(map[string]*TableGame),
+		timebank:   timebank.NewTimeBank(),
+		tableGames: make(map[string]*TableGame),
 	}
 }
 
 type TableGame struct {
-	Table *Table
-	Game  pokerface.Game
+	Table             *Table
+	Game              pokerface.Game
+	GamePlayerReadies map[string]*syncsaga.ReadyGroup
+	GamePlayerPayAnte map[string]*syncsaga.ReadyGroup
 }
 
 type tableEngine struct {
 	timebank       *timebank.TimeBank
 	onTableUpdated func(*Table)
-	tableGameMap   map[string]*TableGame
+	tableGames     map[string]*TableGame
 }
 
 func (te *tableEngine) EmitEvent(table *Table) {
@@ -84,7 +85,7 @@ func (te *tableEngine) OnTableUpdated(fn func(*Table)) {
 }
 
 func (te *tableEngine) GetTable(tableID string) (*Table, error) {
-	tableGame, exist := te.tableGameMap[tableID]
+	tableGame, exist := te.tableGames[tableID]
 	if !exist {
 		return nil, ErrTableNotFound
 	}
@@ -104,8 +105,8 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
 	table.ConfigureWithSetting(tableSetting, TableStateStatus_TableCreated)
 	te.EmitEvent(table)
 
-	// update tableGameMap
-	te.tableGameMap[table.ID] = &TableGame{Table: table}
+	// update tableGames
+	te.tableGames[table.ID] = &TableGame{Table: table}
 
 	return table, nil
 }
@@ -115,7 +116,7 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
 	  - 適用時機: 該桌次需要拆併桌時
 */
 func (te *tableEngine) BalanceTable(tableID string) error {
-	tableGame, exist := te.tableGameMap[tableID]
+	tableGame, exist := te.tableGames[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
@@ -129,7 +130,7 @@ func (te *tableEngine) BalanceTable(tableID string) error {
 	  - 適用時機: 強制關閉 (Killed)、自動關閉 (AutoEnded)、正常關閉 (Closed)
 */
 func (te *tableEngine) DeleteTable(tableID string) error {
-	tableGame, exist := te.tableGameMap[tableID]
+	tableGame, exist := te.tableGames[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
@@ -137,14 +138,14 @@ func (te *tableEngine) DeleteTable(tableID string) error {
 	tableGame.Table.State.Status = TableStateStatus_TableClosed
 	te.EmitEvent(tableGame.Table)
 
-	// update tableGameMap
-	delete(te.tableGameMap, tableID)
+	// update tableGames
+	delete(te.tableGames, tableID)
 
 	return nil
 }
 
 func (te *tableEngine) StartTableGame(tableID string) error {
-	tableGame, exist := te.tableGameMap[tableID]
+	tableGame, exist := te.tableGames[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
@@ -156,7 +157,7 @@ func (te *tableEngine) StartTableGame(tableID string) error {
 }
 
 func (te *tableEngine) TableGameOpen(tableID string) error {
-	tableGame, exist := te.tableGameMap[tableID]
+	tableGame, exist := te.tableGames[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
@@ -174,7 +175,7 @@ func (te *tableEngine) TableGameOpen(tableID string) error {
 	  - 適用時機: 報名入桌、補碼入桌
 */
 func (te *tableEngine) PlayerJoin(tableID string, joinPlayer JoinPlayer) error {
-	tableGame, exist := te.tableGameMap[tableID]
+	tableGame, exist := te.tableGames[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
@@ -192,7 +193,7 @@ func (te *tableEngine) PlayerJoin(tableID string, joinPlayer JoinPlayer) error {
 	  - 適用時機: 增購
 */
 func (te *tableEngine) PlayerRedeemChips(tableID string, joinPlayer JoinPlayer) error {
-	tableGame, exist := te.tableGameMap[tableID]
+	tableGame, exist := te.tableGames[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
@@ -219,7 +220,7 @@ func (te *tableEngine) PlayerRedeemChips(tableID string, joinPlayer JoinPlayer) 
 		- CT/MTT 停止買入後被淘汰
 */
 func (te *tableEngine) PlayersLeave(tableID string, playerIDs []string) error {
-	tableGame, exist := te.tableGameMap[tableID]
+	tableGame, exist := te.tableGames[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
@@ -244,7 +245,7 @@ func (te *tableEngine) PlayersLeave(tableID string, playerIDs []string) error {
 }
 
 func (te *tableEngine) PlayerReady(tableID, playerID string) error {
-	tableGame, exist := te.tableGameMap[tableID]
+	tableGame, exist := te.tableGames[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
@@ -255,19 +256,39 @@ func (te *tableEngine) PlayerReady(tableID, playerID string) error {
 		return ErrPlayerNotFound
 	}
 
-	// do ready
-	if err := tableGame.Game.Ready(gamePlayerIdx); err != nil {
-		return err
+	// handle ready group
+	rg, exist := tableGame.GamePlayerReadies[tableGame.Game.GetState().GameID]
+	if !exist {
+		return ErrTableGameError
 	}
+	rg.Ready(int64(gamePlayerIdx))
 
-	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
 func (te *tableEngine) PlayerPay(tableID, playerID string, chips int64) error {
-	tableGame, exist := te.tableGameMap[tableID]
+	tableGame, exist := te.tableGames[tableID]
 	if !exist {
 		return ErrTableNotFound
+	}
+
+	// find game player index
+	gamePlayerIdx := te.findGamePlayerIdx(tableGame.Table.State.PlayerStates, tableGame.Table.State.GamePlayerIndexes, playerID)
+	if gamePlayerIdx == UnsetValue {
+		return ErrPlayerNotFound
+	}
+
+	// handle ready group
+	gs := tableGame.Game.GetState()
+	event := gs.Status.CurrentEvent.Name
+	// Pay Ante: call pay ante ready group ready
+	if chips == gs.Meta.Ante && event == GameEventName(pokerface.GameEvent_Prepared) {
+		rg, exist := tableGame.GamePlayerPayAnte[tableGame.Game.GetState().GameID]
+		if !exist {
+			return ErrTableGameError
+		}
+		rg.Ready(int64(gamePlayerIdx))
+		return nil
 	}
 
 	// validate player action
@@ -279,69 +300,18 @@ func (te *tableEngine) PlayerPay(tableID, playerID string, chips int64) error {
 	if err := tableGame.Game.GetCurrentPlayer().Pay(chips); err != nil {
 		return err
 	}
-
 	te.EmitEvent(tableGame.Table)
-	return nil
-}
 
-func (te *tableEngine) PlayersPayAnte(tableID string) error {
-	tableGame, exist := te.tableGameMap[tableID]
-	if !exist {
-		return ErrTableNotFound
+	// After Pay BB: run readies ready group
+	if chips == gs.Meta.Blind.BB && event == GameEventName(pokerface.GameEvent_RoundInitialized) {
+		te.runPlayerReadiesCheck(gs.GameID, tableGame)
 	}
 
-	// do action
-	err := tableGame.Game.PayAnte()
-	if err != nil {
-		return err
-	}
-
-	te.EmitEvent(tableGame.Table)
-	return nil
-}
-
-func (te *tableEngine) PlayerPaySB(tableID, playerID string) error {
-	tableGame, exist := te.tableGameMap[tableID]
-	if !exist {
-		return ErrTableNotFound
-	}
-
-	// validate player action
-	if err := te.validatePlayerMove(tableGame, playerID); err != nil {
-		return err
-	}
-
-	// do action
-	if err := tableGame.Game.GetCurrentPlayer().Pay(tableGame.Game.GetState().Meta.Blind.SB); err != nil {
-		return err
-	}
-
-	te.EmitEvent(tableGame.Table)
-	return nil
-}
-
-func (te *tableEngine) PlayerPayBB(tableID, playerID string) error {
-	tableGame, exist := te.tableGameMap[tableID]
-	if !exist {
-		return ErrTableNotFound
-	}
-
-	// validate player action
-	if err := te.validatePlayerMove(tableGame, playerID); err != nil {
-		return err
-	}
-
-	// do action
-	if err := tableGame.Game.GetCurrentPlayer().Pay(tableGame.Game.GetState().Meta.Blind.BB); err != nil {
-		return err
-	}
-
-	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
 func (te *tableEngine) PlayerBet(tableID, playerID string, chips int64) error {
-	tableGame, exist := te.tableGameMap[tableID]
+	tableGame, exist := te.tableGames[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
@@ -361,7 +331,7 @@ func (te *tableEngine) PlayerBet(tableID, playerID string, chips int64) error {
 }
 
 func (te *tableEngine) PlayerRaise(tableID, playerID string, chipLevel int64) error {
-	tableGame, exist := te.tableGameMap[tableID]
+	tableGame, exist := te.tableGames[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
@@ -381,7 +351,7 @@ func (te *tableEngine) PlayerRaise(tableID, playerID string, chipLevel int64) er
 }
 
 func (te *tableEngine) PlayerCall(tableID, playerID string) error {
-	tableGame, exist := te.tableGameMap[tableID]
+	tableGame, exist := te.tableGames[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
@@ -405,7 +375,7 @@ func (te *tableEngine) PlayerCall(tableID, playerID string) error {
 }
 
 func (te *tableEngine) PlayerAllin(tableID, playerID string) error {
-	tableGame, exist := te.tableGameMap[tableID]
+	tableGame, exist := te.tableGames[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
@@ -429,7 +399,7 @@ func (te *tableEngine) PlayerAllin(tableID, playerID string) error {
 }
 
 func (te *tableEngine) PlayerCheck(tableID, playerID string) error {
-	tableGame, exist := te.tableGameMap[tableID]
+	tableGame, exist := te.tableGames[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
@@ -453,7 +423,7 @@ func (te *tableEngine) PlayerCheck(tableID, playerID string) error {
 }
 
 func (te *tableEngine) PlayerFold(tableID, playerID string) error {
-	tableGame, exist := te.tableGameMap[tableID]
+	tableGame, exist := te.tableGames[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
@@ -477,7 +447,7 @@ func (te *tableEngine) PlayerFold(tableID, playerID string) error {
 }
 
 func (te *tableEngine) PlayerPass(tableID, playerID string) error {
-	tableGame, exist := te.tableGameMap[tableID]
+	tableGame, exist := te.tableGames[tableID]
 	if !exist {
 		return ErrTableNotFound
 	}
@@ -555,10 +525,12 @@ func (te *tableEngine) autoNextRound(tableGame *TableGame) error {
 		if err := tableGame.Game.Next(); err != nil {
 			return err
 		}
-		event = tableGame.Game.GetState().Status.CurrentEvent.Name
+		gs := tableGame.Game.GetState()
+		event = gs.Status.CurrentEvent.Name
 
 		// new round started
 		if event == GameEventName(pokerface.GameEvent_RoundInitialized) {
+			te.runPlayerReadiesCheck(gs.GameID, tableGame)
 			return nil
 		}
 
@@ -575,11 +547,75 @@ func (te *tableEngine) startGame(tableGame *TableGame) error {
 	if err := tableGame.Game.Start(); err != nil {
 		return err
 	}
+
 	tableGame.Table.State.Status = TableStateStatus_TableGamePlaying
 	tableGame.Table.State.GameState = tableGame.Game.GetState()
 
+	tableGame.GamePlayerPayAnte = make(map[string]*syncsaga.ReadyGroup)
+	tableGame.GamePlayerReadies = make(map[string]*syncsaga.ReadyGroup)
+
 	te.EmitEvent(tableGame.Table)
+
+	// Set PlayerReadies
+	gameID := tableGame.Table.State.GameState.GameID
+	te.runPlayerReadiesCheck(gameID, tableGame)
+
 	return nil
+}
+
+func (te *tableEngine) runPlayerReadiesCheck(gameID string, tableGame *TableGame) {
+	rg := syncsaga.NewReadyGroup(
+		syncsaga.WithTimeout(1, func(rg *syncsaga.ReadyGroup) {
+			// Check states
+			states := rg.GetParticipantStates()
+			for gamePlayerIdx, isReady := range states {
+				if !isReady {
+					rg.Ready(gamePlayerIdx)
+				}
+			}
+		}),
+		syncsaga.WithCompletedCallback(func(rg *syncsaga.ReadyGroup) {
+			if err := tableGame.Game.ReadyForAll(); err == nil {
+				delete(tableGame.GamePlayerReadies, gameID)
+				te.EmitEvent(tableGame.Table)
+
+				gs := tableGame.Table.State.GameState
+				if gs.Meta.Ante > 0 && gs.Status.CurrentEvent.Name == GameEventName(pokerface.GameEvent_Prepared) {
+					te.runPlayerPayAnteCheck(gameID, tableGame)
+				}
+			}
+		}),
+	)
+	for gamePlayerIdx := int64(0); gamePlayerIdx < int64(len(tableGame.Table.State.GamePlayerIndexes)); gamePlayerIdx++ {
+		rg.Add(gamePlayerIdx, false)
+	}
+	rg.Start()
+	tableGame.GamePlayerReadies[gameID] = rg
+}
+
+func (te *tableEngine) runPlayerPayAnteCheck(gameID string, tableGame *TableGame) {
+	rg := syncsaga.NewReadyGroup(
+		syncsaga.WithTimeout(1, func(rg *syncsaga.ReadyGroup) {
+			// Check states
+			states := rg.GetParticipantStates()
+			for gamePlayerIdx, isReady := range states {
+				if !isReady {
+					rg.Ready(gamePlayerIdx)
+				}
+			}
+		}),
+		syncsaga.WithCompletedCallback(func(rg *syncsaga.ReadyGroup) {
+			if err := tableGame.Game.PayAnte(); err == nil {
+				delete(tableGame.GamePlayerPayAnte, gameID)
+				te.EmitEvent(tableGame.Table)
+			}
+		}),
+	)
+	for gamePlayerIdx := int64(0); gamePlayerIdx < int64(len(tableGame.Table.State.GamePlayerIndexes)); gamePlayerIdx++ {
+		rg.Add(gamePlayerIdx, false)
+	}
+	rg.Start()
+	tableGame.GamePlayerPayAnte[gameID] = rg
 }
 
 func (te *tableEngine) settleTable(table *Table) {

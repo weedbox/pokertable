@@ -29,7 +29,7 @@ type Table struct {
 	ID           string      `json:"id"`
 	Meta         TableMeta   `json:"meta"`
 	State        *TableState `json:"state"`
-	UpdateAt     int64       `json:"update_at"`     // 更新時間 (MilliSeconds)
+	UpdateAt     int64       `json:"update_at"`     // 更新時間 (Seconds)
 	UpdateSerial int64       `json:"update_serial"` // 更新序列號 (數字越大越晚發生)
 }
 
@@ -106,7 +106,7 @@ type TableBlindLevelState struct {
 
 // Setters
 func (t *Table) RefreshUpdateAt() {
-	t.UpdateAt = time.Now().UnixMilli()
+	t.UpdateAt = time.Now().Unix()
 	t.UpdateSerial++
 }
 

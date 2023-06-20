@@ -77,7 +77,10 @@ type tableEngine struct {
 
 func (te *tableEngine) EmitEvent(table *Table) {
 	table.RefreshUpdateAt()
-	te.onTableUpdated(table)
+
+	if te.onTableUpdated != nil {
+		te.onTableUpdated(table)
+	}
 }
 
 func (te *tableEngine) OnTableUpdated(fn func(*Table)) {
@@ -300,12 +303,13 @@ func (te *tableEngine) PlayerPay(tableID, playerID string, chips int64) error {
 	if err := tableGame.Game.GetCurrentPlayer().Pay(chips); err != nil {
 		return err
 	}
-	te.EmitEvent(tableGame.Table)
+	// te.EmitEvent(tableGame.Table)
 
 	// After Pay BB: run readies ready group
 	if chips == gs.Meta.Blind.BB && event == GameEventName(pokerface.GameEvent_RoundInitialized) {
 		te.runPlayerReadiesCheck(gs.GameID, tableGame)
 	}
+	te.EmitEvent(tableGame.Table)
 
 	return nil
 }
@@ -554,11 +558,11 @@ func (te *tableEngine) startGame(tableGame *TableGame) error {
 	tableGame.GamePlayerPayAnte = make(map[string]*syncsaga.ReadyGroup)
 	tableGame.GamePlayerReadies = make(map[string]*syncsaga.ReadyGroup)
 
-	te.EmitEvent(tableGame.Table)
-
 	// Set PlayerReadies
 	gameID := tableGame.Table.State.GameState.GameID
 	te.runPlayerReadiesCheck(gameID, tableGame)
+
+	te.EmitEvent(tableGame.Table)
 
 	return nil
 }

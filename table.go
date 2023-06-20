@@ -390,6 +390,14 @@ func (t Table) GetJSON() (string, error) {
 	return string(encoded), nil
 }
 
+func (t Table) GetGameStateJSON() (string, error) {
+	encoded, err := json.Marshal(t.State.GameState)
+	if err != nil {
+		return "", err
+	}
+	return string(encoded), nil
+}
+
 func (t Table) ParticipatedPlayers() []*TablePlayerState {
 	return funk.Filter(t.State.PlayerStates, func(player *TablePlayerState) bool {
 		return player.IsParticipated

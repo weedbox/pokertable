@@ -2,6 +2,7 @@ package pokertable
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/weedbox/pokerface"
@@ -77,8 +78,11 @@ type tableEngine struct {
 	tableGames     map[string]*TableGame
 }
 
-func (te *tableEngine) EmitEvent(table *Table) {
+func (te *tableEngine) EmitEvent(eventName string, table *Table) {
 	table.RefreshUpdateAt()
+	fmt.Printf("[#%d][%d] Emit Event: %s\n", table.UpdateSerial, table.State.GameCount, eventName)
+	// json, _ := table.GetGameStateJSON()
+	// fmt.Println(fmt.Sprintf("[#%d]", table.UpdateSerial), json)
 
 	if te.onTableUpdated != nil {
 		te.onTableUpdated(table)
@@ -108,7 +112,7 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
 		ID: uuid.New().String(),
 	}
 	table.ConfigureWithSetting(tableSetting, TableStateStatus_TableCreated)
-	te.EmitEvent(table)
+	te.EmitEvent("CreateTable", table)
 
 	// update tableGames
 	te.tableGames[table.ID] = &TableGame{Table: table}
@@ -141,7 +145,7 @@ func (te *tableEngine) DeleteTable(tableID string) error {
 	}
 
 	tableGame.Table.State.Status = TableStateStatus_TableClosed
-	te.EmitEvent(tableGame.Table)
+	te.EmitEvent("DeleteTable", tableGame.Table)
 
 	// update tableGames
 	delete(te.tableGames, tableID)
@@ -169,7 +173,7 @@ func (te *tableEngine) TableGameOpen(tableID string) error {
 
 	// 開局
 	tableGame.Table.OpenGame()
-	te.EmitEvent(tableGame.Table)
+	te.EmitEvent("TableGameOpen", tableGame.Table)
 
 	// 開始遊戲
 	return te.startGame(tableGame)
@@ -189,7 +193,7 @@ func (te *tableEngine) PlayerJoin(tableID string, joinPlayer JoinPlayer) error {
 		return err
 	}
 
-	te.EmitEvent(tableGame.Table)
+	te.EmitEvent("PlayerJoin", tableGame.Table)
 	return nil
 }
 
@@ -211,7 +215,7 @@ func (te *tableEngine) PlayerRedeemChips(tableID string, joinPlayer JoinPlayer) 
 
 	tableGame.Table.PlayerRedeemChips(playerIdx, joinPlayer.RedeemChips)
 
-	te.EmitEvent(tableGame.Table)
+	te.EmitEvent("PlayerRedeemChips", tableGame.Table)
 	return nil
 }
 
@@ -245,7 +249,7 @@ func (te *tableEngine) PlayersLeave(tableID string, playerIDs []string) error {
 
 	tableGame.Table.PlayersLeave(leavePlayerIndexes)
 
-	te.EmitEvent(tableGame.Table)
+	te.EmitEvent("PlayersLeave", tableGame.Table)
 	return nil
 }
 
@@ -310,7 +314,7 @@ func (te *tableEngine) PlayerPay(tableID, playerID string, chips int64) error {
 	if chips == gs.Meta.Blind.BB && event == GameEventName(pokerface.GameEvent_RoundInitialized) {
 		te.runPlayerReadiesCheck(gs.GameID, tableGame)
 	}
-	te.EmitEvent(tableGame.Table)
+	te.EmitEvent("PlayerPay", tableGame.Table)
 
 	return nil
 }
@@ -330,8 +334,7 @@ func (te *tableEngine) PlayerBet(tableID, playerID string, chips int64) error {
 	if err := tableGame.Game.GetCurrentPlayer().Bet(chips); err != nil {
 		return err
 	}
-
-	te.EmitEvent(tableGame.Table)
+	te.EmitEvent("PlayerBet", tableGame.Table)
 	return nil
 }
 
@@ -350,8 +353,7 @@ func (te *tableEngine) PlayerRaise(tableID, playerID string, chipLevel int64) er
 	if err := tableGame.Game.GetCurrentPlayer().Raise(chipLevel); err != nil {
 		return err
 	}
-
-	te.EmitEvent(tableGame.Table)
+	te.EmitEvent("PlayerRaise", tableGame.Table)
 	return nil
 }
 
@@ -370,12 +372,12 @@ func (te *tableEngine) PlayerCall(tableID, playerID string) error {
 	if err := tableGame.Game.GetCurrentPlayer().Call(); err != nil {
 		return err
 	}
+	te.EmitEvent("PlayerCall", tableGame.Table)
 
 	if err := te.autoNextRound(tableGame); err != nil {
 		return err
 	}
 
-	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
@@ -394,12 +396,12 @@ func (te *tableEngine) PlayerAllin(tableID, playerID string) error {
 	if err := tableGame.Game.GetCurrentPlayer().Allin(); err != nil {
 		return err
 	}
+	te.EmitEvent("PlayerAllin", tableGame.Table)
 
 	if err := te.autoNextRound(tableGame); err != nil {
 		return err
 	}
 
-	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
@@ -418,12 +420,12 @@ func (te *tableEngine) PlayerCheck(tableID, playerID string) error {
 	if err := tableGame.Game.GetCurrentPlayer().Check(); err != nil {
 		return err
 	}
+	te.EmitEvent("PlayerCheck", tableGame.Table)
 
 	if err := te.autoNextRound(tableGame); err != nil {
 		return err
 	}
 
-	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
@@ -442,12 +444,12 @@ func (te *tableEngine) PlayerFold(tableID, playerID string) error {
 	if err := tableGame.Game.GetCurrentPlayer().Fold(); err != nil {
 		return err
 	}
+	te.EmitEvent("PlayerFold", tableGame.Table)
 
 	if err := te.autoNextRound(tableGame); err != nil {
 		return err
 	}
 
-	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
@@ -466,12 +468,12 @@ func (te *tableEngine) PlayerPass(tableID, playerID string) error {
 	if err := tableGame.Game.GetCurrentPlayer().Pass(); err != nil {
 		return err
 	}
+	te.EmitEvent("PlayerPass", tableGame.Table)
 
 	if err := te.autoNextRound(tableGame); err != nil {
 		return err
 	}
 
-	te.EmitEvent(tableGame.Table)
 	return nil
 }
 
@@ -536,6 +538,7 @@ func (te *tableEngine) autoNextRound(tableGame *TableGame) error {
 		// new round started
 		if event == GameEventName(pokerface.GameEvent_RoundInitialized) {
 			te.runPlayerReadiesCheck(gs.GameID, tableGame)
+			te.EmitEvent("Auto Next Round", tableGame.Table)
 			return nil
 		}
 
@@ -563,7 +566,7 @@ func (te *tableEngine) startGame(tableGame *TableGame) error {
 	gameID := tableGame.Table.State.GameState.GameID
 	te.runPlayerReadiesCheck(gameID, tableGame)
 
-	te.EmitEvent(tableGame.Table)
+	te.EmitEvent("startGame", tableGame.Table)
 
 	return nil
 }
@@ -582,7 +585,7 @@ func (te *tableEngine) runPlayerReadiesCheck(gameID string, tableGame *TableGame
 		syncsaga.WithCompletedCallback(func(rg *syncsaga.ReadyGroup) {
 			if err := tableGame.Game.ReadyForAll(); err == nil {
 				delete(tableGame.GamePlayerReadies, gameID)
-				te.EmitEvent(tableGame.Table)
+				te.EmitEvent("ReadyForAll", tableGame.Table)
 
 				gs := tableGame.Table.State.GameState
 				if gs.Meta.Ante > 0 && gs.Status.CurrentEvent.Name == GameEventName(pokerface.GameEvent_Prepared) {
@@ -612,7 +615,7 @@ func (te *tableEngine) runPlayerPayAnteCheck(gameID string, tableGame *TableGame
 		syncsaga.WithCompletedCallback(func(rg *syncsaga.ReadyGroup) {
 			if err := tableGame.Game.PayAnte(); err == nil {
 				delete(tableGame.GamePlayerPayAnte, gameID)
-				te.EmitEvent(tableGame.Table)
+				te.EmitEvent("PayAnte", tableGame.Table)
 			}
 		}),
 	)
@@ -625,10 +628,10 @@ func (te *tableEngine) runPlayerPayAnteCheck(gameID string, tableGame *TableGame
 
 func (te *tableEngine) settleTable(table *Table) {
 	table.SettleGameResult()
-	te.EmitEvent(table)
+	te.EmitEvent("SettleGameResult", table)
 
 	table.ContinueGame()
-	te.EmitEvent(table)
+	te.EmitEvent("ContinueGame", table)
 
 	if table.State.Status == TableStateStatus_TablePausing && table.State.BlindState.IsBreaking() {
 		// resume game from breaking

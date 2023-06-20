@@ -118,6 +118,7 @@ func TestTableGame_River_Settlement(t *testing.T) {
 			DebugPrintTableGameOpened(*table)
 		case pokertable.TableStateStatus_TableGameSettled:
 			DebugPrintTableGameSettled(*table)
+		case pokertable.TableStateStatus_TableGameStandby, pokertable.TableStateStatus_TablePausing:
 			if table.IsClose() {
 				tableID := table.ID
 				err := tableEngine.DeleteTable(tableID)
@@ -152,12 +153,12 @@ func TestTableGame_River_Settlement(t *testing.T) {
 	err = tableEngine.StartTableGame(table.ID)
 	assert.Nil(t, err)
 
-	for i := 0; i < 1; i++ {
+	for i := 0; i < 10; i++ {
 		table, err := tableEngine.GetTable(table.ID)
 		if err != nil {
 			break
 		}
 		playersAutoPlayActions(tableEngine, table)
-		time.Sleep(300 * time.Millisecond)
+		time.Sleep(800 * time.Millisecond)
 	}
 }

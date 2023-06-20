@@ -19,6 +19,8 @@ var (
 	ErrPlayerInvalidAction       = errors.New("player invalid action")
 	ErrCloseTable                = errors.New("table close error")
 	ErrTableGameError            = errors.New("table game error")
+	ErrInvalidReadyAction        = errors.New("invalid ready action")
+	ErrInvalidPayAnteAction      = errors.New("invalid pay ante action")
 )
 
 type TableEvent string
@@ -262,7 +264,7 @@ func (te *tableEngine) PlayerReady(tableID, playerID string) error {
 	// handle ready group
 	rg, exist := tableGame.GamePlayerReadies[tableGame.Game.GetState().GameID]
 	if !exist {
-		return ErrTableGameError
+		return ErrInvalidReadyAction
 	}
 	rg.Ready(int64(gamePlayerIdx))
 
@@ -288,7 +290,7 @@ func (te *tableEngine) PlayerPay(tableID, playerID string, chips int64) error {
 	if chips == gs.Meta.Ante && event == GameEventName(pokerface.GameEvent_Prepared) {
 		rg, exist := tableGame.GamePlayerPayAnte[tableGame.Game.GetState().GameID]
 		if !exist {
-			return ErrTableGameError
+			return ErrInvalidPayAnteAction
 		}
 		rg.Ready(int64(gamePlayerIdx))
 		return nil
@@ -303,7 +305,6 @@ func (te *tableEngine) PlayerPay(tableID, playerID string, chips int64) error {
 	if err := tableGame.Game.GetCurrentPlayer().Pay(chips); err != nil {
 		return err
 	}
-	// te.EmitEvent(tableGame.Table)
 
 	// After Pay BB: run readies ready group
 	if chips == gs.Meta.Blind.BB && event == GameEventName(pokerface.GameEvent_RoundInitialized) {

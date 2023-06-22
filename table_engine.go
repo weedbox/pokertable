@@ -58,6 +58,7 @@ func NewTableEngine() TableEngine {
 		onTableUpdated: func(*Table) {},
 		onErrorUpdated: func(error) {},
 		incoming:       make(chan *Request, 1024),
+		tableGames:     sync.Map{},
 	}
 	go te.run()
 	return te

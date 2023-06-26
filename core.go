@@ -539,6 +539,7 @@ func (te *tableEngine) settleTable(table *Table) {
 		// 自動開桌條件: 非 TableStateStatus_TableGamePlaying 或 非 TableStateStatus_TableBalancing
 		stopOpen := table.State.Status == TableStateStatus_TableGamePlaying || table.State.Status == TableStateStatus_TableBalancing
 		if !stopOpen {
+			time.Sleep(100 * time.Millisecond) // TODO: for testing only, should remove this
 			_ = te.TableGameOpen(table.ID)
 		}
 	}

@@ -305,7 +305,7 @@ func (t *Table) SettleGameResult() {
 }
 
 func (t *Table) ContinueGame() {
-	shouldPause := t.State.BlindState.IsBreaking() || (!t.State.BlindState.IsFinalBuyInLevel() && len(t.AlivePlayers()) < 2)
+	shouldPause := t.State.BlindState.IsBreaking() || len(t.AlivePlayers()) < 2
 	if shouldPause {
 		t.State.Status = TableStateStatus_TablePausing
 	} else {

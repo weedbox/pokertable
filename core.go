@@ -28,13 +28,13 @@ func (te *tableEngine) incomingRequest(tableID string, action RequestAction, par
 
 func (te *tableEngine) emitEvent(eventName string, playerID string, table *Table) {
 	table.RefreshUpdateAt()
-	// fmt.Printf("->[#%d][%d][%s] emit Event: %s\n", table.UpdateSerial, table.State.GameCount, playerID, eventName)
+	// fmt.Printf("->[Table %s][#%d][%d][%s] emit Event: %s\n", table.ID, table.UpdateSerial, table.State.GameCount, playerID, eventName)
 	te.onTableUpdated(table)
 }
 
 func (te *tableEngine) emitErrorEvent(eventName RequestAction, playerID string, err error, table *Table) {
 	table.RefreshUpdateAt()
-	// fmt.Printf("->[#%d][%d][%s] emit ERROR Event: %s, Error: %v\n", table.UpdateSerial, table.State.GameCount, playerID, eventName, err)
+	// fmt.Printf("->[Table %s][#%d][%d][%s] emit ERROR Event: %s, Error: %v\n", table.ID, table.UpdateSerial, table.State.GameCount, playerID, eventName, err)
 	te.onErrorUpdated(err)
 }
 

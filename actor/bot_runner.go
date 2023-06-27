@@ -128,7 +128,7 @@ func (br *botRunner) requestMove() error {
 	}
 
 	if !br.isHumanized || br.tableInfo.Meta.CompetitionMeta.ActionTime == 0 {
-		fmt.Printf("[1][#%d][%d][%s][%s] br.requestAI\n", br.tableInfo.UpdateSerial, br.tableInfo.State.GameCount, br.playerID, br.tableInfo.State.GameState.Status.Round)
+		// fmt.Printf("[1][#%d][%d][%s][%s] br.requestAI\n", br.tableInfo.UpdateSerial, br.tableInfo.State.GameCount, br.playerID, br.tableInfo.State.GameState.Status.Round)
 		return br.requestAI()
 	}
 
@@ -143,7 +143,7 @@ func (br *botRunner) requestMove() error {
 		if isCancelled {
 			return
 		}
-		fmt.Printf("[2][#%d][%d][%s][%s] br.requestAI\n", br.tableInfo.UpdateSerial, br.tableInfo.State.GameCount, br.playerID, br.tableInfo.State.GameState.Status.Round)
+		// fmt.Printf("[2][#%d][%d][%s][%s] br.requestAI\n", br.tableInfo.UpdateSerial, br.tableInfo.State.GameCount, br.playerID, br.tableInfo.State.GameState.Status.Round)
 		br.requestAI()
 	})
 }

@@ -2,6 +2,7 @@ package pokertable
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/google/uuid"
@@ -60,15 +61,14 @@ func NewTableEngine() TableEngine {
 		incoming:       make(chan *Request, 1024),
 		tableGames:     sync.Map{},
 	}
-	go te.run()
+	go te.runRequestHandler()
 	return te
 }
 
 type TableGame struct {
-	Table             *Table
-	Game              pokerface.Game
-	GamePlayerReadies map[string]*syncsaga.ReadyGroup
-	GamePlayerPayAnte map[string]*syncsaga.ReadyGroup
+	Table          *Table
+	Game           pokerface.Game
+	GameReadyGroup *syncsaga.ReadyGroup
 }
 
 type tableEngine struct {
@@ -115,8 +115,27 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
 	table.ConfigureWithSetting(tableSetting, TableStateStatus_TableCreated)
 	te.emitEvent("CreateTable", "", table)
 
+	// create ready group
+	rg := syncsaga.NewReadyGroup(
+		syncsaga.WithTimeout(1, func(rg *syncsaga.ReadyGroup) {
+			// Auto Ready By Default
+			states := rg.GetParticipantStates()
+			for gamePlayerIdx, isReady := range states {
+				if !isReady {
+					rg.Ready(gamePlayerIdx)
+				}
+			}
+		}),
+	)
+
+	// create table game
+	tableGame := TableGame{
+		Table:          table,
+		GameReadyGroup: rg,
+	}
+
 	// update tableGames
-	te.tableGames.Store(table.ID, &TableGame{Table: table})
+	te.tableGames.Store(table.ID, &tableGame)
 
 	return table, nil
 }
@@ -220,4 +239,71 @@ func (te *tableEngine) PlayerFold(tableID, playerID string) error {
 
 func (te *tableEngine) PlayerPass(tableID, playerID string) error {
 	return te.incomingRequest(tableID, RequestAction_PlayerPass, playerID)
+}
+
+func (te *tableEngine) incomingRequest(tableID string, action RequestAction, param interface{}) error {
+	te.lock.Lock()
+	defer te.lock.Unlock()
+
+	tableGame, exist := te.tableGames.Load(tableID)
+	if !exist {
+		return ErrTableNotFound
+	}
+
+	te.incoming <- &Request{
+		Action: action,
+		Payload: Payload{
+			TableGame: tableGame.(*TableGame),
+			Param:     param,
+		},
+	}
+
+	return nil
+}
+
+func (te *tableEngine) emitEvent(eventName string, playerID string, table *Table) {
+	table.RefreshUpdateAt()
+	fmt.Printf("->[Table %s][#%d][%d][%s] emit Event: %s\n", table.ID, table.UpdateSerial, table.State.GameCount, playerID, eventName)
+	json, _ := table.GetGameStateJSON()
+	fmt.Println(json)
+	te.onTableUpdated(table)
+}
+
+func (te *tableEngine) emitErrorEvent(eventName RequestAction, playerID string, err error, table *Table) {
+	table.RefreshUpdateAt()
+	fmt.Printf("->[Table %s][#%d][%d][%s] emit ERROR Event: %s, Error: %v\n", table.ID, table.UpdateSerial, table.State.GameCount, playerID, eventName, err)
+	te.onErrorUpdated(err)
+}
+
+func (te *tableEngine) runRequestHandler() {
+	for req := range te.incoming {
+		te.requestHandler(req)
+	}
+}
+
+func (te *tableEngine) requestHandler(req *Request) {
+	handlers := map[RequestAction]func(Payload){
+		RequestAction_BalanceTable:      te.handleBalanceTable,
+		RequestAction_DeleteTable:       te.handleDeleteTable,
+		RequestAction_StartTableGame:    te.handleStartTableGame,
+		RequestAction_TableGameOpen:     te.handleTableGameOpen,
+		RequestAction_PlayerJoin:        te.handlePlayerJoin,
+		RequestAction_PlayerRedeemChips: te.handlePlayerRedeemChips,
+		RequestAction_PlayersLeave:      te.handlePlayersLeave,
+		RequestAction_PlayerReady:       te.handlePlayerReady,
+		RequestAction_PlayerPay:         te.handlePlayerPay,
+		RequestAction_PlayerBet:         te.handlePlayerBet,
+		RequestAction_PlayerRaise:       te.handlePlayerRaise,
+		RequestAction_PlayerCall:        te.handlePlayerCall,
+		RequestAction_PlayerAllin:       te.handlePlayerAllin,
+		RequestAction_PlayerCheck:       te.handlePlayerCheck,
+		RequestAction_PlayerFold:        te.handlePlayerFold,
+		RequestAction_PlayerPass:        te.handlePlayerPass,
+	}
+
+	handler, ok := handlers[req.Action]
+	if !ok {
+		return
+	}
+	handler(req.Payload)
 }

@@ -26,13 +26,9 @@ const (
 	Position_HJ      = "hj"
 	Position_CO      = "co"
 
-	// Wager Action
-	WagerAction_Fold  = "fold"
-	WagerAction_Check = "check"
-	WagerAction_Call  = "call"
-	WagerAction_AllIn = "allin"
-	WagerAction_Bet   = "Bet"
-	WagerAction_Raise = "raise"
+	// Action
+	Action_Ready = "ready"
+	Action_Pay   = "pay"
 
 	// Round
 	GameRound_Preflop = "preflop"

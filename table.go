@@ -291,7 +291,7 @@ func (t *Table) OpenGame() {
 	}
 }
 
-func (t *Table) SettleGameResult() {
+func (t *Table) settleTableGameResult() {
 	t.State.Status = TableStateStatus_TableGameSettled
 
 	// Step 1: 更新盲注 Level
@@ -430,6 +430,25 @@ func (t Table) GamePlayerIndex(playerID string) int {
 	for gamePlayerIndex, playerIndex := range t.State.GamePlayerIndexes {
 		if targetPlayerIdx == playerIndex {
 			return gamePlayerIndex
+		}
+	}
+	return UnsetValue
+}
+
+func (t Table) FindGamePlayerIdx(playerID string) int {
+	for gamePlayerIdx, playerIdx := range t.State.GamePlayerIndexes {
+		player := t.State.PlayerStates[playerIdx]
+		if player.PlayerID == playerID {
+			return gamePlayerIdx
+		}
+	}
+	return UnsetValue
+}
+
+func (t Table) FindPlayerIdx(playerID string) int {
+	for idx, player := range t.State.PlayerStates {
+		if player.PlayerID == playerID {
+			return idx
 		}
 	}
 	return UnsetValue

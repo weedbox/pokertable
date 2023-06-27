@@ -56,6 +56,7 @@ func TestActor_BotRunner_Humanize(t *testing.T) {
 				TableMaxSeatCount:   9,
 				TableMinPlayerCount: 2,
 				MinChipUnit:         10,
+				ActionTime:          1,
 			},
 		},
 	)
@@ -99,11 +100,12 @@ func TestActor_BotRunner_Humanize(t *testing.T) {
 		}
 
 		if table.State.Status == pokertable.TableStateStatus_TableGameSettled {
-			if table.State.GameState.Status.CurrentEvent.Name == "GameClosed" {
+			if table.State.GameState.Status.CurrentEvent == "GameClosed" {
 				t.Log("GameClosed", table.State.GameState.GameID)
 
 				if len(table.AlivePlayers()) == 1 {
 					tableEngine.DeleteTable(table.ID)
+					t.Log("Table deleted")
 					wg.Done()
 					return
 				}

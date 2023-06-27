@@ -81,7 +81,7 @@ func (br *botRunner) UpdateTableState(table *pokertable.Table) error {
 
 		// We have actions allowed by game engine
 		player := br.tableInfo.State.GameState.GetPlayer(br.gamePlayerIdx)
-		if len(player.AllowedActions) > 0 && br.tableInfo.State.GameState.Status.CurrentEvent.Name != pokerface.GameEventSymbols[pokerface.GameEvent_RoundClosed] {
+		if len(player.AllowedActions) > 0 && br.tableInfo.State.GameState.Status.CurrentEvent != pokerface.GameEventSymbols[pokerface.GameEvent_RoundClosed] {
 			// fmt.Printf("[#%d][%s][] AllowedActions: %v\n", br.tableInfo.UpdateSerial, br.playerID, player.AllowedActions)
 			return br.requestMove()
 		}
@@ -105,14 +105,14 @@ func (br *botRunner) requestMove() error {
 	} else if gs.HasAction(br.gamePlayerIdx, "pay") {
 
 		// Pay for ante and blinds
-		switch gs.Status.CurrentEvent.Name {
-		case pokerface.GameEventSymbols[pokerface.GameEvent_Prepared]:
+		switch gs.Status.CurrentEvent {
+		case pokerface.GameEventSymbols[pokerface.GameEvent_AnteRequested]:
 			fmt.Printf("[#%d][%d][%s][%s] PAY ANTE\n", br.tableInfo.UpdateSerial, br.tableInfo.State.GameCount, br.playerID, br.tableInfo.State.GameState.Status.Round)
 
 			// Ante
 			return br.actions.Pay(gs.Meta.Ante)
 
-		case pokerface.GameEventSymbols[pokerface.GameEvent_RoundInitialized]:
+		case pokerface.GameEventSymbols[pokerface.GameEvent_BlindsRequested]:
 
 			// blinds
 			if gs.HasPosition(br.gamePlayerIdx, "sb") {
@@ -128,18 +128,22 @@ func (br *botRunner) requestMove() error {
 	}
 
 	if !br.isHumanized || br.tableInfo.Meta.CompetitionMeta.ActionTime == 0 {
-		// fmt.Printf("[1][#%d][%d][%s][%s] br.requestAI\n", br.tableInfo.UpdateSerial, br.tableInfo.State.GameCount, br.playerID, br.tableInfo.State.GameState.Status.Round)
+		fmt.Printf("[1][#%d][%d][%s][%s] br.requestAI\n", br.tableInfo.UpdateSerial, br.tableInfo.State.GameCount, br.playerID, br.tableInfo.State.GameState.Status.Round)
 		return br.requestAI()
 	}
 
 	// For simulating human-like behavior, to incorporate random delays when performing actions.
 	thinkingTime := rand.Intn(br.tableInfo.Meta.CompetitionMeta.ActionTime)
+	if thinkingTime == 0 {
+		return br.requestAI()
+	}
+
 	return br.timebank.NewTask(time.Duration(thinkingTime)*time.Second, func(isCancelled bool) {
 
 		if isCancelled {
 			return
 		}
-		// fmt.Printf("[2][#%d][%d][%s][%s] br.requestAI\n", br.tableInfo.UpdateSerial, br.tableInfo.State.GameCount, br.playerID, br.tableInfo.State.GameState.Status.Round)
+		fmt.Printf("[2][#%d][%d][%s][%s] br.requestAI\n", br.tableInfo.UpdateSerial, br.tableInfo.State.GameCount, br.playerID, br.tableInfo.State.GameState.Status.Round)
 		br.requestAI()
 	})
 }

@@ -37,6 +37,7 @@ func TestTableGame_River_Settlement(t *testing.T) {
 			DebugPrintTableGameOpened(*table)
 		case pokertable.TableStateStatus_TableGamePlaying:
 			t.Logf("[%s] %s:", table.State.GameState.Status.Round, table.State.GameState.Status.CurrentEvent)
+			// LogJSON(t, "", table.GetGameStateJSON)
 			switch table.State.GameState.Status.CurrentEvent {
 			case gameEvent(pokerface.GameEvent_ReadyRequested):
 				for _, playerID := range playerIDs {

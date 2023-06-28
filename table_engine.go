@@ -2,6 +2,7 @@ package pokertable
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/google/uuid"
@@ -57,7 +58,7 @@ func NewTableEngine() TableEngine {
 		timebank:       timebank.NewTimeBank(),
 		onTableUpdated: func(*Table) {},
 		onErrorUpdated: func(error) {},
-		incoming:       make(chan *Request, 1024),
+		incoming:       make(chan *Request, 1024), // TODO: 1 table 1 channel
 		tableGames:     sync.Map{},
 	}
 	go te.runRequestHandler()
@@ -262,13 +263,13 @@ func (te *tableEngine) incomingRequest(tableID string, action RequestAction, par
 
 func (te *tableEngine) emitEvent(eventName string, playerID string, table *Table) {
 	table.RefreshUpdateAt()
-	// fmt.Printf("->[Table %s][#%d][%d][%s] emit Event: %s\n", table.ID, table.UpdateSerial, table.State.GameCount, playerID, eventName)
+	fmt.Printf("->[Table %s][#%d][%d][%s] emit Event: %s\n", table.ID, table.UpdateSerial, table.State.GameCount, playerID, eventName)
 	te.onTableUpdated(table)
 }
 
 func (te *tableEngine) emitErrorEvent(eventName RequestAction, playerID string, err error, table *Table) {
 	table.RefreshUpdateAt()
-	// fmt.Printf("->[Table %s][#%d][%d][%s] emit ERROR Event: %s, Error: %v\n", table.ID, table.UpdateSerial, table.State.GameCount, playerID, eventName, err)
+	fmt.Printf("->[Table %s][#%d][%d][%s] emit ERROR Event: %s, Error: %v\n", table.ID, table.UpdateSerial, table.State.GameCount, playerID, eventName, err)
 	te.onErrorUpdated(err)
 }
 

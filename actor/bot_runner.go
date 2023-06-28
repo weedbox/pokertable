@@ -229,7 +229,7 @@ func (br *botRunner) requestAI() error {
 		maxChipLevel := player.InitialStackSize
 		minChipLevel := gs.Status.CurrentWager + gs.Status.PreviousRaiseSize
 
-		if maxChipLevel == minChipLevel {
+		if maxChipLevel <= minChipLevel {
 			fmt.Printf("[#%d][%d][%s][%s] RAISE %d\n", br.tableInfo.UpdateSerial, br.tableInfo.State.GameCount, br.playerID, br.tableInfo.State.GameState.Status.Round, minChipLevel)
 			return br.actions.Raise(minChipLevel)
 		}

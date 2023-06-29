@@ -178,7 +178,7 @@ func (te *tableEngine) PlayerJoin(tableID string, joinPlayer JoinPlayer) error {
 	  - 適用時機: 拆併桌整桌玩家入桌
 */
 func (te *tableEngine) PlayersJoin(tableID string, joinPlayers []JoinPlayer) error {
-	return te.incomingRequest(tableID, RequestAction_PlayerJoin, joinPlayers)
+	return te.incomingRequest(tableID, RequestAction_PlayerJoins, joinPlayers)
 }
 
 /*

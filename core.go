@@ -36,6 +36,21 @@ func (te *tableEngine) handlePlayerJoin(payload Payload) {
 	te.emitEvent("PlayerJoin", joinPlayer.PlayerID, payload.TableGame.Table)
 }
 
+func (te *tableEngine) handlePlayerJoins(payload Payload) {
+	joinPlayers := payload.Param.([]JoinPlayer)
+
+	if len(payload.TableGame.Table.State.PlayerStates)+len(joinPlayers) > payload.TableGame.Table.Meta.CompetitionMeta.TableMaxSeatCount {
+		te.emitErrorEvent(RequestAction_PlayerJoins, "", ErrNoEmptySeats, payload.TableGame.Table)
+		return
+	}
+
+	for _, joinPlayer := range joinPlayers {
+		_ = payload.TableGame.Table.PlayerJoin(joinPlayer.PlayerID, joinPlayer.RedeemChips)
+	}
+
+	te.emitEvent("PlayerJoins", "", payload.TableGame.Table)
+}
+
 func (te *tableEngine) handlePlayerRedeemChips(payload Payload) {
 	joinPlayer := payload.Param.(JoinPlayer)
 
@@ -338,7 +353,7 @@ func (te *tableEngine) settleTableGame(tableGame *TableGame) {
 			}
 			te.timebank = timebank.NewTimeBank()
 		})
-	} else if table.State.Status == TableStateStatus_TableGameStandby {
+	} else if table.State.Status == TableStateStatus_TableGameStandby && table.Meta.CompetitionMeta.Mode == CompetitionMode_CT {
 		// 自動開桌條件: 非 TableStateStatus_TableGamePlaying 或 非 TableStateStatus_TableBalancing
 		stopOpen := table.State.Status == TableStateStatus_TableGamePlaying || table.State.Status == TableStateStatus_TableBalancing
 		if !stopOpen {

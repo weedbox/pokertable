@@ -8,6 +8,7 @@ const (
 	RequestAction_StartTableGame    RequestAction = "StartTableGame"
 	RequestAction_TableGameOpen     RequestAction = "TableGameOpen"
 	RequestAction_PlayerJoin        RequestAction = "PlayerJoin"
+	RequestAction_PlayerJoins       RequestAction = "PlayerJoins"
 	RequestAction_PlayerRedeemChips RequestAction = "PlayerRedeemChips"
 	RequestAction_PlayersLeave      RequestAction = "PlayersLeave"
 	RequestAction_PlayerReady       RequestAction = "PlayerReady"

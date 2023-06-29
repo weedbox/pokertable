@@ -38,6 +38,7 @@ type TableEngine interface {
 
 	// Player Table Actions
 	PlayerJoin(tableID string, joinPlayer JoinPlayer) error        // 玩家入桌 (報名或補碼)
+	PlayersJoin(tableID string, joinPlayers []JoinPlayer) error    // 拆併桌整桌玩家入桌
 	PlayerRedeemChips(tableID string, joinPlayer JoinPlayer) error // 增購籌碼
 	PlayersLeave(tableID string, playerIDs []string) error         // 玩家們離桌
 
@@ -173,6 +174,14 @@ func (te *tableEngine) PlayerJoin(tableID string, joinPlayer JoinPlayer) error {
 }
 
 /*
+	PlayerJoins 多位玩家入桌
+	  - 適用時機: 拆併桌整桌玩家入桌
+*/
+func (te *tableEngine) PlayersJoin(tableID string, joinPlayers []JoinPlayer) error {
+	return te.incomingRequest(tableID, RequestAction_PlayerJoin, joinPlayers)
+}
+
+/*
 	PlayerRedeemChips 增購籌碼
 	  - 適用時機: 增購
 */
@@ -286,6 +295,7 @@ func (te *tableEngine) requestHandler(req *Request) {
 		RequestAction_StartTableGame:    te.handleStartTableGame,
 		RequestAction_TableGameOpen:     te.handleTableGameOpen,
 		RequestAction_PlayerJoin:        te.handlePlayerJoin,
+		RequestAction_PlayerJoins:       te.handlePlayerJoins,
 		RequestAction_PlayerRedeemChips: te.handlePlayerRedeemChips,
 		RequestAction_PlayersLeave:      te.handlePlayersLeave,
 		RequestAction_PlayerReady:       te.handlePlayerReady,

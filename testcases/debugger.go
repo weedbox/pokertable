@@ -32,7 +32,7 @@ func DebugPrintTableGameOpened(t pokertable.Table) {
 		if player.Seat != -1 {
 			seat = strconv.Itoa(player.Seat)
 		}
-		fmt.Printf("seat: %s [%v], participated: %s, player: %s\n", seat, player.Positions, boolToString(player.IsParticipated), player.PlayerID)
+		fmt.Printf("seat: %s [%v], in: %s, participated: %s, player: %s\n", seat, player.Positions, boolToString(player.IsIn), boolToString(player.IsParticipated), player.PlayerID)
 	}
 
 	if t.State.CurrentDealerSeat != -1 {

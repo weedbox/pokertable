@@ -16,12 +16,13 @@ func TestTableGame_River_Settlement(t *testing.T) {
 	wg.Add(1)
 
 	// given conditions
-	playerIDs := []string{"Fred", "Jeffrey", "Chuck"}
+	playerIDs := []string{"Fred", "Jeffrey", "Chuck", "Lottie", "Kimi"}
 	redeemChips := int64(15000)
 	players := funk.Map(playerIDs, func(playerID string) pokertable.JoinPlayer {
 		return pokertable.JoinPlayer{
 			PlayerID:    playerID,
 			RedeemChips: redeemChips,
+			Seat:        -1,
 		}
 	}).([]pokertable.JoinPlayer)
 
@@ -37,7 +38,6 @@ func TestTableGame_River_Settlement(t *testing.T) {
 			DebugPrintTableGameOpened(*table)
 		case pokertable.TableStateStatus_TableGamePlaying:
 			t.Logf("[%s] %s:", table.State.GameState.Status.Round, table.State.GameState.Status.CurrentEvent)
-			// LogJSON(t, "", table.GetGameStateJSON)
 			switch table.State.GameState.Status.CurrentEvent {
 			case gameEvent(pokerface.GameEvent_ReadyRequested):
 				for _, playerID := range playerIDs {
@@ -97,9 +97,12 @@ func TestTableGame_River_Settlement(t *testing.T) {
 	table, err := tableEngine.CreateTable(tableSetting)
 	assert.Nil(t, err, "create table failed")
 
-	// players buy in
+	// players reserve
 	for _, joinPlayer := range players {
-		assert.Nil(t, tableEngine.PlayerJoin(table.ID, joinPlayer), fmt.Sprintf("%s buy in error", joinPlayer.PlayerID))
+		assert.Nil(t, tableEngine.PlayerReserve(table.ID, joinPlayer), fmt.Sprintf("%s reserve error", joinPlayer.PlayerID))
+		if joinPlayer.PlayerID != "Jeffrey" {
+			assert.Nil(t, tableEngine.PlayerJoin(table.ID, joinPlayer.PlayerID), fmt.Sprintf("%s join error", joinPlayer.PlayerID))
+		}
 	}
 
 	// start game

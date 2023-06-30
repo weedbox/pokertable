@@ -103,7 +103,8 @@ func TestTableGame_Flop_Settlement(t *testing.T) {
 
 	// players buy in
 	for _, joinPlayer := range players {
-		assert.Nil(t, tableEngine.PlayerJoin(table.ID, joinPlayer), fmt.Sprintf("%s buy in error", joinPlayer.PlayerID))
+		assert.Nil(t, tableEngine.PlayerReserve(table.ID, joinPlayer), fmt.Sprintf("%s reserve error", joinPlayer.PlayerID))
+		assert.Nil(t, tableEngine.PlayerJoin(table.ID, joinPlayer.PlayerID), fmt.Sprintf("%s join error", joinPlayer.PlayerID))
 	}
 
 	// start game

@@ -49,13 +49,23 @@ func FindDealerPlayerIndex(gameCount, prevDealerSeatIdx, minPlayingCount, maxSea
 	if gameCount == 0 {
 		// 第一次開局，隨機挑選一位玩家當 Dealer
 		newDealerIdx = rand.Intn(len(players))
+
+		// 如果沒入桌玩家就照順序選有入桌玩家
+		if !players[newDealerIdx].IsIn {
+			for playerIdx := 0; playerIdx < len(players); playerIdx++ {
+				if players[playerIdx].IsIn {
+					newDealerIdx = playerIdx
+					break
+				}
+			}
+		}
 	} else {
 		// 找下一位 Dealer Index
 		for i := prevDealerSeatIdx + 1; i < (maxSeatCount + prevDealerSeatIdx + 1); i++ {
 			targetTableSeatIdx := i % maxSeatCount
 			targetPlayerIdx := seatMap[targetTableSeatIdx]
 
-			if targetPlayerIdx != UnsetValue && players[targetPlayerIdx].IsParticipated {
+			if targetPlayerIdx != UnsetValue && players[targetPlayerIdx].IsParticipated && players[targetPlayerIdx].IsIn {
 				newDealerIdx = targetPlayerIdx
 				break
 			}

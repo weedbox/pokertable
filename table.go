@@ -87,9 +87,10 @@ type TablePlayerState struct {
 	PlayerID          string   `json:"player_id"`            // 玩家 ID
 	Seat              int      `json:"seat"`                 // 座位編號 0 ~ 8
 	Positions         []string `json:"positions"`            // 場上位置
-	IsParticipated    bool     `json:"is_participated"`      // 玩家是否參戰，入座 ≠ 參戰
+	IsParticipated    bool     `json:"is_participated"`      // 玩家是否參戰
 	IsBetweenDealerBB bool     `json:"is_between_dealer_bb"` // 玩家入場時是否在 Dealer & BB 之間
 	Bankroll          int64    `json:"bankroll"`             // 玩家身上籌碼
+	IsIn              bool     `json:"is_in"`                // 玩家是否入座
 }
 
 type TableBlindState struct {
@@ -165,23 +166,8 @@ func (t *Table) ConfigureWithSetting(setting TableSetting, status TableStateStat
 
 	// handle auto join players
 	if len(setting.JoinPlayers) > 0 {
-		// auto join players
-		t.State.PlayerStates = funk.Map(setting.JoinPlayers, func(p JoinPlayer) *TablePlayerState {
-			return &TablePlayerState{
-				PlayerID:          p.PlayerID,
-				Seat:              UnsetValue,
-				Positions:         []string{Position_Unknown},
-				IsParticipated:    true,
-				IsBetweenDealerBB: false,
-				Bankroll:          p.RedeemChips,
-			}
-		}).([]*TablePlayerState)
-
-		// update seats
-		for playerIdx := 0; playerIdx < len(t.State.PlayerStates); playerIdx++ {
-			seatIdx := RandomSeat(state.SeatMap)
-			t.State.SeatMap[seatIdx] = playerIdx
-			t.State.PlayerStates[playerIdx].Seat = seatIdx
+		for _, joinPlayer := range setting.JoinPlayers {
+			t.PlayerReserve(joinPlayer.PlayerID, joinPlayer.RedeemChips, UnsetValue)
 		}
 	}
 }
@@ -211,6 +197,12 @@ func (t *Table) OpenGame() {
 
 	// Step 2: 檢查參賽資格
 	for i := 0; i < len(t.State.PlayerStates); i++ {
+		// 沒有入桌玩家直接不參加
+		if !t.State.PlayerStates[i].IsIn {
+			t.State.PlayerStates[i].IsParticipated = false
+			continue
+		}
+
 		// 先讓沒有坐在 大盲、Dealer 之間的玩家參賽
 		if t.State.PlayerStates[i].IsParticipated || t.State.PlayerStates[i].IsBetweenDealerBB {
 			t.State.PlayerStates[i].IsParticipated = t.State.PlayerStates[i].Bankroll > 0
@@ -224,7 +216,8 @@ func (t *Table) OpenGame() {
 	// Step 3: 處理可參賽玩家剩餘一人時，桌上有其他玩家情形
 	if len(t.ParticipatedPlayers()) < 2 {
 		for i := 0; i < len(t.State.PlayerStates); i++ {
-			if t.State.PlayerStates[i].Bankroll == 0 {
+			// 沒入桌或沒籌碼玩家不能玩
+			if t.State.PlayerStates[i].Bankroll == 0 || !t.State.PlayerStates[i].IsIn {
 				continue
 			}
 
@@ -249,12 +242,20 @@ func (t *Table) OpenGame() {
 					continue
 				}
 
+				if !t.State.PlayerStates[i].IsIn {
+					continue
+				}
+
 				t.State.PlayerStates[i].IsParticipated = true
 				t.State.PlayerStates[i].IsBetweenDealerBB = false
 			}
 		} else {
 			for j := t.State.CurrentDealerSeat + 1; j < newDealerTableSeatIdx; j++ {
 				if j != t.State.PlayerStates[i].Seat {
+					continue
+				}
+
+				if !t.State.PlayerStates[i].IsIn {
 					continue
 				}
 
@@ -266,10 +267,10 @@ func (t *Table) OpenGame() {
 
 	// Step 6: 計算 & 更新本手參與玩家的 PlayerIndex 陣列
 	gamePlayerIndexes := FindGamePlayerIndexes(newDealerTableSeatIdx, t.State.SeatMap, t.State.PlayerStates)
-	t.State.GamePlayerIndexes = FindGamePlayerIndexes(newDealerTableSeatIdx, t.State.SeatMap, t.State.PlayerStates)
+	t.State.GamePlayerIndexes = gamePlayerIndexes
 
 	// Step 7: 計算 & 更新本手參與玩家位置資訊
-	positionMap := GetPlayerPositionMap(t.Meta.CompetitionMeta.Rule, t.State.PlayerStates, gamePlayerIndexes)
+	positionMap := GetPlayerPositionMap(t.Meta.CompetitionMeta.Rule, t.State.PlayerStates, t.State.GamePlayerIndexes)
 	for playerIdx := 0; playerIdx < len(t.State.PlayerStates); playerIdx++ {
 		positions, exist := positionMap[playerIdx]
 		if exist && t.State.PlayerStates[playerIdx].IsParticipated {
@@ -291,7 +292,7 @@ func (t *Table) OpenGame() {
 	}
 }
 
-func (t *Table) settleTableGameResult() {
+func (t *Table) SettleTableGameResult() {
 	t.State.Status = TableStateStatus_TableGameSettled
 
 	// Step 1: 更新盲注 Level
@@ -305,19 +306,17 @@ func (t *Table) settleTableGameResult() {
 }
 
 func (t *Table) ContinueGame() {
-	shouldPause := t.State.BlindState.IsBreaking() || len(t.AlivePlayers()) < 2
-	if shouldPause {
+	if t.ShouldPause() {
 		t.State.Status = TableStateStatus_TablePausing
 	} else {
 		t.State.Status = TableStateStatus_TableGameStandby
 	}
-
 	t.Reset()
 }
 
-func (t *Table) PlayerJoin(playerID string, redeemChips int64) error {
+func (t *Table) PlayerReserve(playerID string, redeemChips int64, seat int) error {
 	// find player index in PlayerStates
-	targetPlayerIdx := t.findPlayerIdx(playerID)
+	targetPlayerIdx := t.FindPlayerIdx(playerID)
 
 	if targetPlayerIdx == UnsetValue {
 		if len(t.State.PlayerStates) == t.Meta.CompetitionMeta.TableMaxSeatCount {
@@ -332,12 +331,18 @@ func (t *Table) PlayerJoin(playerID string, redeemChips int64) error {
 			IsParticipated:    true,
 			IsBetweenDealerBB: false,
 			Bankroll:          redeemChips,
+			IsIn:              false,
 		}
 		t.State.PlayerStates = append(t.State.PlayerStates, &player)
 
 		// update seat
 		newPlayerIdx := len(t.State.PlayerStates) - 1
+
+		// decide seat
 		seatIdx := RandomSeat(t.State.SeatMap)
+		if seat != UnsetValue && t.State.SeatMap[seat] != UnsetValue {
+			seatIdx = seat
+		}
 		t.State.SeatMap[seatIdx] = newPlayerIdx
 		t.State.PlayerStates[newPlayerIdx].Seat = seatIdx
 		t.State.PlayerStates[newPlayerIdx].IsBetweenDealerBB = IsBetweenDealerBB(seatIdx, t.State.CurrentDealerSeat, t.State.CurrentBBSeat, t.Meta.CompetitionMeta.TableMaxSeatCount, t.Meta.CompetitionMeta.Rule)
@@ -455,21 +460,21 @@ func (t Table) FindPlayerIdx(playerID string) int {
 }
 
 /*
-	IsClose 計算本桌是否已達到結束條件
+	ShouldClose 計算本桌是否已達到結束條件
 	  - 結束條件 1: 達到結束時間
 	  - 結束條件 2: 停止買入後且存活玩家剩餘 1 人
 */
-func (t Table) IsClose() bool {
+func (t Table) ShouldClose() bool {
 	return time.Now().Unix() > t.EndGameAt() || (t.State.BlindState.IsFinalBuyInLevel() && len(t.AlivePlayers()) == 1)
 }
 
-func (t Table) findPlayerIdx(playerID string) int {
-	for idx, player := range t.State.PlayerStates {
-		if player.PlayerID == playerID {
-			return idx
-		}
-	}
-	return UnsetValue
+/*
+	ShouldPause 計算本桌是否已達到暫停
+	  - 暫停條件 1: 中場休息
+	  - 暫停條件 2: 存活玩家剩餘 1 人
+*/
+func (t Table) ShouldPause() bool {
+	return t.State.BlindState.IsBreaking() || len(t.AlivePlayers()) < 2
 }
 
 // TableBlindState Setters

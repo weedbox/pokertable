@@ -25,8 +25,8 @@ var (
 
 type TableEngine interface {
 	// Others
-	OnTableUpdated(fn func(*Table)) // 桌次更新事件監聽器
-	OnErrorUpdated(fn func(error))  // 錯誤更新事件監聽器
+	OnTableUpdated(fn func(*Table))        // 桌次更新事件監聽器
+	OnErrorUpdated(fn func(*Table, error)) // 錯誤更新事件監聽器
 
 	// Table Actions
 	GetTable(tableID string) (*Table, error)               // 取得桌次
@@ -37,7 +37,8 @@ type TableEngine interface {
 	TableGameOpen(tableID string) error                    // 開下一輪遊戲
 
 	// Player Table Actions
-	PlayerJoin(tableID string, joinPlayer JoinPlayer) error        // 玩家入桌 (報名或補碼)
+	PlayerReserve(tableID string, joinPlayer JoinPlayer) error     // 玩家帶籌碼報名或補碼
+	PlayerJoin(tableID, playerID string) error                     // 玩家入桌
 	PlayersJoin(tableID string, joinPlayers []JoinPlayer) error    // 拆併桌整桌玩家入桌
 	PlayerRedeemChips(tableID string, joinPlayer JoinPlayer) error // 增購籌碼
 	PlayersLeave(tableID string, playerIDs []string) error         // 玩家們離桌
@@ -55,15 +56,13 @@ type TableEngine interface {
 }
 
 func NewTableEngine() TableEngine {
-	te := &tableEngine{
+	return &tableEngine{
 		timebank:       timebank.NewTimeBank(),
 		onTableUpdated: func(*Table) {},
-		onErrorUpdated: func(error) {},
-		incoming:       make(chan *Request, 1024), // TODO: 1 table 1 channel
+		onErrorUpdated: func(*Table, error) {},
+		incomings:      make(map[string]chan *Request),
 		tableGames:     sync.Map{},
 	}
-	go te.runRequestHandler()
-	return te
 }
 
 type TableGame struct {
@@ -76,8 +75,8 @@ type tableEngine struct {
 	lock           sync.Mutex
 	timebank       *timebank.TimeBank
 	onTableUpdated func(*Table)
-	onErrorUpdated func(error)
-	incoming       chan *Request
+	onErrorUpdated func(*Table, error)
+	incomings      map[string]chan *Request
 	tableGames     sync.Map
 }
 
@@ -85,7 +84,7 @@ func (te *tableEngine) OnTableUpdated(fn func(*Table)) {
 	te.onTableUpdated = fn
 }
 
-func (te *tableEngine) OnErrorUpdated(fn func(error)) {
+func (te *tableEngine) OnErrorUpdated(fn func(*Table, error)) {
 	te.onErrorUpdated = fn
 }
 
@@ -138,6 +137,10 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
 	// update tableGames
 	te.tableGames.Store(table.ID, &tableGame)
 
+	// create new channel
+	te.incomings[table.ID] = make(chan *Request, 1024)
+	go te.runRequestHandler(te.incomings[table.ID])
+
 	return table, nil
 }
 
@@ -166,11 +169,15 @@ func (te *tableEngine) TableGameOpen(tableID string) error {
 }
 
 /*
-	PlayerJoin 玩家入桌
-	  - 適用時機: 報名入桌、補碼入桌
+	PlayerJoin 玩家確認座位
+	  - 適用時機: 玩家帶籌碼報名或補碼
 */
-func (te *tableEngine) PlayerJoin(tableID string, joinPlayer JoinPlayer) error {
-	return te.incomingRequest(tableID, RequestAction_PlayerJoin, joinPlayer)
+func (te *tableEngine) PlayerReserve(tableID string, joinPlayer JoinPlayer) error {
+	return te.incomingRequest(tableID, RequestAction_PlayerReserve, joinPlayer)
+}
+
+func (te *tableEngine) PlayerJoin(tableID, playerID string) error {
+	return te.incomingRequest(tableID, RequestAction_PlayerJoin, playerID)
 }
 
 /*
@@ -178,7 +185,7 @@ func (te *tableEngine) PlayerJoin(tableID string, joinPlayer JoinPlayer) error {
 	  - 適用時機: 拆併桌整桌玩家入桌
 */
 func (te *tableEngine) PlayersJoin(tableID string, joinPlayers []JoinPlayer) error {
-	return te.incomingRequest(tableID, RequestAction_PlayerJoins, joinPlayers)
+	return te.incomingRequest(tableID, RequestAction_PlayersJoin, joinPlayers)
 }
 
 /*
@@ -259,7 +266,11 @@ func (te *tableEngine) incomingRequest(tableID string, action RequestAction, par
 		return ErrTableNotFound
 	}
 
-	te.incoming <- &Request{
+	if _, exist := te.incomings[tableID]; !exist {
+		te.incomings[tableID] = make(chan *Request, 1024)
+	}
+
+	te.incomings[tableID] <- &Request{
 		Action: action,
 		Payload: Payload{
 			TableGame: tableGame.(*TableGame),
@@ -279,11 +290,11 @@ func (te *tableEngine) emitEvent(eventName string, playerID string, table *Table
 func (te *tableEngine) emitErrorEvent(eventName RequestAction, playerID string, err error, table *Table) {
 	table.RefreshUpdateAt()
 	fmt.Printf("->[Table %s][#%d][%d][%s] emit ERROR Event: %s, Error: %v\n", table.ID, table.UpdateSerial, table.State.GameCount, playerID, eventName, err)
-	te.onErrorUpdated(err)
+	te.onErrorUpdated(table, err)
 }
 
-func (te *tableEngine) runRequestHandler() {
-	for req := range te.incoming {
+func (te *tableEngine) runRequestHandler(incoming chan *Request) {
+	for req := range incoming {
 		te.requestHandler(req)
 	}
 }
@@ -294,8 +305,9 @@ func (te *tableEngine) requestHandler(req *Request) {
 		RequestAction_DeleteTable:       te.handleDeleteTable,
 		RequestAction_StartTableGame:    te.handleStartTableGame,
 		RequestAction_TableGameOpen:     te.handleTableGameOpen,
+		RequestAction_PlayerReserve:     te.handlePlayerReserve,
 		RequestAction_PlayerJoin:        te.handlePlayerJoin,
-		RequestAction_PlayerJoins:       te.handlePlayerJoins,
+		RequestAction_PlayersJoin:       te.handlePlayerJoins,
 		RequestAction_PlayerRedeemChips: te.handlePlayerRedeemChips,
 		RequestAction_PlayersLeave:      te.handlePlayersLeave,
 		RequestAction_PlayerReady:       te.handlePlayerReady,

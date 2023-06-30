@@ -25,27 +25,40 @@ func (te *tableEngine) handleDeleteTable(payload Payload) {
 	te.tableGames.Delete(tableID)
 }
 
-func (te *tableEngine) handlePlayerJoin(payload Payload) {
+func (te *tableEngine) handlePlayerReserve(payload Payload) {
 	joinPlayer := payload.Param.(JoinPlayer)
 
-	if err := payload.TableGame.Table.PlayerJoin(joinPlayer.PlayerID, joinPlayer.RedeemChips); err != nil {
-		te.emitErrorEvent(RequestAction_PlayerJoin, joinPlayer.PlayerID, err, payload.TableGame.Table)
+	if err := payload.TableGame.Table.PlayerReserve(joinPlayer.PlayerID, joinPlayer.RedeemChips, joinPlayer.Seat); err != nil {
+		te.emitErrorEvent(RequestAction_PlayerReserve, joinPlayer.PlayerID, err, payload.TableGame.Table)
 		return
 	}
 
-	te.emitEvent("PlayerJoin", joinPlayer.PlayerID, payload.TableGame.Table)
+	te.emitEvent("PlayerReserve", joinPlayer.PlayerID, payload.TableGame.Table)
+}
+
+func (te *tableEngine) handlePlayerJoin(payload Payload) {
+	playerID := payload.Param.(string)
+
+	playerIdx := payload.TableGame.Table.FindPlayerIdx(playerID)
+	if playerIdx == UnsetValue {
+		te.emitErrorEvent("PlayerJoin", playerID, ErrPlayerNotFound, payload.TableGame.Table)
+		return
+	}
+
+	payload.TableGame.Table.State.PlayerStates[playerIdx].IsIn = true
+	te.emitEvent("PlayerJoin", playerID, payload.TableGame.Table)
 }
 
 func (te *tableEngine) handlePlayerJoins(payload Payload) {
 	joinPlayers := payload.Param.([]JoinPlayer)
 
 	if len(payload.TableGame.Table.State.PlayerStates)+len(joinPlayers) > payload.TableGame.Table.Meta.CompetitionMeta.TableMaxSeatCount {
-		te.emitErrorEvent(RequestAction_PlayerJoins, "", ErrNoEmptySeats, payload.TableGame.Table)
+		te.emitErrorEvent(RequestAction_PlayersJoin, "", ErrNoEmptySeats, payload.TableGame.Table)
 		return
 	}
 
 	for _, joinPlayer := range joinPlayers {
-		_ = payload.TableGame.Table.PlayerJoin(joinPlayer.PlayerID, joinPlayer.RedeemChips)
+		_ = payload.TableGame.Table.PlayerReserve(joinPlayer.PlayerID, joinPlayer.RedeemChips, joinPlayer.Seat)
 	}
 
 	te.emitEvent("PlayerJoins", "", payload.TableGame.Table)
@@ -55,7 +68,7 @@ func (te *tableEngine) handlePlayerRedeemChips(payload Payload) {
 	joinPlayer := payload.Param.(JoinPlayer)
 
 	// find player index in PlayerStates
-	playerIdx := payload.TableGame.Table.findPlayerIdx(joinPlayer.PlayerID)
+	playerIdx := payload.TableGame.Table.FindPlayerIdx(joinPlayer.PlayerID)
 	if playerIdx == UnsetValue {
 		te.emitErrorEvent(RequestAction_PlayerRedeemChips, joinPlayer.PlayerID, ErrPlayerNotFound, payload.TableGame.Table)
 		return
@@ -329,8 +342,8 @@ func (te *tableEngine) validatePlayerMove(tableGame *TableGame, playerID string)
 
 func (te *tableEngine) settleTableGame(tableGame *TableGame) {
 	table := tableGame.Table
-	table.settleTableGameResult()
-	te.emitEvent("settleTableGameResult", "", table)
+	table.SettleTableGameResult()
+	te.emitEvent("SettleTableGameResult", "", table)
 
 	table.ContinueGame()
 	te.emitEvent("ContinueGame", "", table)
@@ -356,9 +369,17 @@ func (te *tableEngine) settleTableGame(tableGame *TableGame) {
 	} else if table.State.Status == TableStateStatus_TableGameStandby && table.Meta.CompetitionMeta.Mode == CompetitionMode_CT {
 		// 自動開桌條件: 非 TableStateStatus_TableGamePlaying 或 非 TableStateStatus_TableBalancing
 		stopOpen := table.State.Status == TableStateStatus_TableGamePlaying || table.State.Status == TableStateStatus_TableBalancing
-		if !stopOpen {
-			time.Sleep(300 * time.Millisecond) // TODO: for testing only, should remove this
-			_ = te.TableGameOpen(table.ID)
-		}
+		duration := time.Millisecond * 300 // TODO: for testing only, should remove this
+		te.timebank.Cancel()
+		_ = te.timebank.NewTask(duration, func(isCancelled bool) {
+			if isCancelled {
+				return
+			}
+
+			if !stopOpen {
+				_ = te.TableGameOpen(table.ID)
+			}
+			// te.timebank = timebank.NewTimeBank()
+		})
 	}
 }

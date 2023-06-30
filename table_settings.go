@@ -12,4 +12,5 @@ type TableSetting struct {
 type JoinPlayer struct {
 	PlayerID    string `json:"player_id"`
 	RedeemChips int64  `json:"redeem_chips"`
+	Seat        int    `json:"seat"`
 }

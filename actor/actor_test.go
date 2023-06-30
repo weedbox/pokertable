@@ -1,6 +1,7 @@
 package actor
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 
@@ -92,7 +93,7 @@ func TestActor_Basic(t *testing.T) {
 	wg.Add(1)
 
 	// Preparing table state updater
-	tableEngine.OnErrorUpdated(func(err error) {
+	tableEngine.OnErrorUpdated(func(table *pokertable.Table, err error) {
 		t.Log("ERROR:", err)
 	})
 	tableEngine.OnTableUpdated(func(table *pokertable.Table) {
@@ -120,8 +121,8 @@ func TestActor_Basic(t *testing.T) {
 
 	// Add player to table
 	for _, p := range players {
-		err := tableEngine.PlayerJoin(table.ID, p)
-		assert.Nil(t, err)
+		assert.Nil(t, tableEngine.PlayerReserve(table.ID, p), fmt.Sprintf("%s reserve error", p.PlayerID))
+		assert.Nil(t, tableEngine.PlayerJoin(table.ID, p.PlayerID), fmt.Sprintf("%s join error", p.PlayerID))
 	}
 
 	// Start game

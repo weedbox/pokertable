@@ -1,6 +1,7 @@
 package actor
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 
@@ -115,8 +116,8 @@ func TestActor_BotRunner_Humanize(t *testing.T) {
 
 	// Add player to table
 	for _, p := range players {
-		err := tableEngine.PlayerJoin(table.ID, p)
-		assert.Nil(t, err)
+		assert.Nil(t, tableEngine.PlayerReserve(table.ID, p), fmt.Sprintf("%s reserve error", p.PlayerID))
+		assert.Nil(t, tableEngine.PlayerJoin(table.ID, p.PlayerID), fmt.Sprintf("%s join error", p.PlayerID))
 	}
 
 	// Start game

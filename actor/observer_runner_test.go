@@ -13,54 +13,58 @@ import (
 func TestActor_ObserverRunner_PlayerAct(t *testing.T) {
 
 	// Initializing table
-	tableEngine := pokertable.NewTableEngine()
-	table, err := tableEngine.CreateTable(
-		pokertable.TableSetting{
-			ShortID:        "ABC123",
-			Code:           "01",
-			Name:           "table name",
-			InvitationCode: "come_to_play",
-			CompetitionMeta: pokertable.CompetitionMeta{
-				ID: "competition id",
-				Blind: pokertable.Blind{
-					ID:              uuid.New().String(),
-					Name:            "blind name",
-					FinalBuyInLevel: 2,
-					InitialLevel:    1,
-					Levels: []pokertable.BlindLevel{
-						{
-							Level:    1,
-							SB:       10,
-							BB:       20,
-							Ante:     0,
-							Duration: 10,
-						},
-						{
-							Level:    2,
-							SB:       20,
-							BB:       30,
-							Ante:     0,
-							Duration: 10,
-						},
-						{
-							Level:    3,
-							SB:       30,
-							BB:       40,
-							Ante:     0,
-							Duration: 10,
-						},
+	// create manager & table
+	manager := pokertable.NewManager()
+	table, err := manager.CreateTable(pokertable.TableSetting{
+		ShortID:        "ABC123",
+		Code:           "01",
+		Name:           "3300 - 10 sec",
+		InvitationCode: "come_to_play",
+		CompetitionMeta: pokertable.CompetitionMeta{
+			ID: uuid.New().String(),
+			Blind: pokertable.Blind{
+				ID:              uuid.New().String(),
+				Name:            "3300 FAST",
+				FinalBuyInLevel: 2,
+				InitialLevel:    1,
+				Levels: []pokertable.BlindLevel{
+					{
+						Level:    1,
+						SB:       10,
+						BB:       20,
+						Ante:     0,
+						Duration: 1,
+					},
+					{
+						Level:    2,
+						SB:       20,
+						BB:       30,
+						Ante:     0,
+						Duration: 1,
+					},
+					{
+						Level:    3,
+						SB:       30,
+						BB:       40,
+						Ante:     0,
+						Duration: 1,
 					},
 				},
-				MaxDuration:         60,
-				Rule:                pokertable.CompetitionRule_Default,
-				Mode:                pokertable.CompetitionMode_MTT,
-				TableMaxSeatCount:   9,
-				TableMinPlayerCount: 2,
-				MinChipUnit:         10,
 			},
+			MaxDuration:         10,
+			Rule:                pokertable.CompetitionRule_Default,
+			Mode:                pokertable.CompetitionMode_CT,
+			TableMaxSeatCount:   9,
+			TableMinPlayerCount: 2,
+			MinChipUnit:         10,
+			ActionTime:          10,
 		},
-	)
-	assert.Nil(t, err)
+	})
+	assert.Nil(t, err, "create table failed")
+
+	// get table engine
+	tableEngine, err := manager.GetTableEngine(table.ID)
+	assert.Nil(t, err, "get table engine failed")
 
 	// Initializing bot
 	players := []pokertable.JoinPlayer{
@@ -90,7 +94,7 @@ func TestActor_ObserverRunner_PlayerAct(t *testing.T) {
 				t.Log("GameClosed", table.State.GameState.GameID)
 
 				if len(table.AlivePlayers()) == 1 {
-					tableEngine.DeleteTable(table.ID)
+					tableEngine.CloseTable()
 					wg.Done()
 					return
 				}
@@ -145,12 +149,12 @@ func TestActor_ObserverRunner_PlayerAct(t *testing.T) {
 
 	// Add player to table
 	for _, p := range players {
-		assert.Nil(t, tableEngine.PlayerReserve(table.ID, p), fmt.Sprintf("%s reserve error", p.PlayerID))
-		assert.Nil(t, tableEngine.PlayerJoin(table.ID, p.PlayerID), fmt.Sprintf("%s join error", p.PlayerID))
+		assert.Nil(t, tableEngine.PlayerReserve(p), fmt.Sprintf("%s reserve error", p.PlayerID))
+		assert.Nil(t, tableEngine.PlayerJoin(p.PlayerID), fmt.Sprintf("%s join error", p.PlayerID))
 	}
 
 	// Start game
-	err = tableEngine.StartTableGame(table.ID)
+	err = tableEngine.StartTableGame()
 	assert.Nil(t, err)
 
 	wg.Wait()

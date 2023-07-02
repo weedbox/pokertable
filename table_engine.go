@@ -2,120 +2,80 @@ package pokertable
 
 import (
 	"errors"
-	"fmt"
-	"sync"
+	"strings"
+	"time"
 
 	"github.com/google/uuid"
-	"github.com/weedbox/pokerface"
+	"github.com/thoas/go-funk"
 	"github.com/weedbox/syncsaga"
 	"github.com/weedbox/timebank"
 )
 
 var (
-	ErrTableNotFound             = errors.New("table not found")
-	ErrInvalidCreateTableSetting = errors.New("invalid create table setting")
-	ErrPlayerNotFound            = errors.New("player not found")
-	ErrNoEmptySeats              = errors.New("no empty seats available")
-	ErrPlayerInvalidAction       = errors.New("player invalid action")
-	ErrCloseTable                = errors.New("table close error")
-	ErrTableGameError            = errors.New("table game error")
-	ErrInvalidReadyAction        = errors.New("invalid ready action")
-	ErrInvalidPayAnteAction      = errors.New("invalid pay ante action")
+	ErrTableNoEmptySeats            = errors.New("table: no empty seats available")
+	ErrTableInvalidCreateSetting    = errors.New("table: invalid create table setting")
+	ErrTablePlayerNotFound          = errors.New("table: player not found")
+	ErrTablePlayerInvalidGameAction = errors.New("table: player invalid game action")
+	ErrTablePlayerInvalidAction     = errors.New("table: player invalid action")
 )
 
-type TableEngine interface {
-	// Others
-	OnTableUpdated(fn func(*Table))        // 桌次更新事件監聽器
-	OnErrorUpdated(fn func(*Table, error)) // 錯誤更新事件監聽器
+type TableEngineOpt func(*tableEngine)
 
-	// Table Actions
-	GetTable(tableID string) (*Table, error)               // 取得桌次
-	CreateTable(tableSetting TableSetting) (*Table, error) // 建立桌
-	BalanceTable(tableID string) error                     // 等待拆併桌中
-	DeleteTable(tableID string) error                      // 刪除桌
-	StartTableGame(tableID string) error                   // 開打遊戲
-	TableGameOpen(tableID string) error                    // 開下一輪遊戲
-
-	// Player Table Actions
-	PlayerReserve(tableID string, joinPlayer JoinPlayer) error     // 玩家帶籌碼報名或補碼
-	PlayerJoin(tableID, playerID string) error                     // 玩家入桌
-	PlayersJoin(tableID string, joinPlayers []JoinPlayer) error    // 拆併桌整桌玩家入桌
-	PlayerRedeemChips(tableID string, joinPlayer JoinPlayer) error // 增購籌碼
-	PlayersLeave(tableID string, playerIDs []string) error         // 玩家們離桌
-
-	// Player Game Actions
-	PlayerReady(tableID, playerID string) error                  // 玩家準備動作完成
-	PlayerPay(tableID, playerID string, chips int64) error       // 玩家付籌碼
-	PlayerBet(tableID, playerID string, chips int64) error       // 玩家下注
-	PlayerRaise(tableID, playerID string, chipLevel int64) error // 玩家加注
-	PlayerCall(tableID, playerID string) error                   // 玩家跟注
-	PlayerAllin(tableID, playerID string) error                  // 玩家全下
-	PlayerCheck(tableID, playerID string) error                  // 玩家過牌
-	PlayerFold(tableID, playerID string) error                   // 玩家棄牌
-	PlayerPass(tableID, playerID string) error                   // 玩家 Pass
+type TableEngineOptions struct {
+	Interval int
 }
 
-func NewTableEngine() TableEngine {
-	return &tableEngine{
-		timebank:       timebank.NewTimeBank(),
-		onTableUpdated: func(*Table) {},
-		onErrorUpdated: func(*Table, error) {},
-		incomings:      make(map[string]chan *Request),
-		tableGames:     sync.Map{},
+func NewTableEngineOptions() *TableEngineOptions {
+	return &TableEngineOptions{
+		Interval: 0, // 0 second by default
 	}
 }
 
-type TableGame struct {
-	Table          *Table
-	Game           pokerface.Game
-	GameReadyGroup *syncsaga.ReadyGroup
+type TableEngine interface {
+	// Events
+	OnTableUpdated(fn func(*Table))             // 桌次更新事件監聽器
+	OnTableErrorUpdated(fn func(*Table, error)) // 錯誤更新事件監聽器
+
+	// Table Actions
+	GetTable() *Table                                      // 取得桌次
+	GetGame() Game                                         // 取得遊戲引擎
+	CreateTable(tableSetting TableSetting) (*Table, error) // 建立桌
+	BalanceTable() error                                   // 等待拆併桌中
+	CloseTable() error                                     // 關閉桌
+	StartTableGame() error                                 // 開打遊戲
+	TableGameOpen() error                                  // 開下一輪遊戲
+
+	// Player Table Actions
+	PlayerReserve(joinPlayer JoinPlayer) error          // 玩家確認座位
+	PlayersBatchReserve(joinPlayers []JoinPlayer) error // 整桌玩家確認座位
+	PlayerJoin(playerID string) error                   // 玩家入桌
+	PlayerRedeemChips(joinPlayer JoinPlayer) error      // 增購籌碼
+	PlayersLeave(playerIDs []string) error              // 玩家們離桌
+
+	// Player Game Actions
+	PlayerReady(playerID string) error                  // 玩家準備動作完成
+	PlayerPay(playerID string, chips int64) error       // 玩家付籌碼
+	PlayerBet(playerID string, chips int64) error       // 玩家下注
+	PlayerRaise(playerID string, chipLevel int64) error // 玩家加注
+	PlayerCall(playerID string) error                   // 玩家跟注
+	PlayerAllin(playerID string) error                  // 玩家全下
+	PlayerCheck(playerID string) error                  // 玩家過牌
+	PlayerFold(playerID string) error                   // 玩家棄牌
+	PlayerPass(playerID string) error                   // 玩家 Pass
 }
 
 type tableEngine struct {
-	lock           sync.Mutex
-	timebank       *timebank.TimeBank
-	onTableUpdated func(*Table)
-	onErrorUpdated func(*Table, error)
-	incomings      map[string]chan *Request
-	tableGames     sync.Map
+	options             *TableEngineOptions
+	table               *Table
+	game                Game
+	gameBackend         GameBackend
+	rg                  *syncsaga.ReadyGroup
+	tb                  *timebank.TimeBank
+	onTableUpdated      func(*Table)
+	onTableErrorUpdated func(*Table, error)
 }
 
-func (te *tableEngine) OnTableUpdated(fn func(*Table)) {
-	te.onTableUpdated = fn
-}
-
-func (te *tableEngine) OnErrorUpdated(fn func(*Table, error)) {
-	te.onErrorUpdated = fn
-}
-
-func (te *tableEngine) GetTable(tableID string) (*Table, error) {
-	te.lock.Lock()
-	defer te.lock.Unlock()
-
-	tableGame, exist := te.tableGames.Load(tableID)
-	if !exist {
-		return nil, ErrTableNotFound
-	}
-	return tableGame.(*TableGame).Table, nil
-}
-
-func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
-	te.lock.Lock()
-	defer te.lock.Unlock()
-
-	// validate tableSetting
-	if len(tableSetting.JoinPlayers) > tableSetting.CompetitionMeta.TableMaxSeatCount {
-		return nil, ErrInvalidCreateTableSetting
-	}
-
-	// create table instance
-	table := &Table{
-		ID: uuid.New().String(),
-	}
-	table.ConfigureWithSetting(tableSetting, TableStateStatus_TableCreated)
-	te.emitEvent("CreateTable", "", table)
-
-	// create ready group
+func NewTableEngine(options *TableEngineOptions, opts ...TableEngineOpt) TableEngine {
 	rg := syncsaga.NewReadyGroup(
 		syncsaga.WithTimeout(1, func(rg *syncsaga.ReadyGroup) {
 			// Auto Ready By Default
@@ -127,73 +87,283 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
 			}
 		}),
 	)
-
-	// create table game
-	tableGame := TableGame{
-		Table:          table,
-		GameReadyGroup: rg,
+	te := &tableEngine{
+		options:             options,
+		rg:                  rg,
+		tb:                  timebank.NewTimeBank(),
+		onTableUpdated:      func(t *Table) {},
+		onTableErrorUpdated: func(t *Table, err error) {},
 	}
 
-	// update tableGames
-	te.tableGames.Store(table.ID, &tableGame)
+	for _, opt := range opts {
+		opt(te)
+	}
 
-	// create new channel
-	te.incomings[table.ID] = make(chan *Request, 1024)
-	go te.runRequestHandler(te.incomings[table.ID])
+	return te
+}
 
-	return table, nil
+func WithGameBackend(gb GameBackend) TableEngineOpt {
+	return func(te *tableEngine) {
+		te.gameBackend = gb
+	}
+}
+
+func (te *tableEngine) OnTableUpdated(fn func(*Table)) {
+	te.onTableUpdated = fn
+}
+
+func (te *tableEngine) OnTableErrorUpdated(fn func(*Table, error)) {
+	te.onTableErrorUpdated = fn
+}
+
+func (te *tableEngine) GetTable() *Table {
+	return te.table
+}
+
+func (te *tableEngine) GetGame() Game {
+	return te.game
+}
+
+func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
+	// validate tableSetting
+	if len(tableSetting.JoinPlayers) > tableSetting.CompetitionMeta.TableMaxSeatCount {
+		return nil, ErrTableInvalidCreateSetting
+	}
+
+	// create table instance
+	table := &Table{
+		ID: uuid.New().String(),
+	}
+
+	// configure meta
+	meta := TableMeta{
+		ShortID:         tableSetting.ShortID,
+		Code:            tableSetting.Code,
+		Name:            tableSetting.Name,
+		InvitationCode:  tableSetting.InvitationCode,
+		CompetitionMeta: tableSetting.CompetitionMeta,
+	}
+	table.Meta = meta
+
+	// configure state
+	finalBuyInLevelIdx := UnsetValue
+	if tableSetting.CompetitionMeta.Blind.FinalBuyInLevel != UnsetValue {
+		for idx, blindLevel := range tableSetting.CompetitionMeta.Blind.Levels {
+			if blindLevel.Level == tableSetting.CompetitionMeta.Blind.FinalBuyInLevel {
+				finalBuyInLevelIdx = idx
+				break
+			}
+		}
+	}
+
+	blindState := TableBlindState{
+		FinalBuyInLevelIndex: finalBuyInLevelIdx,
+		InitialLevel:         tableSetting.CompetitionMeta.Blind.InitialLevel,
+		CurrentLevelIndex:    UnsetValue,
+		LevelStates: funk.Map(tableSetting.CompetitionMeta.Blind.Levels, func(blindLevel BlindLevel) *TableBlindLevelState {
+			return &TableBlindLevelState{
+				BlindLevel: blindLevel,
+				EndAt:      UnsetValue,
+			}
+		}).([]*TableBlindLevelState),
+	}
+	state := TableState{
+		GameCount:         0,
+		StartAt:           UnsetValue,
+		BlindState:        &blindState,
+		CurrentDealerSeat: UnsetValue,
+		CurrentBBSeat:     UnsetValue,
+		SeatMap:           NewDefaultSeatMap(tableSetting.CompetitionMeta.TableMaxSeatCount),
+		PlayerStates:      make([]*TablePlayerState, 0),
+		GamePlayerIndexes: make([]int, 0),
+		Status:            TableStateStatus_TableCreated,
+	}
+	table.State = &state
+	te.table = table
+
+	// handle auto join players
+	if len(tableSetting.JoinPlayers) > 0 {
+		te.PlayersBatchReserve(tableSetting.JoinPlayers)
+	}
+
+	te.emitEvent("CreateTable", "")
+	return te.table, nil
 }
 
 /*
 	BalanceTable 等待拆併桌
 	  - 適用時機: 該桌次需要拆併桌時
 */
-func (te *tableEngine) BalanceTable(tableID string) error {
-	return te.incomingRequest(tableID, RequestAction_BalanceTable, nil)
+func (te *tableEngine) BalanceTable() error {
+	te.table.State.Status = TableStateStatus_TableBalancing
+
+	te.emitEvent("BalanceTable", "")
+	return nil
 }
 
 /*
-	DeleteTable 刪除桌
-	  - 適用時機: 強制關閉 (Killed)、自動關閉 (AutoEnded)、正常關閉 (Closed)
+	CloseTable 關閉桌次
+	  - 適用時機: 強制關閉、逾期自動關閉、正常關閉
 */
-func (te *tableEngine) DeleteTable(tableID string) error {
-	return te.incomingRequest(tableID, RequestAction_DeleteTable, nil)
+func (te *tableEngine) CloseTable() error {
+	te.table.State.Status = TableStateStatus_TableClosed
+
+	te.emitEvent("CloseTable", "")
+	return nil
 }
 
-func (te *tableEngine) StartTableGame(tableID string) error {
-	return te.incomingRequest(tableID, RequestAction_StartTableGame, nil)
+func (te *tableEngine) StartTableGame() error {
+	// 更新開始時間
+	te.table.State.StartAt = time.Now().Unix()
+
+	// 初始化盲注
+	for idx, levelState := range te.table.State.BlindState.LevelStates {
+		if levelState.BlindLevel.Level == te.table.State.BlindState.InitialLevel {
+			te.table.State.BlindState.CurrentLevelIndex = idx
+			break
+		}
+	}
+	blindStartAt := te.table.State.StartAt
+	for i := (te.table.State.BlindState.InitialLevel - 1); i < len(te.table.State.BlindState.LevelStates); i++ {
+		if i == te.table.State.BlindState.InitialLevel-1 {
+			te.table.State.BlindState.LevelStates[i].EndAt = blindStartAt
+		} else {
+			te.table.State.BlindState.LevelStates[i].EndAt = te.table.State.BlindState.LevelStates[i-1].EndAt
+		}
+		blindPassedSeconds := int64(te.table.State.BlindState.LevelStates[i].BlindLevel.Duration)
+		te.table.State.BlindState.LevelStates[i].EndAt += blindPassedSeconds
+	}
+
+	te.emitEvent("StartTableGame", "")
+
+	//  開局
+	go te.TableGameOpen()
+
+	return nil
 }
 
-func (te *tableEngine) TableGameOpen(tableID string) error {
-	return te.incomingRequest(tableID, RequestAction_TableGameOpen, nil)
+func (te *tableEngine) TableGameOpen() error {
+	// 開局
+	te.openGame()
+
+	te.emitEvent("TableGameOpen", "")
+
+	// 啟動本手遊戲引擎
+	return te.startGame()
 }
 
 /*
-	PlayerJoin 玩家確認座位
+	PlayerReserve 玩家確認座位
 	  - 適用時機: 玩家帶籌碼報名或補碼
 */
-func (te *tableEngine) PlayerReserve(tableID string, joinPlayer JoinPlayer) error {
-	return te.incomingRequest(tableID, RequestAction_PlayerReserve, joinPlayer)
-}
+func (te *tableEngine) PlayerReserve(joinPlayer JoinPlayer) error {
+	playerID := joinPlayer.PlayerID
+	redeemChips := joinPlayer.RedeemChips
+	seat := joinPlayer.Seat
 
-func (te *tableEngine) PlayerJoin(tableID, playerID string) error {
-	return te.incomingRequest(tableID, RequestAction_PlayerJoin, playerID)
+	// find player index in PlayerStates
+	targetPlayerIdx := te.table.FindPlayerIdx(playerID)
+
+	if targetPlayerIdx == UnsetValue {
+		if len(te.table.State.PlayerStates) == te.table.Meta.CompetitionMeta.TableMaxSeatCount {
+			return ErrTableNoEmptySeats
+		}
+
+		// BuyIn
+		player := TablePlayerState{
+			PlayerID:          playerID,
+			Seat:              UnsetValue,
+			Positions:         []string{Position_Unknown},
+			IsParticipated:    true,
+			IsBetweenDealerBB: false,
+			Bankroll:          redeemChips,
+			IsIn:              false,
+		}
+		te.table.State.PlayerStates = append(te.table.State.PlayerStates, &player)
+
+		// update seat
+		newPlayerIdx := len(te.table.State.PlayerStates) - 1
+
+		// decide seat
+		seatIdx := RandomSeat(te.table.State.SeatMap)
+		if seat != UnsetValue && te.table.State.SeatMap[seat] != UnsetValue {
+			seatIdx = seat
+		}
+		te.table.State.SeatMap[seatIdx] = newPlayerIdx
+		te.table.State.PlayerStates[newPlayerIdx].Seat = seatIdx
+		te.table.State.PlayerStates[newPlayerIdx].IsBetweenDealerBB = IsBetweenDealerBB(seatIdx, te.table.State.CurrentDealerSeat, te.table.State.CurrentBBSeat, te.table.Meta.CompetitionMeta.TableMaxSeatCount, te.table.Meta.CompetitionMeta.Rule)
+	} else {
+		// ReBuy
+		// 補碼要檢查玩家是否介於 Dealer-BB 之間
+		te.table.State.PlayerStates[targetPlayerIdx].IsBetweenDealerBB = IsBetweenDealerBB(te.table.State.PlayerStates[targetPlayerIdx].Seat, te.table.State.CurrentDealerSeat, te.table.State.CurrentBBSeat, te.table.Meta.CompetitionMeta.TableMaxSeatCount, te.table.Meta.CompetitionMeta.Rule)
+		te.table.State.PlayerStates[targetPlayerIdx].Bankroll += redeemChips
+		te.table.State.PlayerStates[targetPlayerIdx].IsParticipated = true
+	}
+
+	te.emitEvent("PlayerReserve", joinPlayer.PlayerID)
+	return nil
 }
 
 /*
-	PlayerJoins 多位玩家入桌
-	  - 適用時機: 拆併桌整桌玩家入桌
+	PlayersBatchReserve 多位玩家確認座位
+	  - 適用時機: 拆併桌整桌玩家確認座位、開桌時有預設玩家
 */
-func (te *tableEngine) PlayersJoin(tableID string, joinPlayers []JoinPlayer) error {
-	return te.incomingRequest(tableID, RequestAction_PlayersJoin, joinPlayers)
+func (te *tableEngine) PlayersBatchReserve(joinPlayers []JoinPlayer) error {
+	if len(te.table.State.PlayerStates)+len(joinPlayers) > te.table.Meta.CompetitionMeta.TableMaxSeatCount {
+		return ErrTableNoEmptySeats
+	}
+
+	copyTable := *te.table
+	for _, joinPlayer := range joinPlayers {
+		if err := te.PlayerReserve(joinPlayer); err != nil {
+			te.table = &copyTable
+			return err
+		}
+	}
+
+	te.emitEvent("PlayersBatchReserve", "")
+	return nil
+}
+
+/*
+	PlayerJoin 玩家入桌
+	  - 適用時機: 玩家已經確認座位後入桌
+*/
+func (te *tableEngine) PlayerJoin(playerID string) error {
+	playerIdx := te.table.FindPlayerIdx(playerID)
+	if playerIdx == UnsetValue {
+		return ErrTablePlayerNotFound
+	}
+
+	if te.table.State.PlayerStates[playerIdx].Seat == UnsetValue {
+		return ErrTablePlayerInvalidAction
+	}
+
+	te.table.State.PlayerStates[playerIdx].IsIn = true
+
+	te.emitEvent("PlayerJoin", playerID)
+	return nil
 }
 
 /*
 	PlayerRedeemChips 增購籌碼
 	  - 適用時機: 增購
 */
-func (te *tableEngine) PlayerRedeemChips(tableID string, joinPlayer JoinPlayer) error {
-	return te.incomingRequest(tableID, RequestAction_PlayerRedeemChips, joinPlayer)
+func (te *tableEngine) PlayerRedeemChips(joinPlayer JoinPlayer) error {
+	// find player index in PlayerStates
+	playerIdx := te.table.FindPlayerIdx(joinPlayer.PlayerID)
+	if playerIdx == UnsetValue {
+		return ErrTablePlayerNotFound
+	}
+
+	// 如果是 Bankroll 為 0 的情況，增購要檢查玩家是否介於 Dealer-BB 之間
+	if te.table.State.PlayerStates[playerIdx].Bankroll == 0 {
+		te.table.State.PlayerStates[playerIdx].IsBetweenDealerBB = IsBetweenDealerBB(te.table.State.PlayerStates[playerIdx].Seat, te.table.State.CurrentDealerSeat, te.table.State.CurrentBBSeat, te.table.Meta.CompetitionMeta.TableMaxSeatCount, te.table.Meta.CompetitionMeta.Rule)
+	}
+	te.table.State.PlayerStates[playerIdx].Bankroll += joinPlayer.RedeemChips
+
+	te.emitEvent("PlayerRedeemChips", joinPlayer.PlayerID)
+	return nil
 }
 
 /*
@@ -205,125 +375,120 @@ func (te *tableEngine) PlayerRedeemChips(tableID string, joinPlayer JoinPlayer) 
 	    - CASH 離開 (準備結算)
 		- CT/MTT 停止買入後被淘汰
 */
-func (te *tableEngine) PlayersLeave(tableID string, playerIDs []string) error {
-	return te.incomingRequest(tableID, RequestAction_PlayersLeave, playerIDs)
-}
-
-func (te *tableEngine) PlayerReady(tableID, playerID string) error {
-	return te.incomingRequest(tableID, RequestAction_PlayerReady, playerID)
-}
-
-func (te *tableEngine) PlayerPay(tableID, playerID string, chips int64) error {
-	param := PlayerPayParam{
-		PlayerID: playerID,
-		Chips:    chips,
-	}
-	return te.incomingRequest(tableID, RequestAction_PlayerPay, param)
-}
-
-func (te *tableEngine) PlayerBet(tableID, playerID string, chips int64) error {
-	param := PlayerBetParam{
-		PlayerID: playerID,
-		Chips:    chips,
-	}
-	return te.incomingRequest(tableID, RequestAction_PlayerBet, param)
-}
-
-func (te *tableEngine) PlayerRaise(tableID, playerID string, chipLevel int64) error {
-	param := PlayerRaiseParam{
-		PlayerID:  playerID,
-		ChipLevel: chipLevel,
-	}
-	return te.incomingRequest(tableID, RequestAction_PlayerRaise, param)
-}
-
-func (te *tableEngine) PlayerCall(tableID, playerID string) error {
-	return te.incomingRequest(tableID, RequestAction_PlayerCall, playerID)
-}
-
-func (te *tableEngine) PlayerAllin(tableID, playerID string) error {
-	return te.incomingRequest(tableID, RequestAction_PlayerAllin, playerID)
-}
-
-func (te *tableEngine) PlayerCheck(tableID, playerID string) error {
-	return te.incomingRequest(tableID, RequestAction_PlayerCheck, playerID)
-}
-
-func (te *tableEngine) PlayerFold(tableID, playerID string) error {
-	return te.incomingRequest(tableID, RequestAction_PlayerFold, playerID)
-}
-
-func (te *tableEngine) PlayerPass(tableID, playerID string) error {
-	return te.incomingRequest(tableID, RequestAction_PlayerPass, playerID)
-}
-
-func (te *tableEngine) incomingRequest(tableID string, action RequestAction, param interface{}) error {
-	te.lock.Lock()
-	defer te.lock.Unlock()
-
-	tableGame, exist := te.tableGames.Load(tableID)
-	if !exist {
-		return ErrTableNotFound
+func (te *tableEngine) PlayersLeave(playerIDs []string) error {
+	// find player index in PlayerStates
+	leavePlayerIndexes := make([]int, 0)
+	for _, playerID := range playerIDs {
+		playerIdx := te.table.FindPlayerIdx(playerID)
+		if playerIdx != UnsetValue {
+			leavePlayerIndexes = append(leavePlayerIndexes, playerIdx)
+		}
 	}
 
-	if _, exist := te.incomings[tableID]; !exist {
-		te.incomings[tableID] = make(chan *Request, 1024)
+	if len(leavePlayerIndexes) == 0 {
+		return nil
 	}
 
-	te.incomings[tableID] <- &Request{
-		Action: action,
-		Payload: Payload{
-			TableGame: tableGame.(*TableGame),
-			Param:     param,
-		},
+	// set leave PlayerIdx seatMap to UnsetValue
+	leavePlayerIDMap := make(map[string]interface{})
+	for _, leavePlayerIdx := range leavePlayerIndexes {
+		leavePlayer := te.table.State.PlayerStates[leavePlayerIdx]
+		leavePlayerIDMap[leavePlayer.PlayerID] = struct{}{}
+		te.table.State.SeatMap[leavePlayer.Seat] = UnsetValue
 	}
 
+	// delete target players in PlayerStates
+	te.table.State.PlayerStates = funk.Filter(te.table.State.PlayerStates, func(player *TablePlayerState) bool {
+		_, exist := leavePlayerIDMap[player.PlayerID]
+		return !exist
+	}).([]*TablePlayerState)
+
+	// update current SeatMap player indexes in SeatMap
+	for newPlayerIdx, player := range te.table.State.PlayerStates {
+		te.table.State.SeatMap[player.Seat] = newPlayerIdx
+	}
+
+	te.emitEvent("PlayersLeave", strings.Join(playerIDs, ","))
 	return nil
 }
 
-func (te *tableEngine) emitEvent(eventName string, playerID string, table *Table) {
-	table.RefreshUpdateAt()
-	fmt.Printf("->[Table %s][#%d][%d][%s] emit Event: %s\n", table.ID, table.UpdateSerial, table.State.GameCount, playerID, eventName)
-	te.onTableUpdated(table)
-}
-
-func (te *tableEngine) emitErrorEvent(eventName RequestAction, playerID string, err error, table *Table) {
-	table.RefreshUpdateAt()
-	fmt.Printf("->[Table %s][#%d][%d][%s] emit ERROR Event: %s, Error: %v\n", table.ID, table.UpdateSerial, table.State.GameCount, playerID, eventName, err)
-	te.onErrorUpdated(table, err)
-}
-
-func (te *tableEngine) runRequestHandler(incoming chan *Request) {
-	for req := range incoming {
-		te.requestHandler(req)
-	}
-}
-
-func (te *tableEngine) requestHandler(req *Request) {
-	handlers := map[RequestAction]func(Payload){
-		RequestAction_BalanceTable:      te.handleBalanceTable,
-		RequestAction_DeleteTable:       te.handleDeleteTable,
-		RequestAction_StartTableGame:    te.handleStartTableGame,
-		RequestAction_TableGameOpen:     te.handleTableGameOpen,
-		RequestAction_PlayerReserve:     te.handlePlayerReserve,
-		RequestAction_PlayerJoin:        te.handlePlayerJoin,
-		RequestAction_PlayersJoin:       te.handlePlayerJoins,
-		RequestAction_PlayerRedeemChips: te.handlePlayerRedeemChips,
-		RequestAction_PlayersLeave:      te.handlePlayersLeave,
-		RequestAction_PlayerReady:       te.handlePlayerReady,
-		RequestAction_PlayerPay:         te.handlePlayerPay,
-		RequestAction_PlayerBet:         te.handlePlayerBet,
-		RequestAction_PlayerRaise:       te.handlePlayerRaise,
-		RequestAction_PlayerCall:        te.handlePlayerCall,
-		RequestAction_PlayerAllin:       te.handlePlayerAllin,
-		RequestAction_PlayerCheck:       te.handlePlayerCheck,
-		RequestAction_PlayerFold:        te.handlePlayerFold,
-		RequestAction_PlayerPass:        te.handlePlayerPass,
+func (te *tableEngine) PlayerReady(playerID string) error {
+	gamePlayerIdx := te.table.FindGamePlayerIdx(playerID)
+	if err := te.validateGameMove(gamePlayerIdx); err != nil {
+		return err
 	}
 
-	handler, ok := handlers[req.Action]
-	if !ok {
-		return
+	return te.game.Ready(gamePlayerIdx)
+}
+
+func (te *tableEngine) PlayerPay(playerID string, chips int64) error {
+	gamePlayerIdx := te.table.FindGamePlayerIdx(playerID)
+	if err := te.validateGameMove(gamePlayerIdx); err != nil {
+		return err
 	}
-	handler(req.Payload)
+
+	return te.game.Pay(gamePlayerIdx, chips)
+}
+
+func (te *tableEngine) PlayerBet(playerID string, chips int64) error {
+	gamePlayerIdx := te.table.FindGamePlayerIdx(playerID)
+	if err := te.validateGameMove(gamePlayerIdx); err != nil {
+		return err
+	}
+
+	return te.game.Bet(gamePlayerIdx, chips)
+}
+
+func (te *tableEngine) PlayerRaise(playerID string, chipLevel int64) error {
+	gamePlayerIdx := te.table.FindGamePlayerIdx(playerID)
+	if err := te.validateGameMove(gamePlayerIdx); err != nil {
+		return err
+	}
+
+	return te.game.Raise(gamePlayerIdx, chipLevel)
+}
+
+func (te *tableEngine) PlayerCall(playerID string) error {
+	gamePlayerIdx := te.table.FindGamePlayerIdx(playerID)
+	if err := te.validateGameMove(gamePlayerIdx); err != nil {
+		return err
+	}
+
+	return te.game.Call(gamePlayerIdx)
+}
+
+func (te *tableEngine) PlayerAllin(playerID string) error {
+	gamePlayerIdx := te.table.FindGamePlayerIdx(playerID)
+	if err := te.validateGameMove(gamePlayerIdx); err != nil {
+		return err
+	}
+
+	return te.game.Allin(gamePlayerIdx)
+}
+
+func (te *tableEngine) PlayerCheck(playerID string) error {
+	gamePlayerIdx := te.table.FindGamePlayerIdx(playerID)
+	if err := te.validateGameMove(gamePlayerIdx); err != nil {
+		return err
+	}
+
+	return te.game.Check(gamePlayerIdx)
+}
+
+func (te *tableEngine) PlayerFold(playerID string) error {
+	gamePlayerIdx := te.table.FindGamePlayerIdx(playerID)
+	if err := te.validateGameMove(gamePlayerIdx); err != nil {
+		return err
+	}
+
+	return te.game.Fold(gamePlayerIdx)
+}
+
+func (te *tableEngine) PlayerPass(playerID string) error {
+	gamePlayerIdx := te.table.FindGamePlayerIdx(playerID)
+	if err := te.validateGameMove(gamePlayerIdx); err != nil {
+		return err
+	}
+
+	return te.game.Pass(gamePlayerIdx)
 }

@@ -1,35 +1,339 @@
 package pokertable
 
 import (
+	"errors"
+	"sync"
+
 	"github.com/thoas/go-funk"
 	"github.com/weedbox/pokerface"
 	"github.com/weedbox/syncsaga"
 )
 
-func (te *tableEngine) updateGameState(tableGame *TableGame) {
-	handlers := map[string]func(*TableGame){
-		gameEvent(pokerface.GameEvent_ReadyRequested):  te.onReadyRequested,
-		gameEvent(pokerface.GameEvent_AnteRequested):   te.onAnteRequested,
-		gameEvent(pokerface.GameEvent_BlindsRequested): te.onBlindsRequested,
-		gameEvent(pokerface.GameEvent_RoundClosed):     te.onRoundClosed,
-		gameEvent(pokerface.GameEvent_GameClosed):      te.onGameClosed,
-	}
-	handler, exist := handlers[tableGame.Game.GetState().Status.CurrentEvent]
-	if !exist {
-		return
-	}
-	handler(tableGame)
+var (
+	ErrGamePlayerNotFound      = errors.New("game: player not found")
+	ErrGameInvalidAction       = errors.New("game: invalid action")
+	ErrGameUnknownEvent        = errors.New("game: unknown event")
+	ErrGameUnknownEventHandler = errors.New("game: unknown event handler")
+)
+
+type Game interface {
+	// Events
+	OnGameStateUpdated(func(*pokerface.GameState))
+	OnGameErrorUpdated(func(*pokerface.GameState, error))
+
+	// Others
+	GetGameState() *pokerface.GameState
+	Start() error
+	Next() error
+
+	// Group Actions
+	ReadyForAll() error
+	PayAnte() error
+	PayBlinds() error
+
+	// Single Actions
+	Ready(playerIdx int) error
+	Pay(playerIdx int, chips int64) error
+	Pass(playerIdx int) error
+	Fold(playerIdx int) error
+	Check(playerIdx int) error
+	Call(playerIdx int) error
+	Allin(playerIdx int) error
+	Bet(playerIdx int, chips int64) error
+	Raise(playerIdx int, chipLevel int64) error
 }
 
-func (te *tableEngine) onReadyRequested(tableGame *TableGame) {
-	gs := tableGame.Game.GetState()
+type game struct {
+	backend            GameBackend
+	gs                 *pokerface.GameState
+	opts               *pokerface.GameOptions
+	rg                 *syncsaga.ReadyGroup
+	mu                 sync.RWMutex
+	incomingStates     chan *pokerface.GameState
+	onGameStateUpdated func(*pokerface.GameState)
+	onGameErrorUpdated func(*pokerface.GameState, error)
+}
 
+func NewGame(backend GameBackend, opts *pokerface.GameOptions) *game {
+	return &game{
+		backend:            backend,
+		opts:               opts,
+		rg:                 syncsaga.NewReadyGroup(),
+		incomingStates:     make(chan *pokerface.GameState, 1024),
+		onGameStateUpdated: func(gs *pokerface.GameState) {},
+		onGameErrorUpdated: func(gs *pokerface.GameState, err error) {},
+	}
+}
+
+func (g *game) OnGameStateUpdated(fn func(*pokerface.GameState)) {
+	g.onGameStateUpdated = fn
+}
+
+func (g *game) OnGameErrorUpdated(fn func(*pokerface.GameState, error)) {
+	g.onGameErrorUpdated = fn
+}
+
+func (g *game) GetGameState() *pokerface.GameState {
+	return g.gs
+}
+
+func (g *game) Start() error {
+	g.runGameStateUpdater()
+
+	gs, err := g.backend.CreateGame(g.opts)
+	if err != nil {
+		return err
+	}
+
+	g.updateGameState(gs)
+	return nil
+}
+
+func (g *game) Next() error {
+	gs, err := g.backend.Next(g.gs)
+	if err != nil {
+		return err
+	}
+
+	g.updateGameState(gs)
+	return nil
+}
+
+func (g *game) ReadyForAll() error {
+	gs, err := g.backend.ReadyForAll(g.gs)
+	if err != nil {
+		return err
+	}
+
+	g.updateGameState(gs)
+	return nil
+}
+
+func (g *game) PayAnte() error {
+	gs, err := g.backend.PayAnte(g.gs)
+	if err != nil {
+		return err
+	}
+
+	g.updateGameState(gs)
+	return nil
+}
+
+func (g *game) PayBlinds() error {
+	gs, err := g.backend.PayBlinds(g.gs)
+	if err != nil {
+		return err
+	}
+
+	g.updateGameState(gs)
+	return nil
+}
+
+func (g *game) Ready(playerIdx int) error {
+	if err := g.validateActionMove(playerIdx, Action_Ready); err != nil {
+		return err
+	}
+
+	g.rg.Ready(int64(playerIdx))
+	return nil
+}
+
+func (g *game) Pay(playerIdx int, chips int64) error {
+	if err := g.validateActionMove(playerIdx, Action_Pay); err != nil {
+		return err
+	}
+
+	event, ok := pokerface.GameEventBySymbol[g.gs.Status.CurrentEvent]
+	if !ok {
+		return ErrGameUnknownEvent
+	}
+
+	// For blinds
+	switch event {
+	case pokerface.GameEvent_AnteRequested:
+		fallthrough
+	case pokerface.GameEvent_BlindsRequested:
+		g.rg.Ready(int64(playerIdx))
+		return nil
+	}
+
+	gs, err := g.backend.Pay(g.gs, chips)
+	if err != nil {
+		return err
+	}
+
+	g.updateGameState(gs)
+	return nil
+}
+
+func (g *game) Pass(playerIdx int) error {
+	if err := g.validatePlayMove(playerIdx); err != nil {
+		return err
+	}
+
+	gs, err := g.backend.Pass(g.gs)
+	if err != nil {
+		return err
+	}
+
+	g.updateGameState(gs)
+	return nil
+}
+
+func (g *game) Fold(playerIdx int) error {
+	if err := g.validatePlayMove(playerIdx); err != nil {
+		return err
+	}
+
+	gs, err := g.backend.Fold(g.gs)
+	if err != nil {
+		return err
+	}
+
+	g.updateGameState(gs)
+	return nil
+}
+
+func (g *game) Check(playerIdx int) error {
+	if err := g.validatePlayMove(playerIdx); err != nil {
+		return err
+	}
+
+	gs, err := g.backend.Check(g.gs)
+	if err != nil {
+		return err
+	}
+
+	g.updateGameState(gs)
+	return nil
+}
+
+func (g *game) Call(playerIdx int) error {
+	if err := g.validatePlayMove(playerIdx); err != nil {
+		return err
+	}
+
+	gs, err := g.backend.Call(g.gs)
+	if err != nil {
+		return err
+	}
+
+	g.updateGameState(gs)
+	return nil
+}
+
+func (g *game) Allin(playerIdx int) error {
+	if err := g.validatePlayMove(playerIdx); err != nil {
+		return err
+	}
+
+	gs, err := g.backend.Allin(g.gs)
+	if err != nil {
+		return err
+	}
+
+	g.updateGameState(gs)
+	return nil
+}
+
+func (g *game) Bet(playerIdx int, chips int64) error {
+	if err := g.validatePlayMove(playerIdx); err != nil {
+		return err
+	}
+
+	gs, err := g.backend.Bet(g.gs, chips)
+	if err != nil {
+		return err
+	}
+
+	g.updateGameState(gs)
+	return nil
+}
+
+func (g *game) Raise(playerIdx int, chipLevel int64) error {
+	if err := g.validatePlayMove(playerIdx); err != nil {
+		return err
+	}
+
+	gs, err := g.backend.Raise(g.gs, chipLevel)
+	if err != nil {
+		return err
+	}
+
+	g.updateGameState(gs)
+	return nil
+}
+
+func (g *game) validatePlayMove(playerIdx int) error {
+	if p := g.gs.GetPlayer(playerIdx); p == nil {
+		return ErrGamePlayerNotFound
+	}
+
+	if g.gs.Status.CurrentPlayer != playerIdx {
+		return ErrGameInvalidAction
+	}
+
+	return nil
+}
+
+func (g *game) validateActionMove(playerIdx int, action string) error {
+	if p := g.gs.GetPlayer(playerIdx); p == nil {
+		return ErrGamePlayerNotFound
+	}
+
+	if !g.gs.HasAction(playerIdx, action) {
+		return ErrGameInvalidAction
+	}
+
+	if g.rg == nil {
+		return ErrGameInvalidAction
+	}
+
+	return nil
+}
+
+func (g *game) runGameStateUpdater() {
+	go func() {
+		for state := range g.incomingStates {
+			g.handleGameState(state)
+		}
+	}()
+}
+
+func (g *game) updateGameState(gs *pokerface.GameState) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	g.gs = gs
+	g.incomingStates <- gs
+}
+
+func (g *game) handleGameState(gs *pokerface.GameState) {
+	event, ok := pokerface.GameEventBySymbol[gs.Status.CurrentEvent]
+	if !ok {
+		g.onGameErrorUpdated(gs, ErrGameUnknownEvent)
+		return
+	}
+
+	handlers := map[pokerface.GameEvent]func(*pokerface.GameState){
+		pokerface.GameEvent_ReadyRequested:  g.onReadyRequested,
+		pokerface.GameEvent_AnteRequested:   g.onAnteRequested,
+		pokerface.GameEvent_BlindsRequested: g.onBlindsRequested,
+		pokerface.GameEvent_RoundClosed:     g.onRoundClosed,
+		pokerface.GameEvent_GameClosed:      g.onGameClosed,
+	}
+	if handler, exist := handlers[event]; exist {
+		handler(gs)
+	}
+	g.onGameStateUpdated(gs)
+}
+
+func (g *game) onReadyRequested(gs *pokerface.GameState) {
 	// Preparing ready group to wait for all player ready
-	tableGame.GameReadyGroup.Stop()
-	tableGame.GameReadyGroup.OnCompleted(func(rg *syncsaga.ReadyGroup) {
-		err := tableGame.Game.ReadyForAll()
-		if err != nil {
-			te.emitErrorEvent("ReadyForAll", "", err, tableGame.Table)
+	g.rg.Stop()
+	g.rg.OnCompleted(func(rg *syncsaga.ReadyGroup) {
+		if err := g.ReadyForAll(); err != nil {
+			g.onGameErrorUpdated(gs, err)
 			return
 		}
 
@@ -41,35 +345,29 @@ func (te *tableEngine) onReadyRequested(tableGame *TableGame) {
 				}).([]string)
 			}
 		}
-
-		te.updateGameState(tableGame)
-		te.emitEvent("ReadyForAll", "", tableGame.Table)
 	})
 
-	tableGame.GameReadyGroup.ResetParticipants()
+	g.rg.ResetParticipants()
 	for _, p := range gs.Players {
-		tableGame.GameReadyGroup.Add(int64(p.Idx), false)
+		g.rg.Add(int64(p.Idx), false)
 
 		// Allow "ready" action
 		p.AllowAction(Action_Ready)
 	}
 
-	tableGame.GameReadyGroup.Start()
+	g.rg.Start()
 }
 
-func (te *tableEngine) onAnteRequested(tableGame *TableGame) {
-	gs := tableGame.Game.GetState()
-
+func (g *game) onAnteRequested(gs *pokerface.GameState) {
 	if gs.Meta.Ante == 0 {
 		return
 	}
 
 	// Preparing ready group to wait for ante paid from all player
-	tableGame.GameReadyGroup.Stop()
-	tableGame.GameReadyGroup.OnCompleted(func(rg *syncsaga.ReadyGroup) {
-		err := tableGame.Game.PayAnte()
-		if err != nil {
-			te.emitErrorEvent("PayAnte", "", err, tableGame.Table)
+	g.rg.Stop()
+	g.rg.OnCompleted(func(rg *syncsaga.ReadyGroup) {
+		if err := g.PayAnte(); err != nil {
+			g.onGameErrorUpdated(gs, err)
 			return
 		}
 
@@ -81,31 +379,25 @@ func (te *tableEngine) onAnteRequested(tableGame *TableGame) {
 				}).([]string)
 			}
 		}
-
-		te.updateGameState(tableGame)
-		te.emitEvent("PayAnte", "", tableGame.Table)
 	})
 
-	tableGame.GameReadyGroup.ResetParticipants()
+	g.rg.ResetParticipants()
 	for _, p := range gs.Players {
-		tableGame.GameReadyGroup.Add(int64(p.Idx), false)
+		g.rg.Add(int64(p.Idx), false)
 
 		// Allow "pay" action
 		p.AllowAction(Action_Pay)
 	}
 
-	tableGame.GameReadyGroup.Start()
+	g.rg.Start()
 }
 
-func (te *tableEngine) onBlindsRequested(tableGame *TableGame) {
-	gs := tableGame.Game.GetState()
-
+func (g *game) onBlindsRequested(gs *pokerface.GameState) {
 	// Preparing ready group to wait for blinds
-	tableGame.GameReadyGroup.Stop()
-	tableGame.GameReadyGroup.OnCompleted(func(rg *syncsaga.ReadyGroup) {
-		err := tableGame.Game.PayBlinds()
-		if err != nil {
-			te.emitErrorEvent("PayBlinds", "", err, tableGame.Table)
+	g.rg.Stop()
+	g.rg.OnCompleted(func(rg *syncsaga.ReadyGroup) {
+		if err := g.PayBlinds(); err != nil {
+			g.onGameErrorUpdated(gs, err)
 			return
 		}
 
@@ -117,86 +409,37 @@ func (te *tableEngine) onBlindsRequested(tableGame *TableGame) {
 				}).([]string)
 			}
 		}
-
-		te.updateGameState(tableGame)
-		te.emitEvent("PayBlinds", "", tableGame.Table)
 	})
 
-	tableGame.GameReadyGroup.ResetParticipants()
+	g.rg.ResetParticipants()
 	for _, p := range gs.Players {
 		// Allow "pay" action
 		if gs.Meta.Blind.BB > 0 && gs.HasPosition(p.Idx, Position_BB) {
-			tableGame.GameReadyGroup.Add(int64(p.Idx), false)
+			g.rg.Add(int64(p.Idx), false)
 			p.AllowAction(Action_Pay)
 		} else if gs.Meta.Blind.SB > 0 && gs.HasPosition(p.Idx, Position_SB) {
-			tableGame.GameReadyGroup.Add(int64(p.Idx), false)
+			g.rg.Add(int64(p.Idx), false)
 			p.AllowAction(Action_Pay)
 		} else if gs.Meta.Blind.Dealer > 0 && gs.HasPosition(p.Idx, Position_Dealer) {
-			tableGame.GameReadyGroup.Add(int64(p.Idx), false)
+			g.rg.Add(int64(p.Idx), false)
 			p.AllowAction(Action_Pay)
 		}
 	}
 
-	tableGame.GameReadyGroup.Start()
+	g.rg.Start()
 }
 
-func (te *tableEngine) onRoundClosed(tableGame *TableGame) {
-	if err := tableGame.Game.Next(); err != nil {
+func (g *game) onRoundClosed(gs *pokerface.GameState) {
+	// Next round automatically
+	gs, err := g.backend.Next(gs)
+	if err != nil {
+		g.onGameErrorUpdated(gs, err)
 		return
 	}
-	te.emitEvent("Auto Next Round", "", tableGame.Table)
-	te.updateGameState(tableGame)
+
+	g.updateGameState(gs)
 }
 
-func (te *tableEngine) onGameClosed(tableGame *TableGame) {
-	te.settleTableGame(tableGame)
-}
-
-func newGame(table *Table) pokerface.Game {
-	rule := table.Meta.CompetitionMeta.Rule
-	blind := table.State.BlindState.LevelStates[table.State.BlindState.CurrentLevelIndex].BlindLevel
-	DealerBlindTime := table.Meta.CompetitionMeta.Blind.DealerBlindTime
-
-	// create game options
-	opts := pokerface.NewStardardGameOptions()
-	opts.Deck = pokerface.NewStandardDeckCards()
-
-	if rule == CompetitionRule_ShortDeck {
-		opts = pokerface.NewShortDeckGameOptions()
-		opts.Deck = pokerface.NewShortDeckCards()
-	} else if rule == CompetitionRule_Omaha {
-		opts.HoleCardsCount = 4
-		opts.RequiredHoleCardsCount = 2
-	}
-
-	// preparing blind
-	dealer := int64(0)
-	if DealerBlindTime > 0 {
-		dealer = blind.Ante * (int64(DealerBlindTime) - 1)
-	}
-
-	opts.Ante = blind.Ante
-	opts.Blind = pokerface.BlindSetting{
-		Dealer: dealer,
-		SB:     blind.SB,
-		BB:     blind.BB,
-	}
-
-	// preparing players
-	playerSettings := make([]*pokerface.PlayerSetting, 0)
-	for _, playerIdx := range table.State.GamePlayerIndexes {
-		player := table.State.PlayerStates[playerIdx]
-		playerSettings = append(playerSettings, &pokerface.PlayerSetting{
-			Bankroll:  player.Bankroll,
-			Positions: player.Positions,
-		})
-	}
-	opts.Players = playerSettings
-
-	// create game
-	return pokerface.NewPokerFace().NewGame(opts)
-}
-
-func gameEvent(event pokerface.GameEvent) string {
-	return pokerface.GameEventSymbols[event]
+func (g *game) onGameClosed(gs *pokerface.GameState) {
+	close(g.incomingStates)
 }

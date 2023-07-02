@@ -25,47 +25,54 @@ func TestTableGame_Preflop_Settlement(t *testing.T) {
 		}
 	}).([]pokertable.JoinPlayer)
 
-	// create table engine
-	tableEngine := pokertable.NewTableEngine()
-	tableEngine.OnTableUpdated(func(table *pokertable.Table) {
-		if table == nil {
-			return
-		}
+	// create manager & table
+	manager := pokertable.NewManager()
+	table, err := manager.CreateTable(NewDefaultTableSetting())
+	assert.Nil(t, err, "create table failed")
 
+	// get table engine
+	tableEngine, err := manager.GetTableEngine(table.ID)
+	assert.Nil(t, err, "get table engine failed")
+	tableEngine.OnTableUpdated(func(table *pokertable.Table) {
 		switch table.State.Status {
 		case pokertable.TableStateStatus_TableGameOpened:
 			DebugPrintTableGameOpened(*table)
 		case pokertable.TableStateStatus_TableGamePlaying:
 			t.Logf("[%s] %s:", table.State.GameState.Status.Round, table.State.GameState.Status.CurrentEvent)
-			switch table.State.GameState.Status.CurrentEvent {
-			case gameEvent(pokerface.GameEvent_ReadyRequested):
+			event, ok := pokerface.GameEventBySymbol[table.State.GameState.Status.CurrentEvent]
+			if !ok {
+				return
+			}
+
+			switch event {
+			case pokerface.GameEvent_ReadyRequested:
 				for _, playerID := range playerIDs {
-					assert.Nil(t, tableEngine.PlayerReady(table.ID, playerID), fmt.Sprintf("%s ready error", playerID))
+					assert.Nil(t, tableEngine.PlayerReady(playerID), fmt.Sprintf("%s ready error", playerID))
 					t.Logf(fmt.Sprintf("%s ready", playerID))
 				}
-			case gameEvent(pokerface.GameEvent_AnteRequested):
+			case pokerface.GameEvent_AnteRequested:
 				for _, playerID := range playerIDs {
 					ante := table.State.BlindState.CurrentBlindLevel().BlindLevel.Ante
-					assert.Nil(t, tableEngine.PlayerPay(table.ID, playerID, ante), fmt.Sprintf("%s pay ante error", playerID))
+					assert.Nil(t, tableEngine.PlayerPay(playerID, ante), fmt.Sprintf("%s pay ante error", playerID))
 					t.Logf(fmt.Sprintf("%s pay ante %d", playerID, ante))
 				}
-			case gameEvent(pokerface.GameEvent_BlindsRequested):
+			case pokerface.GameEvent_BlindsRequested:
 				blind := table.State.BlindState.CurrentBlindLevel().BlindLevel
 
 				// pay sb
 				sbPlayerID := findPlayerID(table, "sb")
-				assert.Nil(t, tableEngine.PlayerPay(table.ID, sbPlayerID, blind.SB), fmt.Sprintf("%s pay sb error", sbPlayerID))
+				assert.Nil(t, tableEngine.PlayerPay(sbPlayerID, blind.SB), fmt.Sprintf("%s pay sb error", sbPlayerID))
 				t.Logf(fmt.Sprintf("%s pay sb %d", sbPlayerID, blind.SB))
 
 				// pay bb
 				bbPlayerID := findPlayerID(table, "bb")
-				assert.Nil(t, tableEngine.PlayerPay(table.ID, bbPlayerID, blind.BB), fmt.Sprintf("%s pay bb error", bbPlayerID))
+				assert.Nil(t, tableEngine.PlayerPay(bbPlayerID, blind.BB), fmt.Sprintf("%s pay bb error", bbPlayerID))
 				t.Logf(fmt.Sprintf("%s pay bb %d", bbPlayerID, blind.BB))
-			case gameEvent(pokerface.GameEvent_RoundStarted):
+			case pokerface.GameEvent_RoundStarted:
 				playerID, actions := currentPlayerMove(table)
 				if funk.Contains(actions, "allin") {
 					t.Logf(fmt.Sprintf("%s's move: allin", playerID))
-					assert.Nil(t, tableEngine.PlayerAllin(table.ID, playerID), fmt.Sprintf("%s allin error", playerID))
+					assert.Nil(t, tableEngine.PlayerAllin(playerID), fmt.Sprintf("%s allin error", playerID))
 				}
 			}
 		case pokertable.TableStateStatus_TableGameSettled:
@@ -84,19 +91,14 @@ func TestTableGame_Preflop_Settlement(t *testing.T) {
 		}
 	})
 
-	// create a new table
-	tableSetting := NewDefaultTableSetting()
-	table, err := tableEngine.CreateTable(tableSetting)
-	assert.Nil(t, err, "create table failed")
-
 	// players buy in
 	for _, joinPlayer := range players {
-		assert.Nil(t, tableEngine.PlayerReserve(table.ID, joinPlayer), fmt.Sprintf("%s reserve error", joinPlayer.PlayerID))
-		assert.Nil(t, tableEngine.PlayerJoin(table.ID, joinPlayer.PlayerID), fmt.Sprintf("%s join error", joinPlayer.PlayerID))
+		assert.Nil(t, tableEngine.PlayerReserve(joinPlayer), fmt.Sprintf("%s reserve error", joinPlayer.PlayerID))
+		assert.Nil(t, tableEngine.PlayerJoin(joinPlayer.PlayerID), fmt.Sprintf("%s join error", joinPlayer.PlayerID))
 	}
 
 	// start game
-	assert.Nil(t, tableEngine.StartTableGame(table.ID), "start table game failed")
+	assert.Nil(t, tableEngine.StartTableGame(), "start table game failed")
 
 	wg.Wait()
 }

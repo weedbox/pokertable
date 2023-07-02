@@ -6,7 +6,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/thoas/go-funk"
-	"github.com/weedbox/pokerface"
 	"github.com/weedbox/pokertable"
 )
 
@@ -19,13 +18,13 @@ func NewDefaultTableSetting(joinPlayers ...pokertable.JoinPlayer) pokertable.Tab
 	return pokertable.TableSetting{
 		ShortID:        "ABC123",
 		Code:           "01",
-		Name:           "table name",
+		Name:           "CT 20 min 01",
 		InvitationCode: "come_to_play",
 		CompetitionMeta: pokertable.CompetitionMeta{
-			ID: "competition id",
+			ID: "1005c477-84b4-4d1b-9fca-3a6ad84e0fe7",
 			Blind: pokertable.Blind{
 				ID:              uuid.New().String(),
-				Name:            "blind name",
+				Name:            "20 min FAST",
 				InitialLevel:    1,
 				FinalBuyInLevel: 2,
 				DealerBlindTime: 1,
@@ -63,10 +62,6 @@ func NewDefaultTableSetting(joinPlayers ...pokertable.JoinPlayer) pokertable.Tab
 		},
 		JoinPlayers: joinPlayers,
 	}
-}
-
-func gameEvent(event pokerface.GameEvent) string {
-	return pokerface.GameEventSymbols[event]
 }
 
 func currentPlayerMove(table *pokertable.Table) (string, []string) {

@@ -275,10 +275,6 @@ func (te *tableEngine) continueGame() error {
 		te.table.State.PlayerStates[i].Positions = make([]string, 0)
 	}
 
-	// reset ready group
-	te.rg.Stop()
-	te.rg.ResetParticipants()
-
 	if te.table.State.Status == TableStateStatus_TablePausing && te.table.State.BlindState.IsBreaking() {
 		// resume game from breaking
 		endAt := te.table.State.BlindState.LevelStates[te.table.State.BlindState.CurrentLevelIndex].EndAt

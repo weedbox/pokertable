@@ -76,20 +76,9 @@ type tableEngine struct {
 }
 
 func NewTableEngine(options *TableEngineOptions, opts ...TableEngineOpt) TableEngine {
-	rg := syncsaga.NewReadyGroup(
-		syncsaga.WithTimeout(1, func(rg *syncsaga.ReadyGroup) {
-			// Auto Ready By Default
-			states := rg.GetParticipantStates()
-			for gamePlayerIdx, isReady := range states {
-				if !isReady {
-					rg.Ready(gamePlayerIdx)
-				}
-			}
-		}),
-	)
 	te := &tableEngine{
 		options:             options,
-		rg:                  rg,
+		rg:                  syncsaga.NewReadyGroup(),
 		tb:                  timebank.NewTimeBank(),
 		onTableUpdated:      func(t *Table) {},
 		onTableErrorUpdated: func(t *Table, err error) {},
@@ -320,8 +309,37 @@ func (te *tableEngine) PlayersBatchReserve(joinPlayers []JoinPlayer) error {
 			return err
 		}
 	}
+	te.table.State.Status = TableStateStatus_TableBalancing
 
 	te.emitEvent("PlayersBatchReserve", "")
+
+	// Preparing ready group for waiting all players' join
+	te.rg.Stop()
+	te.rg.SetTimeoutInterval(10) // TODO: ask for longest period for timeout
+	te.rg.OnTimeout(func(rg *syncsaga.ReadyGroup) {
+		// Auto Ready By Default
+		states := rg.GetParticipantStates()
+		for playerIdx, isReady := range states {
+			if !isReady {
+				rg.Ready(playerIdx)
+			}
+		}
+	})
+	te.rg.OnCompleted(func(rg *syncsaga.ReadyGroup) {
+		if te.table.State.Status == TableStateStatus_TableBalancing {
+			if err := te.TableGameOpen(); err != nil {
+				te.onTableErrorUpdated(te.table, err)
+			}
+		}
+	})
+
+	te.rg.ResetParticipants()
+	for playerIdx := range te.table.State.PlayerStates {
+		te.rg.Add(int64(playerIdx), false)
+	}
+
+	te.rg.Start()
+
 	return nil
 }
 
@@ -340,6 +358,10 @@ func (te *tableEngine) PlayerJoin(playerID string) error {
 	}
 
 	te.table.State.PlayerStates[playerIdx].IsIn = true
+
+	if te.table.State.Status == TableStateStatus_TableBalancing {
+		te.rg.Ready(int64(playerIdx))
+	}
 
 	te.emitEvent("PlayerJoin", playerID)
 	return nil

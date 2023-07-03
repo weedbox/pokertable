@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	ErrTableNotFound = errors.New("manager: table not found")
+	ErrManagerTableNotFound = errors.New("manager: table not found")
 )
 
 type Manager interface {
@@ -50,7 +50,7 @@ func NewManager() Manager {
 func (m *manager) GetTableEngine(tableID string) (TableEngine, error) {
 	tableEngine, exist := m.tableEngines.Load(tableID)
 	if !exist {
-		return nil, ErrTableNotFound
+		return nil, ErrManagerTableNotFound
 	}
 	return tableEngine.(TableEngine), nil
 }
@@ -72,7 +72,7 @@ func (m *manager) CreateTable(tableSetting TableSetting) (*Table, error) {
 func (m *manager) BalanceTable(tableID string) error {
 	tableEngine, err := m.GetTableEngine(tableID)
 	if err != nil {
-		return ErrTableNotFound
+		return ErrManagerTableNotFound
 	}
 
 	return tableEngine.BalanceTable()
@@ -81,7 +81,7 @@ func (m *manager) BalanceTable(tableID string) error {
 func (m *manager) CloseTable(tableID string) error {
 	tableEngine, err := m.GetTableEngine(tableID)
 	if err != nil {
-		return ErrTableNotFound
+		return ErrManagerTableNotFound
 	}
 
 	if err := tableEngine.CloseTable(); err != nil {
@@ -95,7 +95,7 @@ func (m *manager) CloseTable(tableID string) error {
 func (m *manager) StartTableGame(tableID string) error {
 	tableEngine, err := m.GetTableEngine(tableID)
 	if err != nil {
-		return ErrTableNotFound
+		return ErrManagerTableNotFound
 	}
 
 	return tableEngine.StartTableGame()
@@ -104,7 +104,7 @@ func (m *manager) StartTableGame(tableID string) error {
 func (m *manager) TableGameOpen(tableID string) error {
 	tableEngine, err := m.GetTableEngine(tableID)
 	if err != nil {
-		return ErrTableNotFound
+		return ErrManagerTableNotFound
 	}
 
 	return tableEngine.TableGameOpen()
@@ -113,7 +113,7 @@ func (m *manager) TableGameOpen(tableID string) error {
 func (m *manager) PlayerReserve(tableID string, joinPlayer JoinPlayer) error {
 	tableEngine, err := m.GetTableEngine(tableID)
 	if err != nil {
-		return ErrTableNotFound
+		return ErrManagerTableNotFound
 	}
 
 	return tableEngine.PlayerReserve(joinPlayer)
@@ -122,7 +122,7 @@ func (m *manager) PlayerReserve(tableID string, joinPlayer JoinPlayer) error {
 func (m *manager) PlayersBatchReserve(tableID string, joinPlayers []JoinPlayer) error {
 	tableEngine, err := m.GetTableEngine(tableID)
 	if err != nil {
-		return ErrTableNotFound
+		return ErrManagerTableNotFound
 	}
 
 	return tableEngine.PlayersBatchReserve(joinPlayers)
@@ -131,7 +131,7 @@ func (m *manager) PlayersBatchReserve(tableID string, joinPlayers []JoinPlayer) 
 func (m *manager) PlayerJoin(tableID, playerID string) error {
 	tableEngine, err := m.GetTableEngine(tableID)
 	if err != nil {
-		return ErrTableNotFound
+		return ErrManagerTableNotFound
 	}
 
 	return tableEngine.PlayerJoin(playerID)
@@ -140,7 +140,7 @@ func (m *manager) PlayerJoin(tableID, playerID string) error {
 func (m *manager) PlayerRedeemChips(tableID string, joinPlayer JoinPlayer) error {
 	tableEngine, err := m.GetTableEngine(tableID)
 	if err != nil {
-		return ErrTableNotFound
+		return ErrManagerTableNotFound
 	}
 
 	return tableEngine.PlayerRedeemChips(joinPlayer)
@@ -149,7 +149,7 @@ func (m *manager) PlayerRedeemChips(tableID string, joinPlayer JoinPlayer) error
 func (m *manager) PlayersLeave(tableID string, playerIDs []string) error {
 	tableEngine, err := m.GetTableEngine(tableID)
 	if err != nil {
-		return ErrTableNotFound
+		return ErrManagerTableNotFound
 	}
 
 	return tableEngine.PlayersLeave(playerIDs)
@@ -158,7 +158,7 @@ func (m *manager) PlayersLeave(tableID string, playerIDs []string) error {
 func (m *manager) PlayerReady(tableID, playerID string) error {
 	tableEngine, err := m.GetTableEngine(tableID)
 	if err != nil {
-		return ErrTableNotFound
+		return ErrManagerTableNotFound
 	}
 
 	return tableEngine.PlayerReady(playerID)
@@ -167,7 +167,7 @@ func (m *manager) PlayerReady(tableID, playerID string) error {
 func (m *manager) PlayerPay(tableID, playerID string, chips int64) error {
 	tableEngine, err := m.GetTableEngine(tableID)
 	if err != nil {
-		return ErrTableNotFound
+		return ErrManagerTableNotFound
 	}
 
 	return tableEngine.PlayerPay(playerID, chips)
@@ -176,7 +176,7 @@ func (m *manager) PlayerPay(tableID, playerID string, chips int64) error {
 func (m *manager) PlayerBet(tableID, playerID string, chips int64) error {
 	tableEngine, err := m.GetTableEngine(tableID)
 	if err != nil {
-		return ErrTableNotFound
+		return ErrManagerTableNotFound
 	}
 
 	return tableEngine.PlayerBet(playerID, chips)
@@ -185,7 +185,7 @@ func (m *manager) PlayerBet(tableID, playerID string, chips int64) error {
 func (m *manager) PlayerRaise(tableID, playerID string, chipLevel int64) error {
 	tableEngine, err := m.GetTableEngine(tableID)
 	if err != nil {
-		return ErrTableNotFound
+		return ErrManagerTableNotFound
 	}
 
 	return tableEngine.PlayerRaise(playerID, chipLevel)
@@ -194,7 +194,7 @@ func (m *manager) PlayerRaise(tableID, playerID string, chipLevel int64) error {
 func (m *manager) PlayerCall(tableID, playerID string) error {
 	tableEngine, err := m.GetTableEngine(tableID)
 	if err != nil {
-		return ErrTableNotFound
+		return ErrManagerTableNotFound
 	}
 
 	return tableEngine.PlayerCall(playerID)
@@ -203,7 +203,7 @@ func (m *manager) PlayerCall(tableID, playerID string) error {
 func (m *manager) PlayerAllin(tableID, playerID string) error {
 	tableEngine, err := m.GetTableEngine(tableID)
 	if err != nil {
-		return ErrTableNotFound
+		return ErrManagerTableNotFound
 	}
 
 	return tableEngine.PlayerAllin(playerID)
@@ -212,7 +212,7 @@ func (m *manager) PlayerAllin(tableID, playerID string) error {
 func (m *manager) PlayerCheck(tableID, playerID string) error {
 	tableEngine, err := m.GetTableEngine(tableID)
 	if err != nil {
-		return ErrTableNotFound
+		return ErrManagerTableNotFound
 	}
 
 	return tableEngine.PlayerCheck(playerID)
@@ -221,7 +221,7 @@ func (m *manager) PlayerCheck(tableID, playerID string) error {
 func (m *manager) PlayerFold(tableID, playerID string) error {
 	tableEngine, err := m.GetTableEngine(tableID)
 	if err != nil {
-		return ErrTableNotFound
+		return ErrManagerTableNotFound
 	}
 
 	return tableEngine.PlayerFold(playerID)
@@ -230,7 +230,7 @@ func (m *manager) PlayerFold(tableID, playerID string) error {
 func (m *manager) PlayerPass(tableID, playerID string) error {
 	tableEngine, err := m.GetTableEngine(tableID)
 	if err != nil {
-		return ErrTableNotFound
+		return ErrManagerTableNotFound
 	}
 
 	return tableEngine.PlayerPass(playerID)

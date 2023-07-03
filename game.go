@@ -55,10 +55,21 @@ type game struct {
 }
 
 func NewGame(backend GameBackend, opts *pokerface.GameOptions) *game {
+	rg := syncsaga.NewReadyGroup(
+		syncsaga.WithTimeout(1, func(rg *syncsaga.ReadyGroup) {
+			// Auto Ready By Default
+			states := rg.GetParticipantStates()
+			for gamePlayerIdx, isReady := range states {
+				if !isReady {
+					rg.Ready(gamePlayerIdx)
+				}
+			}
+		}),
+	)
 	return &game{
 		backend:            backend,
 		opts:               opts,
-		rg:                 syncsaga.NewReadyGroup(),
+		rg:                 rg,
 		incomingStates:     make(chan *pokerface.GameState, 1024),
 		onGameStateUpdated: func(gs *pokerface.GameState) {},
 		onGameErrorUpdated: func(gs *pokerface.GameState, err error) {},

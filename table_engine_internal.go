@@ -98,7 +98,7 @@ func (te *tableEngine) openGame() {
 	}
 
 	// Step 3: 處理可參賽玩家剩餘一人時，桌上有其他玩家情形
-	if len(te.table.ParticipatedPlayers()) < 2 {
+	if len(te.table.ParticipatedPlayers()) < te.table.Meta.CompetitionMeta.TableMinPlayerCount {
 		for i := 0; i < len(te.table.State.PlayerStates); i++ {
 			// 沒入桌或沒籌碼玩家不能玩
 			if te.table.State.PlayerStates[i].Bankroll == 0 || !te.table.State.PlayerStates[i].IsIn {
@@ -262,40 +262,53 @@ func (te *tableEngine) settleGame() {
 }
 
 func (te *tableEngine) continueGame() error {
-	// 檢查是否暫停
-	if te.table.ShouldPause() {
-		te.table.State.Status = TableStateStatus_TablePausing
-	} else {
-		te.table.State.Status = TableStateStatus_TableGameStandby
-	}
-
 	// reset state
 	te.table.State.GamePlayerIndexes = []int{}
 	for i := 0; i < len(te.table.State.PlayerStates); i++ {
 		te.table.State.PlayerStates[i].Positions = make([]string, 0)
 	}
 
-	if te.table.State.Status == TableStateStatus_TablePausing && te.table.State.BlindState.IsBreaking() {
-		// resume game from breaking
-		endAt := te.table.State.BlindState.LevelStates[te.table.State.BlindState.CurrentLevelIndex].EndAt
-		if err := te.tb.NewTaskWithDeadline(time.Unix(endAt, 0), func(isCancelled bool) {
-			if isCancelled {
-				return
-			}
+	// 檢查是否暫停
+	if te.table.ShouldPause() {
+		// 暫停處理
+		te.table.State.Status = TableStateStatus_TablePausing
+		te.emitEvent("ContinueGame -> Pause", "")
 
-			if te.table.State.Status != TableStateStatus_TableBalancing && len(te.table.AlivePlayers()) >= 2 {
-				if err := te.TableGameOpen(); err != nil {
-					te.emitErrorEvent("resume game from breaking", "", err)
+		if te.table.State.BlindState.IsBreaking() {
+			// resume game from breaking
+			endAt := te.table.State.BlindState.LevelStates[te.table.State.BlindState.CurrentLevelIndex].EndAt
+			if err := te.tb.NewTaskWithDeadline(time.Unix(endAt, 0), func(isCancelled bool) {
+				if isCancelled {
+					return
 				}
+
+				if te.table.ShouldClose() {
+					if err := te.CloseTable(); err != nil {
+						te.emitErrorEvent("resume game from breaking & close table", "", err)
+						return
+					}
+				}
+
+				autoOpenGame := te.table.State.Status == TableStateStatus_TablePausing && len(te.table.AlivePlayers()) >= te.table.Meta.CompetitionMeta.TableMinPlayerCount
+				if !autoOpenGame {
+					return
+				}
+				if err := te.TableGameOpen(); err != nil {
+					te.emitErrorEvent("resume game from breaking & auto open next game", "", err)
+				}
+			}); err != nil {
+				return err
 			}
-		}); err != nil {
-			return err
 		}
-	} else if te.table.State.Status == TableStateStatus_TableGameStandby && te.table.Meta.CompetitionMeta.Mode == CompetitionMode_CT {
+	} else {
+		// 正常繼續新的一手
+		te.table.State.Status = TableStateStatus_TableGameStandby
+		te.emitEvent("ContinueGame -> Standby", "")
+
 		if err := te.delay(te.options.Interval, func() error {
-			// 自動開桌條件: 非 TableStateStatus_TableGamePlaying 或 非 TableStateStatus_TableBalancing
+			// 自動開下一手條件: 非 TableStateStatus_TableGamePlaying 或 非 TableStateStatus_TableBalancing
 			stopOpen := te.table.State.Status == TableStateStatus_TableGamePlaying || te.table.State.Status == TableStateStatus_TableBalancing
-			if !stopOpen && len(te.table.AlivePlayers()) >= 2 {
+			if !stopOpen && len(te.table.AlivePlayers()) >= te.table.Meta.CompetitionMeta.TableMinPlayerCount {
 				return te.TableGameOpen()
 			}
 			return nil
@@ -303,7 +316,7 @@ func (te *tableEngine) continueGame() error {
 			return err
 		}
 	}
-	te.emitEvent("ContinueGame", "")
+
 	return nil
 }
 

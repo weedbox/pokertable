@@ -181,19 +181,19 @@ func (t Table) FindPlayerIdx(playerID string) int {
 /*
 	ShouldClose 計算本桌是否已達到結束條件
 	  - 結束條件 1: 達到結束時間
-	  - 結束條件 2: 停止買入後且存活玩家剩餘 1 人
+	  - 結束條件 2: 停止買入後且存活玩家小於最小開打數
 */
 func (t Table) ShouldClose() bool {
-	return time.Now().Unix() > t.EndGameAt() || (t.State.BlindState.IsFinalBuyInLevel() && len(t.AlivePlayers()) == 1)
+	return time.Now().Unix() > t.EndGameAt() || (t.State.BlindState.IsFinalBuyInLevel() && len(t.AlivePlayers()) < t.Meta.CompetitionMeta.TableMinPlayerCount)
 }
 
 /*
 	ShouldPause 計算本桌是否已達到暫停
 	  - 暫停條件 1: 中場休息
-	  - 暫停條件 2: 存活玩家剩餘 1 人
+	  - 暫停條件 2: 存活玩家小於最小開打數
 */
 func (t Table) ShouldPause() bool {
-	return t.State.BlindState.IsBreaking() || len(t.AlivePlayers()) < 2
+	return t.State.BlindState.IsBreaking() || len(t.AlivePlayers()) < t.Meta.CompetitionMeta.TableMinPlayerCount
 }
 
 // TableBlindState Getters

@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	ErrTableNotFound = errors.New("table not found")
+	ErrTableNotFound = errors.New("manager: table not found")
 )
 
 type Manager interface {

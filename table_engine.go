@@ -430,7 +430,9 @@ func (te *tableEngine) PlayersLeave(playerIDs []string) error {
 		te.table.State.SeatMap[player.Seat] = newPlayerIdx
 	}
 
+	te.table.State.Status = TableStateStatus_TableGameStandby
 	te.emitEvent("PlayersLeave", strings.Join(playerIDs, ","))
+
 	return nil
 }
 

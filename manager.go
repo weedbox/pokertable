@@ -17,6 +17,7 @@ type Manager interface {
 	CloseTable(tableID string) error
 	StartTableGame(tableID string) error
 	TableGameOpen(tableID string) error
+	UpdateBlind(tableID string, level int, ante, dealer, sb, bb int64) error
 
 	// Player Table Actions
 	PlayerReserve(tableID string, joinPlayer JoinPlayer) error
@@ -108,6 +109,16 @@ func (m *manager) TableGameOpen(tableID string) error {
 	}
 
 	return tableEngine.TableGameOpen()
+}
+
+func (m *manager) UpdateBlind(tableID string, level int, ante, dealer, sb, bb int64) error {
+	tableEngine, err := m.GetTableEngine(tableID)
+	if err != nil {
+		return ErrManagerTableNotFound
+	}
+
+	tableEngine.UpdateBlind(level, ante, dealer, sb, bb)
+	return nil
 }
 
 func (m *manager) PlayerReserve(tableID string, joinPlayer JoinPlayer) error {

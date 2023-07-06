@@ -2,7 +2,6 @@ package pokertable
 
 import (
 	"encoding/json"
-	"time"
 
 	"github.com/thoas/go-funk"
 	"github.com/weedbox/pokerface"
@@ -49,25 +48,7 @@ type CompetitionMeta struct {
 	TableMaxSeatCount   int    `json:"table_max_seat_count"`   // 每桌人數上限
 	TableMinPlayerCount int    `json:"table_min_player_count"` // 每桌最小開打數
 	MinChipUnit         int64  `json:"min_chip_unit"`          // 最小單位籌碼量
-	Blind               Blind  `json:"blind"`                  // 盲注資訊
 	ActionTime          int    `json:"action_time"`            // 玩家動作思考時間 (Seconds)
-}
-
-type Blind struct {
-	ID              string       `json:"id"`                 // ID
-	Name            string       `json:"name"`               // 名稱
-	InitialLevel    int          `json:"initial_level"`      // 起始盲注級別
-	FinalBuyInLevel int          `json:"final_buy_in_level"` // 最後買入盲注等級
-	DealerBlindTime int          `json:"dealer_blind_time"`  // Dealer 位置要收取的前注倍數 (短牌用)
-	Levels          []BlindLevel `json:"levels"`             // 級別資訊列表
-}
-
-type BlindLevel struct {
-	Level    int   `json:"level"`    // 盲注等級(-1 表示中場休息)
-	SB       int64 `json:"sb"`       // 小盲籌碼量
-	BB       int64 `json:"bb"`       // 大盲籌碼量
-	Ante     int64 `json:"ante"`     // 前注籌碼量
-	Duration int   `json:"duration"` // 等級持續時間 (Seconds)
 }
 
 type TableState struct {
@@ -94,15 +75,11 @@ type TablePlayerState struct {
 }
 
 type TableBlindState struct {
-	FinalBuyInLevelIndex int                     `json:"final_buy_in_level_idx"` // 最後買入盲注等級索引值
-	InitialLevel         int                     `json:"initial_level"`          // 起始盲注級別
-	CurrentLevelIndex    int                     `json:"current_level_index"`    // 現在盲注等級級別索引值
-	LevelStates          []*TableBlindLevelState `json:"level_states"`           // 級別資訊列表狀態
-}
-
-type TableBlindLevelState struct {
-	BlindLevel BlindLevel `json:"blind_level"` // 盲注等級資訊
-	EndAt      int64      `json:"end_at"`      // 等級結束時間 (Seconds)
+	Level  int   `json:"level"`  // 盲注等級(-1 表示中場休息)
+	Ante   int64 `json:"ante"`   // 前注籌碼量
+	Dealer int64 `json:"dealer"` // 庄位籌碼量
+	SB     int64 `json:"sb"`     // 大盲籌碼量
+	BB     int64 `json:"bb"`     // 小盲籌碼量
 }
 
 // Table Getters
@@ -126,10 +103,6 @@ func (t Table) ParticipatedPlayers() []*TablePlayerState {
 	return funk.Filter(t.State.PlayerStates, func(player *TablePlayerState) bool {
 		return player.IsParticipated
 	}).([]*TablePlayerState)
-}
-
-func (t Table) EndGameAt() int64 {
-	return time.Unix(t.State.StartAt, 0).Add(time.Second * time.Duration(t.Meta.CompetitionMeta.MaxDuration)).Unix()
 }
 
 func (t Table) AlivePlayers() []*TablePlayerState {
@@ -179,15 +152,6 @@ func (t Table) FindPlayerIdx(playerID string) int {
 }
 
 /*
-	ShouldClose 計算本桌是否已達到結束條件
-	  - 結束條件 1: 達到結束時間
-	  - 結束條件 2: 停止買入後且存活玩家小於最小開打數
-*/
-func (t Table) ShouldClose() bool {
-	return time.Now().Unix() > t.EndGameAt() || (t.State.BlindState.IsFinalBuyInLevel() && len(t.AlivePlayers()) < t.Meta.CompetitionMeta.TableMinPlayerCount)
-}
-
-/*
 	ShouldPause 計算本桌是否已達到暫停
 	  - 暫停條件 1: 中場休息
 	  - 暫停條件 2: 存活玩家小於最小開打數
@@ -197,19 +161,6 @@ func (t Table) ShouldPause() bool {
 }
 
 // TableBlindState Getters
-func (bs TableBlindState) IsFinalBuyInLevel() bool {
-	// 沒有預設 FinalBuyInLevelIndex 代表不能補碼，永遠都是停止買入階段
-	if bs.FinalBuyInLevelIndex == UnsetValue {
-		return true
-	}
-
-	return bs.CurrentLevelIndex > bs.FinalBuyInLevelIndex
-}
-
 func (bs TableBlindState) IsBreaking() bool {
-	return bs.LevelStates[bs.CurrentLevelIndex].BlindLevel.Level == -1
-}
-
-func (bs TableBlindState) CurrentBlindLevel() TableBlindLevelState {
-	return *bs.LevelStates[bs.CurrentLevelIndex]
+	return bs.Level == -1
 }

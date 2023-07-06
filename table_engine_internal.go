@@ -8,6 +8,21 @@ import (
 	"github.com/weedbox/pokerface"
 )
 
+func (te *tableEngine) emitEvent(eventName string, playerID string) {
+	// refresh table
+	te.table.UpdateAt = time.Now().Unix()
+	te.table.UpdateSerial++
+
+	// emit event
+	fmt.Printf("->[Table %s][#%d][%d][%s] emit Event: %s\n", te.table.ID, te.table.UpdateSerial, te.table.State.GameCount, playerID, eventName)
+	te.onTableUpdated(te.table)
+}
+
+func (te *tableEngine) emitErrorEvent(eventName string, playerID string, err error) {
+	fmt.Printf("->[Table %s][#%d][%d][%s] emit ERROR Event: %s, Error: %v\n", te.table.ID, te.table.UpdateSerial, te.table.State.GameCount, playerID, eventName, err)
+	te.onTableErrorUpdated(te.table, err)
+}
+
 func (te *tableEngine) validateGameMove(gamePlayerIdx int) error {
 	// check table status
 	if te.table.State.Status != TableStateStatus_TableGamePlaying {
@@ -39,21 +54,6 @@ func (te *tableEngine) delay(interval int, fn func() error) error {
 
 	wg.Wait()
 	return err
-}
-
-func (te *tableEngine) emitEvent(eventName string, playerID string) {
-	// refresh table
-	te.table.UpdateAt = time.Now().Unix()
-	te.table.UpdateSerial++
-
-	// emit event
-	fmt.Printf("->[Table %s][#%d][%d][%s] emit Event: %s\n", te.table.ID, te.table.UpdateSerial, te.table.State.GameCount, playerID, eventName)
-	te.onTableUpdated(te.table)
-}
-
-func (te *tableEngine) emitErrorEvent(eventName string, playerID string, err error) {
-	fmt.Printf("->[Table %s][#%d][%d][%s] emit ERROR Event: %s, Error: %v\n", te.table.ID, te.table.UpdateSerial, te.table.State.GameCount, playerID, eventName, err)
-	te.onTableErrorUpdated(te.table, err)
 }
 
 func (te *tableEngine) updateGameState(gs *pokerface.GameState) {
@@ -178,8 +178,7 @@ func (te *tableEngine) openGame() {
 
 func (te *tableEngine) startGame() error {
 	rule := te.table.Meta.CompetitionMeta.Rule
-	blind := te.table.State.BlindState.LevelStates[te.table.State.BlindState.CurrentLevelIndex].BlindLevel
-	DealerBlindTime := te.table.Meta.CompetitionMeta.Blind.DealerBlindTime
+	blind := te.table.State.BlindState
 
 	// create game options
 	opts := pokerface.NewStardardGameOptions()
@@ -194,14 +193,10 @@ func (te *tableEngine) startGame() error {
 	}
 
 	// preparing blind
-	dealer := int64(0)
-	if DealerBlindTime > 0 {
-		dealer = blind.Ante * (int64(DealerBlindTime) - 1)
-	}
-
+	// TODO: set level to pokerface BlindSetting
 	opts.Ante = blind.Ante
 	opts.Blind = pokerface.BlindSetting{
-		Dealer: dealer,
+		Dealer: blind.Dealer,
 		SB:     blind.SB,
 		BB:     blind.BB,
 	}
@@ -239,20 +234,6 @@ func (te *tableEngine) startGame() error {
 func (te *tableEngine) settleGame() {
 	te.table.State.Status = TableStateStatus_TableGameSettled
 
-	// 更新現在盲注資訊
-	now := time.Now().Unix()
-	for idx, levelState := range te.table.State.BlindState.LevelStates {
-		timeDiff := now - levelState.EndAt
-		if timeDiff < 0 {
-			te.table.State.BlindState.CurrentLevelIndex = idx
-			break
-		} else {
-			if idx+1 < len(te.table.State.BlindState.LevelStates) {
-				te.table.State.BlindState.CurrentLevelIndex = idx + 1
-			}
-		}
-	}
-
 	// 把玩家輸贏籌碼更新到 Bankroll
 	for _, player := range te.table.State.GameState.Result.Players {
 		playerIdx := te.table.State.GamePlayerIndexes[player.Idx]
@@ -273,33 +254,6 @@ func (te *tableEngine) continueGame() error {
 		// 暫停處理
 		te.table.State.Status = TableStateStatus_TablePausing
 		te.emitEvent("ContinueGame -> Pause", "")
-
-		if te.table.State.BlindState.IsBreaking() {
-			// resume game from breaking
-			endAt := te.table.State.BlindState.LevelStates[te.table.State.BlindState.CurrentLevelIndex].EndAt
-			if err := te.tb.NewTaskWithDeadline(time.Unix(endAt, 0), func(isCancelled bool) {
-				if isCancelled {
-					return
-				}
-
-				if te.table.ShouldClose() {
-					if err := te.CloseTable(); err != nil {
-						te.emitErrorEvent("resume game from breaking & close table", "", err)
-						return
-					}
-				}
-
-				autoOpenGame := te.table.State.Status == TableStateStatus_TablePausing && len(te.table.AlivePlayers()) >= te.table.Meta.CompetitionMeta.TableMinPlayerCount
-				if !autoOpenGame {
-					return
-				}
-				if err := te.TableGameOpen(); err != nil {
-					te.emitErrorEvent("resume game from breaking & auto open next game", "", err)
-				}
-			}); err != nil {
-				return err
-			}
-		}
 	} else {
 		// 正常繼續新的一手
 		te.table.State.Status = TableStateStatus_TableGameStandby

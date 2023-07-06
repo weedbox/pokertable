@@ -44,6 +44,7 @@ type TableEngine interface {
 	CloseTable() error                                     // 關閉桌
 	StartTableGame() error                                 // 開打遊戲
 	TableGameOpen() error                                  // 開下一輪遊戲
+	UpdateBlind(level int, ante, dealer, sb, bb int64)     // 更新當前盲注資訊
 
 	// Player Table Actions
 	PlayerReserve(joinPlayer JoinPlayer) error          // 玩家確認座位
@@ -135,31 +136,16 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
 	table.Meta = meta
 
 	// configure state
-	finalBuyInLevelIdx := UnsetValue
-	if tableSetting.CompetitionMeta.Blind.FinalBuyInLevel != UnsetValue {
-		for idx, blindLevel := range tableSetting.CompetitionMeta.Blind.Levels {
-			if blindLevel.Level == tableSetting.CompetitionMeta.Blind.FinalBuyInLevel {
-				finalBuyInLevelIdx = idx
-				break
-			}
-		}
-	}
-
-	blindState := TableBlindState{
-		FinalBuyInLevelIndex: finalBuyInLevelIdx,
-		InitialLevel:         tableSetting.CompetitionMeta.Blind.InitialLevel,
-		CurrentLevelIndex:    UnsetValue,
-		LevelStates: funk.Map(tableSetting.CompetitionMeta.Blind.Levels, func(blindLevel BlindLevel) *TableBlindLevelState {
-			return &TableBlindLevelState{
-				BlindLevel: blindLevel,
-				EndAt:      UnsetValue,
-			}
-		}).([]*TableBlindLevelState),
-	}
 	state := TableState{
-		GameCount:         0,
-		StartAt:           UnsetValue,
-		BlindState:        &blindState,
+		GameCount: 0,
+		StartAt:   UnsetValue,
+		BlindState: &TableBlindState{
+			Level:  0,
+			Ante:   UnsetValue,
+			Dealer: UnsetValue,
+			SB:     UnsetValue,
+			BB:     UnsetValue,
+		},
 		CurrentDealerSeat: UnsetValue,
 		CurrentBBSeat:     UnsetValue,
 		SeatMap:           NewDefaultSeatMap(tableSetting.CompetitionMeta.TableMaxSeatCount),
@@ -204,25 +190,6 @@ func (te *tableEngine) CloseTable() error {
 func (te *tableEngine) StartTableGame() error {
 	// 更新開始時間
 	te.table.State.StartAt = time.Now().Unix()
-
-	// 初始化盲注
-	for idx, levelState := range te.table.State.BlindState.LevelStates {
-		if levelState.BlindLevel.Level == te.table.State.BlindState.InitialLevel {
-			te.table.State.BlindState.CurrentLevelIndex = idx
-			break
-		}
-	}
-	blindStartAt := te.table.State.StartAt
-	for i := (te.table.State.BlindState.InitialLevel - 1); i < len(te.table.State.BlindState.LevelStates); i++ {
-		if i == te.table.State.BlindState.InitialLevel-1 {
-			te.table.State.BlindState.LevelStates[i].EndAt = blindStartAt
-		} else {
-			te.table.State.BlindState.LevelStates[i].EndAt = te.table.State.BlindState.LevelStates[i-1].EndAt
-		}
-		blindPassedSeconds := int64(te.table.State.BlindState.LevelStates[i].BlindLevel.Duration)
-		te.table.State.BlindState.LevelStates[i].EndAt += blindPassedSeconds
-	}
-
 	te.emitEvent("StartTableGame", "")
 
 	//  開局
@@ -239,6 +206,14 @@ func (te *tableEngine) TableGameOpen() error {
 
 	// 啟動本手遊戲引擎
 	return te.startGame()
+}
+
+func (te *tableEngine) UpdateBlind(level int, ante, dealer, sb, bb int64) {
+	te.table.State.BlindState.Level = level
+	te.table.State.BlindState.Ante = ante
+	te.table.State.BlindState.Dealer = dealer
+	te.table.State.BlindState.SB = sb
+	te.table.State.BlindState.BB = bb
 }
 
 /*
@@ -315,7 +290,7 @@ func (te *tableEngine) PlayersBatchReserve(joinPlayers []JoinPlayer) error {
 
 	// Preparing ready group for waiting all players' join
 	te.rg.Stop()
-	te.rg.SetTimeoutInterval(10) // TODO: ask for longest period for timeout
+	te.rg.SetTimeoutInterval(2) // TODO: ask for longest period for timeout
 	te.rg.OnTimeout(func(rg *syncsaga.ReadyGroup) {
 		// Auto Ready By Default
 		states := rg.GetParticipantStates()
@@ -327,15 +302,28 @@ func (te *tableEngine) PlayersBatchReserve(joinPlayers []JoinPlayer) error {
 	})
 	te.rg.OnCompleted(func(rg *syncsaga.ReadyGroup) {
 		if te.table.State.Status == TableStateStatus_TableBalancing {
-			if err := te.TableGameOpen(); err != nil {
-				te.onTableErrorUpdated(te.table, err)
+			for i := 0; i < len(te.table.State.PlayerStates); i++ {
+				// 如果時間到了還沒有入座則自動入座
+				if !te.table.State.PlayerStates[i].IsIn {
+					te.table.State.PlayerStates[i].IsIn = true
+				}
+			}
+
+			if te.table.State.GameCount <= 0 {
+				// 拆併桌起新桌，時間到了自動開打
+				if err := te.StartTableGame(); err != nil {
+					te.onTableErrorUpdated(te.table, err)
+				}
 			}
 		}
 	})
 
 	te.rg.ResetParticipants()
 	for playerIdx := range te.table.State.PlayerStates {
-		te.rg.Add(int64(playerIdx), false)
+		if !te.table.State.PlayerStates[playerIdx].IsIn {
+			// 新加入的玩家才要放到 ready group 做處理
+			te.rg.Add(int64(playerIdx), false)
+		}
 	}
 
 	te.rg.Start()

@@ -164,3 +164,7 @@ func (t Table) ShouldPause() bool {
 func (bs TableBlindState) IsBreaking() bool {
 	return bs.Level == -1
 }
+
+func (bs TableBlindState) IsSet() bool {
+	return bs.Level != 0 && bs.Ante == UnsetValue && bs.Dealer == UnsetValue && bs.SB == UnsetValue && bs.BB == UnsetValue
+}

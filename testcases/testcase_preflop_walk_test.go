@@ -52,12 +52,12 @@ func TestTableGame_Preflop_Walk(t *testing.T) {
 				}
 			case pokerface.GameEvent_AnteRequested:
 				for _, playerID := range playerIDs {
-					ante := table.State.BlindState.CurrentBlindLevel().BlindLevel.Ante
+					ante := table.State.BlindState.Ante
 					assert.Nil(t, tableEngine.PlayerPay(playerID, ante), fmt.Sprintf("%s pay ante error", playerID))
 					t.Logf(fmt.Sprintf("%s pay ante %d", playerID, ante))
 				}
 			case pokerface.GameEvent_BlindsRequested:
-				blind := table.State.BlindState.CurrentBlindLevel().BlindLevel
+				blind := table.State.BlindState
 
 				// pay sb
 				sbPlayerID := findPlayerID(table, "sb")
@@ -98,6 +98,7 @@ func TestTableGame_Preflop_Walk(t *testing.T) {
 	}
 
 	// start game
+	tableEngine.UpdateBlind(1, 0, 0, 10, 20)
 	assert.Nil(t, tableEngine.StartTableGame(), "start table game failed")
 
 	wg.Wait()

@@ -21,36 +21,7 @@ func TestActor_BotRunner_Humanize(t *testing.T) {
 		Name:           "3300 - 10 sec",
 		InvitationCode: "come_to_play",
 		CompetitionMeta: pokertable.CompetitionMeta{
-			ID: uuid.New().String(),
-			Blind: pokertable.Blind{
-				ID:              uuid.New().String(),
-				Name:            "3300 FAST",
-				FinalBuyInLevel: 2,
-				InitialLevel:    1,
-				Levels: []pokertable.BlindLevel{
-					{
-						Level:    1,
-						SB:       10,
-						BB:       20,
-						Ante:     0,
-						Duration: 1,
-					},
-					{
-						Level:    2,
-						SB:       20,
-						BB:       30,
-						Ante:     0,
-						Duration: 1,
-					},
-					{
-						Level:    3,
-						SB:       30,
-						BB:       40,
-						Ante:     0,
-						Duration: 1,
-					},
-				},
-			},
+			ID:                  uuid.New().String(),
 			MaxDuration:         10,
 			Rule:                pokertable.CompetitionRule_Default,
 			Mode:                pokertable.CompetitionMode_CT,
@@ -124,6 +95,7 @@ func TestActor_BotRunner_Humanize(t *testing.T) {
 	}
 
 	// Start game
+	tableEngine.UpdateBlind(1, 0, 0, 10, 20)
 	err = tableEngine.StartTableGame()
 	assert.Nil(t, err)
 

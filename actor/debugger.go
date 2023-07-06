@@ -74,25 +74,15 @@ func DebugPrintTableGameOpened(t pokertable.Table) {
 	}
 
 	fmt.Println("[Blind Data]")
-	fmt.Println("InitialLevel: ", t.State.BlindState.InitialLevel)
-	fmt.Printf("CurrentLevel: %+v\n", t.State.BlindState.CurrentBlindLevel())
-	fmt.Printf("CurrentLevel EndAt: %+v\n", timeString(t.State.BlindState.CurrentBlindLevel().EndAt))
-	fmt.Println("CurrentLevelIndex: ", t.State.BlindState.CurrentLevelIndex)
-	fmt.Println("FinalBuyInLevelIndex: ", t.State.BlindState.FinalBuyInLevelIndex)
-	for _, blindLevelState := range t.State.BlindState.LevelStates {
-		blindLevel := blindLevelState.BlindLevel
-		level := strconv.Itoa(blindLevel.Level)
-		if blindLevel.Level == -1 {
-			level = "中場休息"
-		}
-
-		endAt := "X"
-		if blindLevelState.EndAt != -1 {
-			endAt = timeString(blindLevelState.EndAt)
-		}
-
-		fmt.Printf("Level: %s, (sb,bb,ante): (%d,%d,%d), end: %s\n", level, blindLevel.SB, blindLevel.BB, blindLevel.Ante, endAt)
+	blindLevel := "中場休息"
+	if t.State.BlindState.Level != -1 {
+		blindLevel = strconv.Itoa(t.State.BlindState.Level)
 	}
+	fmt.Println("Level: ", blindLevel)
+	fmt.Println("Ante: ", t.State.BlindState.Ante)
+	fmt.Println("Dealer: ", t.State.BlindState.Dealer)
+	fmt.Println("SB: ", t.State.BlindState.SB)
+	fmt.Println("BB: ", t.State.BlindState.BB)
 
 	fmt.Println("[Game Players]")
 	for _, playerIdx := range t.State.GamePlayerIndexes {

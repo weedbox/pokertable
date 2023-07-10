@@ -2,7 +2,6 @@ package pokertable
 
 import (
 	"errors"
-	"sync"
 )
 
 var (
@@ -39,34 +38,34 @@ type Manager interface {
 }
 
 type manager struct {
-	tableEngines sync.Map
+	tableEngines map[string]TableEngine
 }
 
 func NewManager() Manager {
 	return &manager{
-		tableEngines: sync.Map{},
+		tableEngines: make(map[string]TableEngine),
 	}
 }
 
 func (m *manager) GetTableEngine(tableID string) (TableEngine, error) {
-	tableEngine, exist := m.tableEngines.Load(tableID)
+	tableEngine, exist := m.tableEngines[tableID]
 	if !exist {
 		return nil, ErrManagerTableNotFound
 	}
-	return tableEngine.(TableEngine), nil
+	return tableEngine, nil
 }
 
 func (m *manager) CreateTable(tableSetting TableSetting) (*Table, error) {
 	options := NewTableEngineOptions()
 	options.Interval = 1
 	gameBackend := NewNativeGameBackend()
-	tableEngine := NewTableEngine(options, WithGameBackend(*gameBackend))
+	tableEngine := NewTableEngine(options, WithGameBackend(gameBackend))
 	table, err := tableEngine.CreateTable(tableSetting)
 	if err != nil {
 		return nil, err
 	}
 
-	m.tableEngines.Store(table.ID, tableEngine)
+	m.tableEngines[table.ID] = tableEngine
 	return table, nil
 }
 
@@ -89,7 +88,7 @@ func (m *manager) CloseTable(tableID string) error {
 		return err
 	}
 
-	m.tableEngines.Delete(tableID)
+	delete(m.tableEngines, tableID)
 	return nil
 }
 

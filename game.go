@@ -281,6 +281,7 @@ func (g *game) validatePlayMove(playerIdx int) error {
 	}
 
 	if g.gs.Status.CurrentPlayer != playerIdx {
+		// fmt.Printf("[DEBUG#game] not player's turn. CurrentPlayer: %d, playerIdx: %d\n", g.gs.Status.CurrentPlayer, playerIdx)
 		return ErrGameInvalidAction
 	}
 
@@ -293,10 +294,12 @@ func (g *game) validateActionMove(playerIdx int, action string) error {
 	}
 
 	if !g.gs.HasAction(playerIdx, action) {
+		// fmt.Printf("[DEBUG#game] player (%d) has no action (%s)\n", playerIdx, action)
 		return ErrGameInvalidAction
 	}
 
 	if g.rg == nil {
+		// fmt.Println("[DEBUG#game] ready group is nil")
 		return ErrGameInvalidAction
 	}
 

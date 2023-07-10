@@ -2,7 +2,9 @@ package pokertable
 
 import (
 	"errors"
+	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,6 +19,7 @@ var (
 	ErrTablePlayerNotFound          = errors.New("table: player not found")
 	ErrTablePlayerInvalidGameAction = errors.New("table: player invalid game action")
 	ErrTablePlayerInvalidAction     = errors.New("table: player invalid action")
+	ErrTableOpenGameFailed          = errors.New("table: failed to open game")
 )
 
 type TableEngineOpt func(*tableEngine)
@@ -66,6 +69,7 @@ type TableEngine interface {
 }
 
 type tableEngine struct {
+	lock                sync.Mutex
 	options             *TableEngineOptions
 	table               *Table
 	game                Game
@@ -193,14 +197,16 @@ func (te *tableEngine) StartTableGame() error {
 	te.emitEvent("StartTableGame", "")
 
 	//  開局
-	go te.TableGameOpen()
+	te.TableGameOpen()
 
 	return nil
 }
 
 func (te *tableEngine) TableGameOpen() error {
 	// 開局
-	te.openGame()
+	if err := te.openGame(); err != nil {
+		return err
+	}
 
 	te.emitEvent("TableGameOpen", "")
 
@@ -221,6 +227,9 @@ func (te *tableEngine) UpdateBlind(level int, ante, dealer, sb, bb int64) {
 	  - 適用時機: 玩家帶籌碼報名或補碼
 */
 func (te *tableEngine) PlayerReserve(joinPlayer JoinPlayer) error {
+	te.lock.Lock()
+	defer te.lock.Unlock()
+
 	playerID := joinPlayer.PlayerID
 	redeemChips := joinPlayer.RedeemChips
 	seat := joinPlayer.Seat
@@ -274,19 +283,19 @@ func (te *tableEngine) PlayerReserve(joinPlayer JoinPlayer) error {
 */
 func (te *tableEngine) PlayersBatchReserve(joinPlayers []JoinPlayer) error {
 	if len(te.table.State.PlayerStates)+len(joinPlayers) > te.table.Meta.CompetitionMeta.TableMaxSeatCount {
+		playerIDs := make([]string, 0)
+		for _, player := range te.table.State.PlayerStates {
+			playerIDs = append(playerIDs, player.PlayerID)
+		}
+
+		joinPlayerIDs := make([]string, 0)
+		for _, joinPlayer := range joinPlayers {
+			joinPlayerIDs = append(joinPlayerIDs, joinPlayer.PlayerID)
+		}
+
+		fmt.Printf("[DEBUG] 目前玩家: %d 人 (%s), 新加入玩家: %d 人 (%s)\n", len(playerIDs), strings.Join(playerIDs, ","), len(joinPlayerIDs), strings.Join(joinPlayerIDs, ","))
 		return ErrTableNoEmptySeats
 	}
-
-	copyTable := *te.table
-	for _, joinPlayer := range joinPlayers {
-		if err := te.PlayerReserve(joinPlayer); err != nil {
-			te.table = &copyTable
-			return err
-		}
-	}
-	te.table.State.Status = TableStateStatus_TableBalancing
-
-	te.emitEvent("PlayersBatchReserve", "")
 
 	// Preparing ready group for waiting all players' join
 	te.rg.Stop()
@@ -296,6 +305,7 @@ func (te *tableEngine) PlayersBatchReserve(joinPlayers []JoinPlayer) error {
 		states := rg.GetParticipantStates()
 		for playerIdx, isReady := range states {
 			if !isReady {
+				// fmt.Printf("[DEBUG#tableEngine#PlayersBatchReserve] table [%s] %s is auto ready", te.table.ID, te.table.State.PlayerStates[playerIdx].PlayerID)
 				rg.Ready(playerIdx)
 			}
 		}
@@ -328,6 +338,23 @@ func (te *tableEngine) PlayersBatchReserve(joinPlayers []JoinPlayer) error {
 
 	te.rg.Start()
 
+	// reserve player
+	if te.table.State.GameCount <= 0 {
+		te.table.State.Status = TableStateStatus_TableBalancing
+	}
+	copyTable := *te.table
+	for _, joinPlayer := range joinPlayers {
+		if err := te.PlayerReserve(joinPlayer); err != nil {
+			te.table = &copyTable
+			te.rg.Stop()
+			te.rg.ResetParticipants()
+			return err
+		}
+		time.Sleep(time.Millisecond * 100)
+	}
+
+	te.emitEvent("PlayersBatchReserve", "")
+
 	return nil
 }
 
@@ -348,6 +375,7 @@ func (te *tableEngine) PlayerJoin(playerID string) error {
 	te.table.State.PlayerStates[playerIdx].IsIn = true
 
 	if te.table.State.Status == TableStateStatus_TableBalancing {
+		// fmt.Printf("[DEBUG#tableEngine#PlayerJoin] table [%s] %s is ready", te.table.ID, te.table.State.PlayerStates[playerIdx].PlayerID)
 		te.rg.Ready(int64(playerIdx))
 	}
 

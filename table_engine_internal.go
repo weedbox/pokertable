@@ -14,7 +14,7 @@ func (te *tableEngine) emitEvent(eventName string, playerID string) {
 	te.table.UpdateSerial++
 
 	// emit event
-	fmt.Printf("->[Table %s][#%d][%d][%s] emit Event: %s\n", te.table.ID, te.table.UpdateSerial, te.table.State.GameCount, playerID, eventName)
+	// fmt.Printf("->[Table %s][#%d][%d][%s] emit Event: %s\n", te.table.ID, te.table.UpdateSerial, te.table.State.GameCount, playerID, eventName)
 	te.onTableUpdated(te.table)
 }
 
@@ -75,7 +75,7 @@ func (te *tableEngine) updateGameState(gs *pokerface.GameState) {
 	}
 }
 
-func (te *tableEngine) openGame() {
+func (te *tableEngine) openGame() error {
 	// Step 1: 更新狀態
 	te.table.State.Status = TableStateStatus_TableGameOpened
 
@@ -151,6 +151,9 @@ func (te *tableEngine) openGame() {
 
 	// Step 6: 計算 & 更新本手參與玩家的 PlayerIndex 陣列
 	gamePlayerIndexes := FindGamePlayerIndexes(newDealerTableSeatIdx, te.table.State.SeatMap, te.table.State.PlayerStates)
+	if len(gamePlayerIndexes) < te.table.Meta.CompetitionMeta.TableMinPlayerCount {
+		return ErrTableOpenGameFailed
+	}
 	te.table.State.GamePlayerIndexes = gamePlayerIndexes
 
 	// Step 7: 計算 & 更新本手參與玩家位置資訊
@@ -174,6 +177,8 @@ func (te *tableEngine) openGame() {
 	} else {
 		te.table.State.CurrentBBSeat = UnsetValue
 	}
+
+	return nil
 }
 
 func (te *tableEngine) startGame() error {
@@ -260,9 +265,10 @@ func (te *tableEngine) continueGame() error {
 		te.emitEvent("ContinueGame -> Standby", "")
 
 		if err := te.delay(te.options.Interval, func() error {
-			// 自動開下一手條件: 非 TableStateStatus_TableGamePlaying 或 非 TableStateStatus_TableBalancing
-			stopOpen := te.table.State.Status == TableStateStatus_TableGamePlaying || te.table.State.Status == TableStateStatus_TableBalancing
-			if !stopOpen && len(te.table.AlivePlayers()) >= te.table.Meta.CompetitionMeta.TableMinPlayerCount {
+			// 自動開下一手條件: 非 TableStateStatus_TableGamePlaying 或 非 TableStateStatus_TableBalancing 或 非 TableStateStatus_TableBalancing 且有籌碼玩家 >= 最小開打人數
+			stopOpen := (te.table.State.Status == TableStateStatus_TableGamePlaying || te.table.State.Status == TableStateStatus_TableBalancing || te.table.State.Status == TableStateStatus_TableClosed) && len(te.table.AlivePlayers()) >= te.table.Meta.CompetitionMeta.TableMinPlayerCount
+			fmt.Printf("table [%s] stop open: %v\n", te.table.ID, stopOpen)
+			if !stopOpen {
 				return te.TableGameOpen()
 			}
 			return nil

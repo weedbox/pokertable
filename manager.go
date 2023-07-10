@@ -59,7 +59,7 @@ func (m *manager) GetTableEngine(tableID string) (TableEngine, error) {
 func (m *manager) CreateTable(tableSetting TableSetting) (*Table, error) {
 	options := NewTableEngineOptions()
 	options.Interval = 1
-	gameBackend := NewGameBackend()
+	gameBackend := NewNativeGameBackend()
 	tableEngine := NewTableEngine(options, WithGameBackend(*gameBackend))
 	table, err := tableEngine.CreateTable(tableSetting)
 	if err != nil {

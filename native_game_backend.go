@@ -10,7 +10,7 @@ type GameBackend struct {
 	engine pokerface.PokerFace
 }
 
-func NewGameBackend() *GameBackend {
+func NewNativeGameBackend() *GameBackend {
 	return &GameBackend{
 		engine: pokerface.NewPokerFace(),
 	}

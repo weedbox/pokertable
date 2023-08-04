@@ -98,7 +98,7 @@ func (te *tableEngine) openGame() error {
 	}
 
 	// Step 3: 處理可參賽玩家剩餘一人時，桌上有其他玩家情形
-	if len(te.table.ParticipatedPlayers()) < te.table.Meta.CompetitionMeta.TableMinPlayerCount {
+	if len(te.table.ParticipatedPlayers()) < te.table.Meta.TableMinPlayerCount {
 		for i := 0; i < len(te.table.State.PlayerStates); i++ {
 			// 沒入桌或沒籌碼玩家不能玩
 			if te.table.State.PlayerStates[i].Bankroll == 0 || !te.table.State.PlayerStates[i].IsIn {
@@ -111,7 +111,7 @@ func (te *tableEngine) openGame() error {
 	}
 
 	// Step 4: 計算新 Dealer Seat & PlayerIndex
-	newDealerPlayerIdx := FindDealerPlayerIndex(te.table.State.GameCount, te.table.State.CurrentDealerSeat, te.table.Meta.CompetitionMeta.TableMinPlayerCount, te.table.Meta.CompetitionMeta.TableMaxSeatCount, te.table.State.PlayerStates, te.table.State.SeatMap)
+	newDealerPlayerIdx := FindDealerPlayerIndex(te.table.State.GameCount, te.table.State.CurrentDealerSeat, te.table.Meta.TableMinPlayerCount, te.table.Meta.TableMaxSeatCount, te.table.State.PlayerStates, te.table.State.SeatMap)
 	newDealerTableSeatIdx := te.table.State.PlayerStates[newDealerPlayerIdx].Seat
 
 	// Step 5: 處理玩家參賽狀態，確認玩家在 BB-Dealer 的參賽權
@@ -121,8 +121,8 @@ func (te *tableEngine) openGame() error {
 		}
 
 		if newDealerTableSeatIdx-te.table.State.CurrentDealerSeat < 0 {
-			for j := te.table.State.CurrentDealerSeat + 1; j < newDealerTableSeatIdx+te.table.Meta.CompetitionMeta.TableMaxSeatCount; j++ {
-				if (j % te.table.Meta.CompetitionMeta.TableMaxSeatCount) != te.table.State.PlayerStates[i].Seat {
+			for j := te.table.State.CurrentDealerSeat + 1; j < newDealerTableSeatIdx+te.table.Meta.TableMaxSeatCount; j++ {
+				if (j % te.table.Meta.TableMaxSeatCount) != te.table.State.PlayerStates[i].Seat {
 					continue
 				}
 
@@ -151,13 +151,13 @@ func (te *tableEngine) openGame() error {
 
 	// Step 6: 計算 & 更新本手參與玩家的 PlayerIndex 陣列
 	gamePlayerIndexes := FindGamePlayerIndexes(newDealerTableSeatIdx, te.table.State.SeatMap, te.table.State.PlayerStates)
-	if len(gamePlayerIndexes) < te.table.Meta.CompetitionMeta.TableMinPlayerCount {
+	if len(gamePlayerIndexes) < te.table.Meta.TableMinPlayerCount {
 		return ErrTableOpenGameFailed
 	}
 	te.table.State.GamePlayerIndexes = gamePlayerIndexes
 
 	// Step 7: 計算 & 更新本手參與玩家位置資訊
-	positionMap := GetPlayerPositionMap(te.table.Meta.CompetitionMeta.Rule, te.table.State.PlayerStates, te.table.State.GamePlayerIndexes)
+	positionMap := GetPlayerPositionMap(te.table.Meta.Rule, te.table.State.PlayerStates, te.table.State.GamePlayerIndexes)
 	for playerIdx := 0; playerIdx < len(te.table.State.PlayerStates); playerIdx++ {
 		positions, exist := positionMap[playerIdx]
 		if exist && te.table.State.PlayerStates[playerIdx].IsParticipated {
@@ -182,7 +182,7 @@ func (te *tableEngine) openGame() error {
 }
 
 func (te *tableEngine) startGame() error {
-	rule := te.table.Meta.CompetitionMeta.Rule
+	rule := te.table.Meta.Rule
 	blind := te.table.State.BlindState
 
 	// create game options
@@ -266,7 +266,7 @@ func (te *tableEngine) continueGame() error {
 
 		if err := te.delay(te.options.Interval, func() error {
 			// 自動開下一手條件: 非 TableStateStatus_TableGamePlaying 或 非 TableStateStatus_TableBalancing 或 非 TableStateStatus_TableBalancing 且有籌碼玩家 >= 最小開打人數
-			stopOpen := (te.table.State.Status == TableStateStatus_TableGamePlaying || te.table.State.Status == TableStateStatus_TableBalancing || te.table.State.Status == TableStateStatus_TableClosed) && len(te.table.AlivePlayers()) >= te.table.Meta.CompetitionMeta.TableMinPlayerCount
+			stopOpen := (te.table.State.Status == TableStateStatus_TableGamePlaying || te.table.State.Status == TableStateStatus_TableBalancing || te.table.State.Status == TableStateStatus_TableClosed) && len(te.table.AlivePlayers()) >= te.table.Meta.TableMinPlayerCount
 			fmt.Printf("table [%s] stop open: %v\n", te.table.ID, stopOpen)
 			if !stopOpen {
 				return te.TableGameOpen()

@@ -33,15 +33,7 @@ type Table struct {
 }
 
 type TableMeta struct {
-	ShortID         string          `json:"short_id"`         // Table ID 簡短版 (大小寫英文或數字組成6位數)
-	Code            string          `json:"code"`             // 桌次編號
-	Name            string          `json:"name"`             // 桌次名稱
-	InvitationCode  string          `json:"invitation_code"`  // 桌次邀請碼
-	CompetitionMeta CompetitionMeta `json:"competition_meta"` // 賽事固定資料
-}
-
-type CompetitionMeta struct {
-	ID                  string `json:"id"`                     // 賽事 ID
+	CompetitionID       string `json:"id"`                     // 賽事 ID
 	Rule                string `json:"rule"`                   // 德州撲克規則, 常牌(default), 短牌(short_deck), 奧瑪哈(omaha)
 	Mode                string `json:"mode"`                   // 賽事模式 (CT, MTT, Cash)
 	MaxDuration         int    `json:"max_duration"`           // 比賽時間總長 (Seconds)
@@ -152,12 +144,12 @@ func (t Table) FindPlayerIdx(playerID string) int {
 }
 
 /*
-	ShouldPause 計算本桌是否已達到暫停
-	  - 暫停條件 1: 中場休息
-	  - 暫停條件 2: 存活玩家小於最小開打數
+ShouldPause 計算本桌是否已達到暫停
+  - 暫停條件 1: 中場休息
+  - 暫停條件 2: 存活玩家小於最小開打數
 */
 func (t Table) ShouldPause() bool {
-	return t.State.BlindState.IsBreaking() || len(t.AlivePlayers()) < t.Meta.CompetitionMeta.TableMinPlayerCount
+	return t.State.BlindState.IsBreaking() || len(t.AlivePlayers()) < t.Meta.TableMinPlayerCount
 }
 
 // TableBlindState Getters

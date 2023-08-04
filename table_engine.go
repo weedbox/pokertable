@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/thoas/go-funk"
 	"github.com/weedbox/syncsaga"
 	"github.com/weedbox/timebank"
@@ -120,24 +119,17 @@ func (te *tableEngine) GetGame() Game {
 
 func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
 	// validate tableSetting
-	if len(tableSetting.JoinPlayers) > tableSetting.CompetitionMeta.TableMaxSeatCount {
+	if len(tableSetting.JoinPlayers) > tableSetting.Meta.TableMaxSeatCount {
 		return nil, ErrTableInvalidCreateSetting
 	}
 
 	// create table instance
 	table := &Table{
-		ID: uuid.New().String(),
+		ID: tableSetting.TableID,
 	}
 
 	// configure meta
-	meta := TableMeta{
-		ShortID:         tableSetting.ShortID,
-		Code:            tableSetting.Code,
-		Name:            tableSetting.Name,
-		InvitationCode:  tableSetting.InvitationCode,
-		CompetitionMeta: tableSetting.CompetitionMeta,
-	}
-	table.Meta = meta
+	table.Meta = tableSetting.Meta
 
 	// configure state
 	state := TableState{
@@ -152,7 +144,7 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
 		},
 		CurrentDealerSeat: UnsetValue,
 		CurrentBBSeat:     UnsetValue,
-		SeatMap:           NewDefaultSeatMap(tableSetting.CompetitionMeta.TableMaxSeatCount),
+		SeatMap:           NewDefaultSeatMap(tableSetting.Meta.TableMaxSeatCount),
 		PlayerStates:      make([]*TablePlayerState, 0),
 		GamePlayerIndexes: make([]int, 0),
 		Status:            TableStateStatus_TableCreated,
@@ -170,8 +162,8 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
 }
 
 /*
-	BalanceTable 等待拆併桌
-	  - 適用時機: 該桌次需要拆併桌時
+BalanceTable 等待拆併桌
+  - 適用時機: 該桌次需要拆併桌時
 */
 func (te *tableEngine) BalanceTable() error {
 	te.table.State.Status = TableStateStatus_TableBalancing
@@ -181,8 +173,8 @@ func (te *tableEngine) BalanceTable() error {
 }
 
 /*
-	CloseTable 關閉桌次
-	  - 適用時機: 強制關閉、逾期自動關閉、正常關閉
+CloseTable 關閉桌次
+  - 適用時機: 強制關閉、逾期自動關閉、正常關閉
 */
 func (te *tableEngine) CloseTable() error {
 	te.table.State.Status = TableStateStatus_TableClosed
@@ -223,8 +215,8 @@ func (te *tableEngine) UpdateBlind(level int, ante, dealer, sb, bb int64) {
 }
 
 /*
-	PlayerReserve 玩家確認座位
-	  - 適用時機: 玩家帶籌碼報名或補碼
+PlayerReserve 玩家確認座位
+  - 適用時機: 玩家帶籌碼報名或補碼
 */
 func (te *tableEngine) PlayerReserve(joinPlayer JoinPlayer) error {
 	te.lock.Lock()
@@ -238,7 +230,7 @@ func (te *tableEngine) PlayerReserve(joinPlayer JoinPlayer) error {
 	targetPlayerIdx := te.table.FindPlayerIdx(playerID)
 
 	if targetPlayerIdx == UnsetValue {
-		if len(te.table.State.PlayerStates) == te.table.Meta.CompetitionMeta.TableMaxSeatCount {
+		if len(te.table.State.PlayerStates) == te.table.Meta.TableMaxSeatCount {
 			return ErrTableNoEmptySeats
 		}
 
@@ -264,11 +256,11 @@ func (te *tableEngine) PlayerReserve(joinPlayer JoinPlayer) error {
 		}
 		te.table.State.SeatMap[seatIdx] = newPlayerIdx
 		te.table.State.PlayerStates[newPlayerIdx].Seat = seatIdx
-		te.table.State.PlayerStates[newPlayerIdx].IsBetweenDealerBB = IsBetweenDealerBB(seatIdx, te.table.State.CurrentDealerSeat, te.table.State.CurrentBBSeat, te.table.Meta.CompetitionMeta.TableMaxSeatCount, te.table.Meta.CompetitionMeta.Rule)
+		te.table.State.PlayerStates[newPlayerIdx].IsBetweenDealerBB = IsBetweenDealerBB(seatIdx, te.table.State.CurrentDealerSeat, te.table.State.CurrentBBSeat, te.table.Meta.TableMaxSeatCount, te.table.Meta.Rule)
 	} else {
 		// ReBuy
 		// 補碼要檢查玩家是否介於 Dealer-BB 之間
-		te.table.State.PlayerStates[targetPlayerIdx].IsBetweenDealerBB = IsBetweenDealerBB(te.table.State.PlayerStates[targetPlayerIdx].Seat, te.table.State.CurrentDealerSeat, te.table.State.CurrentBBSeat, te.table.Meta.CompetitionMeta.TableMaxSeatCount, te.table.Meta.CompetitionMeta.Rule)
+		te.table.State.PlayerStates[targetPlayerIdx].IsBetweenDealerBB = IsBetweenDealerBB(te.table.State.PlayerStates[targetPlayerIdx].Seat, te.table.State.CurrentDealerSeat, te.table.State.CurrentBBSeat, te.table.Meta.TableMaxSeatCount, te.table.Meta.Rule)
 		te.table.State.PlayerStates[targetPlayerIdx].Bankroll += redeemChips
 		te.table.State.PlayerStates[targetPlayerIdx].IsParticipated = true
 	}
@@ -278,11 +270,11 @@ func (te *tableEngine) PlayerReserve(joinPlayer JoinPlayer) error {
 }
 
 /*
-	PlayersBatchReserve 多位玩家確認座位
-	  - 適用時機: 拆併桌整桌玩家確認座位、開桌時有預設玩家
+PlayersBatchReserve 多位玩家確認座位
+  - 適用時機: 拆併桌整桌玩家確認座位、開桌時有預設玩家
 */
 func (te *tableEngine) PlayersBatchReserve(joinPlayers []JoinPlayer) error {
-	if len(te.table.State.PlayerStates)+len(joinPlayers) > te.table.Meta.CompetitionMeta.TableMaxSeatCount {
+	if len(te.table.State.PlayerStates)+len(joinPlayers) > te.table.Meta.TableMaxSeatCount {
 		playerIDs := make([]string, 0)
 		for _, player := range te.table.State.PlayerStates {
 			playerIDs = append(playerIDs, player.PlayerID)
@@ -359,8 +351,8 @@ func (te *tableEngine) PlayersBatchReserve(joinPlayers []JoinPlayer) error {
 }
 
 /*
-	PlayerJoin 玩家入桌
-	  - 適用時機: 玩家已經確認座位後入桌
+PlayerJoin 玩家入桌
+  - 適用時機: 玩家已經確認座位後入桌
 */
 func (te *tableEngine) PlayerJoin(playerID string) error {
 	playerIdx := te.table.FindPlayerIdx(playerID)
@@ -384,8 +376,8 @@ func (te *tableEngine) PlayerJoin(playerID string) error {
 }
 
 /*
-	PlayerRedeemChips 增購籌碼
-	  - 適用時機: 增購
+PlayerRedeemChips 增購籌碼
+  - 適用時機: 增購
 */
 func (te *tableEngine) PlayerRedeemChips(joinPlayer JoinPlayer) error {
 	// find player index in PlayerStates
@@ -396,7 +388,7 @@ func (te *tableEngine) PlayerRedeemChips(joinPlayer JoinPlayer) error {
 
 	// 如果是 Bankroll 為 0 的情況，增購要檢查玩家是否介於 Dealer-BB 之間
 	if te.table.State.PlayerStates[playerIdx].Bankroll == 0 {
-		te.table.State.PlayerStates[playerIdx].IsBetweenDealerBB = IsBetweenDealerBB(te.table.State.PlayerStates[playerIdx].Seat, te.table.State.CurrentDealerSeat, te.table.State.CurrentBBSeat, te.table.Meta.CompetitionMeta.TableMaxSeatCount, te.table.Meta.CompetitionMeta.Rule)
+		te.table.State.PlayerStates[playerIdx].IsBetweenDealerBB = IsBetweenDealerBB(te.table.State.PlayerStates[playerIdx].Seat, te.table.State.CurrentDealerSeat, te.table.State.CurrentBBSeat, te.table.Meta.TableMaxSeatCount, te.table.Meta.Rule)
 	}
 	te.table.State.PlayerStates[playerIdx].Bankroll += joinPlayer.RedeemChips
 
@@ -405,13 +397,13 @@ func (te *tableEngine) PlayerRedeemChips(joinPlayer JoinPlayer) error {
 }
 
 /*
-	PlayerLeave 玩家們離開桌次
-	  - 適用時機:
-	    - CT 退桌 (玩家有籌碼)
-		- CT 放棄補碼 (玩家沒有籌碼)
-	    - CT/MTT 斷線且補碼中時(視為淘汰離開)
-	    - CASH 離開 (準備結算)
-		- CT/MTT 停止買入後被淘汰
+PlayerLeave 玩家們離開桌次
+  - 適用時機:
+  - CT 退桌 (玩家有籌碼)
+  - CT 放棄補碼 (玩家沒有籌碼)
+  - CT/MTT 斷線且補碼中時(視為淘汰離開)
+  - CASH 離開 (準備結算)
+  - CT/MTT 停止買入後被淘汰
 */
 func (te *tableEngine) PlayersLeave(playerIDs []string) error {
 	// find player index in PlayerStates

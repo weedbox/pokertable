@@ -127,13 +127,13 @@ func (br *botRunner) requestMove() error {
 		}
 	}
 
-	if !br.isHumanized || br.tableInfo.Meta.CompetitionMeta.ActionTime == 0 {
+	if !br.isHumanized || br.tableInfo.Meta.ActionTime == 0 {
 		// fmt.Printf("[1][#%d][%d][%s][%s] br.requestAI\n", br.tableInfo.UpdateSerial, br.tableInfo.State.GameCount, br.playerID, br.tableInfo.State.GameState.Status.Round)
 		return br.requestAI()
 	}
 
 	// For simulating human-like behavior, to incorporate random delays when performing actions.
-	thinkingTime := rand.Intn(br.tableInfo.Meta.CompetitionMeta.ActionTime)
+	thinkingTime := rand.Intn(br.tableInfo.Meta.ActionTime)
 	if thinkingTime == 0 {
 		return br.requestAI()
 	}

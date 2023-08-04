@@ -16,19 +16,15 @@ func TestActor_BotRunner_Humanize(t *testing.T) {
 	// create manager & table
 	manager := pokertable.NewManager()
 	table, err := manager.CreateTable(pokertable.TableSetting{
-		ShortID:        "ABC123",
-		Code:           "01",
-		Name:           "3300 - 10 sec",
-		InvitationCode: "come_to_play",
-		CompetitionMeta: pokertable.CompetitionMeta{
-			ID:                  uuid.New().String(),
-			MaxDuration:         10,
+		Meta: pokertable.TableMeta{
+			CompetitionID:       uuid.New().String(),
 			Rule:                pokertable.CompetitionRule_Default,
 			Mode:                pokertable.CompetitionMode_CT,
+			MaxDuration:         10,
 			TableMaxSeatCount:   9,
 			TableMinPlayerCount: 2,
 			MinChipUnit:         10,
-			ActionTime:          10,
+			ActionTime:          1,
 		},
 	})
 	assert.Nil(t, err, "create table failed")

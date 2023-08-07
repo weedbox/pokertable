@@ -1,6 +1,7 @@
 package pokertable
 
 import (
+	"encoding/json"
 	"errors"
 	"sync"
 
@@ -49,6 +50,7 @@ type game struct {
 	opts               *pokerface.GameOptions
 	rg                 *syncsaga.ReadyGroup
 	mu                 sync.RWMutex
+	isClosed           bool
 	incomingStates     chan *pokerface.GameState
 	onGameStateUpdated func(*pokerface.GameState)
 	onGameErrorUpdated func(*pokerface.GameState, error)
@@ -314,12 +316,31 @@ func (g *game) runGameStateUpdater() {
 	}()
 }
 
+func (g *game) cloneState(gs *pokerface.GameState) *pokerface.GameState {
+	// clone table state
+	data, err := json.Marshal(gs)
+	if err != nil {
+		return nil
+	}
+
+	var state pokerface.GameState
+	json.Unmarshal(data, &state)
+
+	return &state
+}
+
 func (g *game) updateGameState(gs *pokerface.GameState) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	g.gs = gs
-	g.incomingStates <- gs
+	state := g.cloneState(gs)
+	g.gs = state
+
+	if g.isClosed {
+		return
+	}
+
+	g.incomingStates <- state
 }
 
 func (g *game) handleGameState(gs *pokerface.GameState) {
@@ -455,5 +476,10 @@ func (g *game) onRoundClosed(gs *pokerface.GameState) {
 }
 
 func (g *game) onGameClosed(gs *pokerface.GameState) {
+	if g.isClosed {
+		return
+	}
+
+	g.isClosed = true
 	close(g.incomingStates)
 }

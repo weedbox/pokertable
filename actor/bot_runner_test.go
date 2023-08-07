@@ -16,6 +16,7 @@ func TestActor_BotRunner_Humanize(t *testing.T) {
 	// create manager & table
 	manager := pokertable.NewManager()
 	table, err := manager.CreateTable(pokertable.TableSetting{
+		TableID: uuid.New().String(),
 		Meta: pokertable.TableMeta{
 			CompetitionID:       uuid.New().String(),
 			Rule:                pokertable.CompetitionRule_Default,

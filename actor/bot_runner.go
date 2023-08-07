@@ -19,21 +19,22 @@ var (
 	actionProbabilities = []ActionProbability{
 		{Action: "check", Weight: 0.1},
 		{Action: "call", Weight: 0.3},
-		{Action: "fold", Weight: 0.2},
+		{Action: "fold", Weight: 0.15},
 		{Action: "allin", Weight: 0.05},
-		{Action: "raise", Weight: 0.25},
+		{Action: "raise", Weight: 0.3},
 		{Action: "bet", Weight: 0.1},
 	}
 )
 
 type botRunner struct {
-	actor         Actor
-	actions       Actions
-	playerID      string
-	gamePlayerIdx int
-	isHumanized   bool
-	timebank      *timebank.TimeBank
-	tableInfo     *pokertable.Table
+	actor             Actor
+	actions           Actions
+	playerID          string
+	isHumanized       bool
+	curGameID         string
+	lastGameStateTime int64
+	timebank          *timebank.TimeBank
+	tableInfo         *pokertable.Table
 }
 
 func NewBotRunner(playerID string) *botRunner {
@@ -54,71 +55,105 @@ func (br *botRunner) Humanized(enabled bool) {
 
 func (br *botRunner) UpdateTableState(table *pokertable.Table) error {
 
+	gs := table.State.GameState
 	br.tableInfo = table
 
-	if br.tableInfo.State.Status == pokertable.TableStateStatus_TableGameStandby {
+	// The state remains unchanged or is outdated
+	if gs != nil {
+
+		// New game
+		if gs.GameID != br.curGameID {
+			br.curGameID = gs.GameID
+		}
+
+		//fmt.Println(br.lastGameStateTime, br.tableInfo.State.GameState.UpdatedAt)
+		if br.lastGameStateTime >= gs.UpdatedAt {
+			//fmt.Println(br.playerID, table.ID)
+			return nil
+		}
+
+		br.lastGameStateTime = gs.UpdatedAt
+	}
+
+	// Check if you have been eliminated
+	isEliminated := true
+	for _, ps := range table.State.PlayerStates {
+		if ps.PlayerID == br.playerID {
+			isEliminated = false
+		}
+	}
+
+	if isEliminated {
+		return nil
+	}
+
+	if table.State.Status == pokertable.TableStateStatus_TableGameStandby {
 		return nil
 	}
 
 	// Update player index in game
-	br.gamePlayerIdx = table.GamePlayerIndex(br.playerID)
+	gamePlayerIdx := br.actor.GetTable().GetGamePlayerIndex(br.playerID)
 
 	// Somehow, this player is not in the game.
-	// It probably has no chips already.
-	if br.gamePlayerIdx == -1 {
+	// It probably has no chips already or just sat down and have not participated in the game yet
+	if gamePlayerIdx == -1 {
 		return nil
 	}
 
-	// if br.tableInfo.State.GameState != nil {
-	// 	fmt.Printf("[#%d][%d][%s][%s] Table Status: %s\n", br.tableInfo.UpdateSerial, br.tableInfo.State.GameCount, br.playerID, br.tableInfo.State.GameState.Status.Round, br.tableInfo.State.Status)
-	// } else {
-	// 	fmt.Printf("[#%d][%d][%s][] Table Status: %s\n", br.tableInfo.UpdateSerial, br.tableInfo.State.GameCount, br.playerID, br.tableInfo.State.Status)
-	// }
+	if table.State.Status != pokertable.TableStateStatus_TableGamePlaying {
+		return nil
+	}
 
-	// Game is running right now
-	switch br.tableInfo.State.Status {
-	case pokertable.TableStateStatus_TableGamePlaying:
+	//fmt.Printf("Bot (player_id=%s, gameIdx=%d)\n", br.playerID, br.gamePlayerIdx)
 
-		// We have actions allowed by game engine
-		player := br.tableInfo.State.GameState.GetPlayer(br.gamePlayerIdx)
-		if len(player.AllowedActions) > 0 && br.tableInfo.State.GameState.Status.CurrentEvent != pokerface.GameEventSymbols[pokerface.GameEvent_RoundClosed] {
-			// fmt.Printf("[#%d][%s][] AllowedActions: %v\n", br.tableInfo.UpdateSerial, br.playerID, player.AllowedActions)
-			return br.requestMove()
-		}
+	// game is running so we have to check actions allowed
+	player := gs.GetPlayer(gamePlayerIdx)
+	if player == nil {
+		return nil
+	}
+
+	if len(player.AllowedActions) > 0 {
+		//fmt.Println(br.playerID, player.AllowedActions)
+		return br.requestMove(table.State.GameState, gamePlayerIdx)
 	}
 
 	return nil
 }
 
-func (br *botRunner) requestMove() error {
-
-	gs := br.tableInfo.State.GameState
+func (br *botRunner) requestMove(gs *pokerface.GameState, playerIdx int) error {
 
 	//fmt.Println(br.tableInfo.State.GameState.Status.Round, br.gamePlayerIdx, gs.Players[br.gamePlayerIdx].AllowedActions)
+	/*
+		player := gs.Players[br.gamePlayerIdx]
+		if len(player.AllowedActions) == 1 {
+			fmt.Println(br.playerID, player.AllowedActions)
+		}
+	*/
 
 	// Do ready() and pay() automatically
-	if gs.HasAction(br.gamePlayerIdx, "ready") {
+	if gs.HasAction(playerIdx, "ready") {
 		fmt.Printf("[#%d][%d][%s][%s] READY\n", br.tableInfo.UpdateSerial, br.tableInfo.State.GameCount, br.playerID, br.tableInfo.State.GameState.Status.Round)
 		return br.actions.Ready()
-	} else if gs.HasAction(br.gamePlayerIdx, "pass") {
+	} else if gs.HasAction(playerIdx, "pass") {
+		fmt.Printf("[#%d][%d][%s][%s] PASS\n", br.tableInfo.UpdateSerial, br.tableInfo.State.GameCount, br.playerID, br.tableInfo.State.GameState.Status.Round)
 		return br.actions.Pass()
-	} else if gs.HasAction(br.gamePlayerIdx, "pay") {
+	} else if gs.HasAction(playerIdx, "pay") {
 
 		// Pay for ante and blinds
 		switch gs.Status.CurrentEvent {
 		case pokerface.GameEventSymbols[pokerface.GameEvent_AnteRequested]:
-			fmt.Printf("[#%d][%d][%s][%s] PAY ANTE\n", br.tableInfo.UpdateSerial, br.tableInfo.State.GameCount, br.playerID, br.tableInfo.State.GameState.Status.Round)
 
 			// Ante
+			fmt.Printf("[#%d][%d][%s][%s] PAY ANTE\n", br.tableInfo.UpdateSerial, br.tableInfo.State.GameCount, br.playerID, br.tableInfo.State.GameState.Status.Round)
 			return br.actions.Pay(gs.Meta.Ante)
 
 		case pokerface.GameEventSymbols[pokerface.GameEvent_BlindsRequested]:
 
 			// blinds
-			if gs.HasPosition(br.gamePlayerIdx, "sb") {
+			if gs.HasPosition(playerIdx, "sb") {
 				fmt.Printf("[#%d][%d][%s][%s] PAY SB\n", br.tableInfo.UpdateSerial, br.tableInfo.State.GameCount, br.playerID, br.tableInfo.State.GameState.Status.Round)
 				return br.actions.Pay(gs.Meta.Blind.SB)
-			} else if gs.HasPosition(br.gamePlayerIdx, "bb") {
+			} else if gs.HasPosition(playerIdx, "bb") {
 				fmt.Printf("[#%d][%d][%s][%s] PAY BB\n", br.tableInfo.UpdateSerial, br.tableInfo.State.GameCount, br.playerID, br.tableInfo.State.GameState.Status.Round)
 				return br.actions.Pay(gs.Meta.Blind.BB)
 			}
@@ -128,14 +163,13 @@ func (br *botRunner) requestMove() error {
 	}
 
 	if !br.isHumanized || br.tableInfo.Meta.ActionTime == 0 {
-		// fmt.Printf("[1][#%d][%d][%s][%s] br.requestAI\n", br.tableInfo.UpdateSerial, br.tableInfo.State.GameCount, br.playerID, br.tableInfo.State.GameState.Status.Round)
-		return br.requestAI()
+		return br.requestAI(gs, playerIdx)
 	}
 
 	// For simulating human-like behavior, to incorporate random delays when performing actions.
 	thinkingTime := rand.Intn(br.tableInfo.Meta.ActionTime)
 	if thinkingTime == 0 {
-		return br.requestAI()
+		return br.requestAI(gs, playerIdx)
 	}
 
 	return br.timebank.NewTask(time.Duration(thinkingTime)*time.Second, func(isCancelled bool) {
@@ -143,8 +177,8 @@ func (br *botRunner) requestMove() error {
 		if isCancelled {
 			return
 		}
-		// fmt.Printf("[2][#%d][%d][%s][%s] br.requestAI\n", br.tableInfo.UpdateSerial, br.tableInfo.State.GameCount, br.playerID, br.tableInfo.State.GameState.Status.Round)
-		br.requestAI()
+
+		br.requestAI(gs, playerIdx)
 	})
 }
 
@@ -191,18 +225,14 @@ func (br *botRunner) calcAction(actions []string) string {
 	return actions[len(actions)-1]
 }
 
-func (br *botRunner) requestAI() error {
+func (br *botRunner) requestAI(gs *pokerface.GameState, playerIdx int) error {
 
-	gs := br.tableInfo.State.GameState
-	player := gs.Players[br.gamePlayerIdx]
+	player := gs.Players[playerIdx]
 
 	// None of actions is allowed
 	if len(player.AllowedActions) == 0 {
 		return nil
 	}
-
-	// fmt.Println(player.Idx, player.AllowedActions)
-	// fmt.Printf("[#%d][%d][%s][%s] AllowedActions: %v\n", br.tableInfo.UpdateSerial, br.tableInfo.State.GameCount, br.playerID, br.tableInfo.State.GameState.Status.Round, player.AllowedActions)
 
 	action := player.AllowedActions[0]
 
@@ -211,6 +241,19 @@ func (br *botRunner) requestAI() error {
 	}
 
 	// Calculate chips
+	chips := int64(0)
+
+	/*
+		// Debugging messages
+		defer func() {
+			if chips > 0 {
+				fmt.Printf("Action %s %v %s(%d)\n", br.playerID, player.AllowedActions, action, chips)
+			} else {
+				fmt.Printf("Action %s %v %s\n", br.playerID, player.AllowedActions, action)
+			}
+		}()
+	*/
+
 	switch action {
 	case "bet":
 
@@ -221,7 +264,7 @@ func (br *botRunner) requestAI() error {
 			return br.actions.Bet(player.InitialStackSize)
 		}
 
-		chips := rand.Int63n(player.InitialStackSize-minBet) + minBet
+		chips = rand.Int63n(player.InitialStackSize-minBet) + minBet
 		fmt.Printf("[#%d][%d][%s][%s] BET %d\n", br.tableInfo.UpdateSerial, br.tableInfo.State.GameCount, br.playerID, br.tableInfo.State.GameState.Status.Round, chips)
 		return br.actions.Bet(chips)
 	case "raise":
@@ -230,11 +273,11 @@ func (br *botRunner) requestAI() error {
 		minChipLevel := gs.Status.CurrentWager + gs.Status.PreviousRaiseSize
 
 		if maxChipLevel <= minChipLevel {
-			fmt.Printf("[#%d][%d][%s][%s] RAISE %d\n", br.tableInfo.UpdateSerial, br.tableInfo.State.GameCount, br.playerID, br.tableInfo.State.GameState.Status.Round, minChipLevel)
-			return br.actions.Raise(minChipLevel)
+			fmt.Printf("[#%d][%d][%s][%s] RAISE %d\n", br.tableInfo.UpdateSerial, br.tableInfo.State.GameCount, br.playerID, br.tableInfo.State.GameState.Status.Round, maxChipLevel)
+			return br.actions.Raise(maxChipLevel)
 		}
 
-		chips := rand.Int63n(maxChipLevel-minChipLevel) + minChipLevel
+		chips = rand.Int63n(maxChipLevel-minChipLevel) + minChipLevel
 		fmt.Printf("[#%d][%d][%s][%s] RAISE %d\n", br.tableInfo.UpdateSerial, br.tableInfo.State.GameCount, br.playerID, br.tableInfo.State.GameState.Status.Round, chips)
 		return br.actions.Raise(chips)
 	case "call":
@@ -247,6 +290,7 @@ func (br *botRunner) requestAI() error {
 		fmt.Printf("[#%d][%d][%s][%s] ALLIN\n", br.tableInfo.UpdateSerial, br.tableInfo.State.GameCount, br.playerID, br.tableInfo.State.GameState.Status.Round)
 		return br.actions.Allin()
 	}
+
 	fmt.Printf("[#%d][%d][%s][%s] FOLD\n", br.tableInfo.UpdateSerial, br.tableInfo.State.GameCount, br.playerID, br.tableInfo.State.GameState.Status.Round)
 	return br.actions.Fold()
 }

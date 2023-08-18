@@ -35,8 +35,10 @@ func NewTableEngineOptions() *TableEngineOptions {
 
 type TableEngine interface {
 	// Events
-	OnTableUpdated(fn func(*Table))             // 桌次更新事件監聽器
-	OnTableErrorUpdated(fn func(*Table, error)) // 錯誤更新事件監聽器
+	OnTableUpdated(fn func(*Table))                                       // 桌次更新事件監聽器
+	OnTableErrorUpdated(fn func(*Table, error))                           // 錯誤更新事件監聽器
+	OnTableStateUpdated(fn func(string, *Table))                          // 桌次狀態監聽器
+	OnTablePlayerStateUpdated(fn func(string, string, *TablePlayerState)) // 桌次玩家狀態監聽器
 
 	// Table Actions
 	GetTable() *Table                                      // 取得桌次
@@ -68,24 +70,28 @@ type TableEngine interface {
 }
 
 type tableEngine struct {
-	lock                sync.Mutex
-	options             *TableEngineOptions
-	table               *Table
-	game                Game
-	gameBackend         GameBackend
-	rg                  *syncsaga.ReadyGroup
-	tb                  *timebank.TimeBank
-	onTableUpdated      func(*Table)
-	onTableErrorUpdated func(*Table, error)
+	lock                      sync.Mutex
+	options                   *TableEngineOptions
+	table                     *Table
+	game                      Game
+	gameBackend               GameBackend
+	rg                        *syncsaga.ReadyGroup
+	tb                        *timebank.TimeBank
+	onTableUpdated            func(*Table)
+	onTableErrorUpdated       func(*Table, error)
+	onTableStateUpdated       func(string, *Table)
+	onTablePlayerStateUpdated func(string, string, *TablePlayerState)
 }
 
 func NewTableEngine(options *TableEngineOptions, opts ...TableEngineOpt) TableEngine {
 	te := &tableEngine{
-		options:             options,
-		rg:                  syncsaga.NewReadyGroup(),
-		tb:                  timebank.NewTimeBank(),
-		onTableUpdated:      func(t *Table) {},
-		onTableErrorUpdated: func(t *Table, err error) {},
+		options:                   options,
+		rg:                        syncsaga.NewReadyGroup(),
+		tb:                        timebank.NewTimeBank(),
+		onTableUpdated:            func(t *Table) {},
+		onTableErrorUpdated:       func(t *Table, err error) {},
+		onTableStateUpdated:       func(string, *Table) {},
+		onTablePlayerStateUpdated: func(string, string, *TablePlayerState) {},
 	}
 
 	for _, opt := range opts {
@@ -107,6 +113,14 @@ func (te *tableEngine) OnTableUpdated(fn func(*Table)) {
 
 func (te *tableEngine) OnTableErrorUpdated(fn func(*Table, error)) {
 	te.onTableErrorUpdated = fn
+}
+
+func (te *tableEngine) OnTableStateUpdated(fn func(string, *Table)) {
+	te.onTableStateUpdated = fn
+}
+
+func (te *tableEngine) OnTablePlayerStateUpdated(fn func(string, string, *TablePlayerState)) {
+	te.onTablePlayerStateUpdated = fn
 }
 
 func (te *tableEngine) GetTable() *Table {
@@ -158,6 +172,7 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
 	}
 
 	te.emitEvent("CreateTable", "")
+	te.emitTableStateEvent(TableStateEvent_Created)
 	return te.table, nil
 }
 
@@ -169,6 +184,7 @@ func (te *tableEngine) BalanceTable() error {
 	te.table.State.Status = TableStateStatus_TableBalancing
 
 	te.emitEvent("BalanceTable", "")
+	te.emitTableStateEvent(TableStateEvent_StatusUpdated)
 	return nil
 }
 
@@ -180,6 +196,7 @@ func (te *tableEngine) CloseTable() error {
 	te.table.State.Status = TableStateStatus_TableClosed
 
 	te.emitEvent("CloseTable", "")
+	te.emitTableStateEvent(TableStateEvent_StatusUpdated)
 	return nil
 }
 
@@ -257,12 +274,16 @@ func (te *tableEngine) PlayerReserve(joinPlayer JoinPlayer) error {
 		te.table.State.SeatMap[seatIdx] = newPlayerIdx
 		te.table.State.PlayerStates[newPlayerIdx].Seat = seatIdx
 		te.table.State.PlayerStates[newPlayerIdx].IsBetweenDealerBB = IsBetweenDealerBB(seatIdx, te.table.State.CurrentDealerSeat, te.table.State.CurrentBBSeat, te.table.Meta.TableMaxSeatCount, te.table.Meta.Rule)
+
+		te.emitTablePlayerStateEvent(te.table.State.PlayerStates[newPlayerIdx])
 	} else {
 		// ReBuy
 		// 補碼要檢查玩家是否介於 Dealer-BB 之間
 		te.table.State.PlayerStates[targetPlayerIdx].IsBetweenDealerBB = IsBetweenDealerBB(te.table.State.PlayerStates[targetPlayerIdx].Seat, te.table.State.CurrentDealerSeat, te.table.State.CurrentBBSeat, te.table.Meta.TableMaxSeatCount, te.table.Meta.Rule)
 		te.table.State.PlayerStates[targetPlayerIdx].Bankroll += redeemChips
 		te.table.State.PlayerStates[targetPlayerIdx].IsParticipated = true
+
+		te.emitTablePlayerStateEvent(te.table.State.PlayerStates[targetPlayerIdx])
 	}
 
 	te.emitEvent("PlayerReserve", joinPlayer.PlayerID)
@@ -393,6 +414,7 @@ func (te *tableEngine) PlayerRedeemChips(joinPlayer JoinPlayer) error {
 	te.table.State.PlayerStates[playerIdx].Bankroll += joinPlayer.RedeemChips
 
 	te.emitEvent("PlayerRedeemChips", joinPlayer.PlayerID)
+	te.emitTablePlayerStateEvent(te.table.State.PlayerStates[playerIdx])
 	return nil
 }
 
@@ -440,6 +462,8 @@ func (te *tableEngine) PlayersLeave(playerIDs []string) error {
 
 	te.table.State.Status = TableStateStatus_TableGameStandby
 	te.emitEvent("PlayersLeave", strings.Join(playerIDs, ","))
+	te.emitTableStateEvent(TableStateEvent_StatusUpdated)
+	te.emitTableStateEvent(TableStateEvent_PlayersLeave)
 
 	return nil
 }

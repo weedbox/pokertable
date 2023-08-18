@@ -114,7 +114,10 @@ func TestTableGame_Turn_Settlement(t *testing.T) {
 
 			DebugPrintTableGameSettled(*table)
 
-			wg.Done()
+			if table.State.GameState.Status.CurrentEvent == pokerface.GameEventSymbols[pokerface.GameEvent_GameClosed] {
+				wg.Done()
+				return
+			}
 		}
 	})
 

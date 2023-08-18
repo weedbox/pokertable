@@ -38,7 +38,7 @@ func TestTableGame_Flop_Settlement(t *testing.T) {
 		case pokertable.TableStateStatus_TableGameOpened:
 			DebugPrintTableGameOpened(*table)
 		case pokertable.TableStateStatus_TableGamePlaying:
-			t.Logf("[%s] %s:", table.State.GameState.Status.Round, table.State.GameState.Status.CurrentEvent)
+			t.Logf("[%s] %s", table.State.GameState.Status.Round, table.State.GameState.Status.CurrentEvent)
 			event, ok := pokerface.GameEventBySymbol[table.State.GameState.Status.CurrentEvent]
 			if !ok {
 				return
@@ -99,7 +99,10 @@ func TestTableGame_Flop_Settlement(t *testing.T) {
 
 			DebugPrintTableGameSettled(*table)
 
-			wg.Done()
+			if table.State.GameState.Status.CurrentEvent == pokerface.GameEventSymbols[pokerface.GameEvent_GameClosed] {
+				wg.Done()
+				return
+			}
 		}
 	})
 

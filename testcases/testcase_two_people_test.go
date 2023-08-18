@@ -94,7 +94,10 @@ func TestTableGame_Two_People(t *testing.T) {
 
 			DebugPrintTableGameSettled(*table)
 
-			wg.Done()
+			if table.State.GameState.Status.CurrentEvent == pokerface.GameEventSymbols[pokerface.GameEvent_GameClosed] {
+				wg.Done()
+				return
+			}
 		}
 	})
 

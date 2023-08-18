@@ -8,21 +8,6 @@ import (
 	"github.com/weedbox/pokerface"
 )
 
-func (te *tableEngine) emitEvent(eventName string, playerID string) {
-	// refresh table
-	te.table.UpdateAt = time.Now().Unix()
-	te.table.UpdateSerial++
-
-	// emit event
-	// fmt.Printf("->[Table %s][#%d][%d][%s] emit Event: %s\n", te.table.ID, te.table.UpdateSerial, te.table.State.GameCount, playerID, eventName)
-	te.onTableUpdated(te.table)
-}
-
-func (te *tableEngine) emitErrorEvent(eventName string, playerID string, err error) {
-	// fmt.Printf("->[Table %s][#%d][%d][%s] emit ERROR Event: %s, Error: %v\n", te.table.ID, te.table.UpdateSerial, te.table.State.GameCount, playerID, eventName, err)
-	te.onTableErrorUpdated(te.table, err)
-}
-
 func (te *tableEngine) validateGameMove(gamePlayerIdx int) error {
 	// check table status
 	if te.table.State.Status != TableStateStatus_TableGamePlaying {
@@ -72,6 +57,7 @@ func (te *tableEngine) updateGameState(gs *pokerface.GameState) {
 		}
 	default:
 		te.emitEvent(gs.Status.CurrentEvent, "")
+		te.emitTableStateEvent(TableStateEvent_GameUpdated)
 	}
 }
 
@@ -198,7 +184,6 @@ func (te *tableEngine) startGame() error {
 	}
 
 	// preparing blind
-	// TODO: set level to pokerface BlindSetting
 	opts.Ante = blind.Ante
 	opts.Blind = pokerface.BlindSetting{
 		Dealer: blind.Dealer,
@@ -245,6 +230,7 @@ func (te *tableEngine) settleGame() {
 		te.table.State.PlayerStates[playerIdx].Bankroll = player.Final
 	}
 	te.emitEvent("SettleTableGameResult", "")
+	te.emitTableStateEvent(TableStateEvent_GameSettled)
 }
 
 func (te *tableEngine) continueGame() error {
@@ -259,10 +245,12 @@ func (te *tableEngine) continueGame() error {
 		// 暫停處理
 		te.table.State.Status = TableStateStatus_TablePausing
 		te.emitEvent("ContinueGame -> Pause", "")
+		te.emitTableStateEvent(TableStateEvent_StatusUpdated)
 	} else {
 		// 正常繼續新的一手
 		te.table.State.Status = TableStateStatus_TableGameStandby
 		te.emitEvent("ContinueGame -> Standby", "")
+		te.emitTableStateEvent(TableStateEvent_StatusUpdated)
 
 		if err := te.delay(te.options.Interval, func() error {
 			// 自動開下一手條件: 非 TableStateStatus_TableGamePlaying 或 非 TableStateStatus_TableBalancing 或 非 TableStateStatus_TableBalancing 且有籌碼玩家 >= 最小開打人數

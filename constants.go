@@ -30,6 +30,14 @@ const (
 	Action_Ready = "ready"
 	Action_Pay   = "pay"
 
+	// Wager Action
+	WagerAction_Fold  = "fold"
+	WagerAction_Check = "check"
+	WagerAction_Call  = "call"
+	WagerAction_AllIn = "allin"
+	WagerAction_Bet   = "bet"
+	WagerAction_Raise = "raise"
+
 	// Round
 	GameRound_Preflop = "preflop"
 	GameRound_Flop    = "flop"

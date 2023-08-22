@@ -1,7 +1,6 @@
 package pokertable
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -254,9 +253,8 @@ func (te *tableEngine) continueGame() error {
 
 		if err := te.delay(te.options.Interval, func() error {
 			// 自動開下一手條件: 非 TableStateStatus_TableGamePlaying 或 非 TableStateStatus_TableBalancing 或 非 TableStateStatus_TableBalancing 且有籌碼玩家 >= 最小開打人數
-			stopOpen := (te.table.State.Status == TableStateStatus_TableGamePlaying || te.table.State.Status == TableStateStatus_TableBalancing || te.table.State.Status == TableStateStatus_TableClosed) && len(te.table.AlivePlayers()) >= te.table.Meta.TableMinPlayerCount
-			fmt.Printf("table [%s] stop open: %v\n", te.table.ID, stopOpen)
-			if !stopOpen {
+			stopOpenNextGame := (te.table.State.Status == TableStateStatus_TableGamePlaying || te.table.State.Status == TableStateStatus_TableBalancing || te.table.State.Status == TableStateStatus_TableClosed) && len(te.table.AlivePlayers()) >= te.table.Meta.TableMinPlayerCount
+			if !stopOpenNextGame {
 				return te.TableGameOpen()
 			}
 			return nil

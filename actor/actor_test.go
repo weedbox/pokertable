@@ -11,11 +11,14 @@ import (
 )
 
 func TestActor_Basic(t *testing.T) {
+	var wg sync.WaitGroup
+	var tableEngine pokertable.TableEngine
 
 	// Initializing table
 	// create manager & table
+	actors := make([]Actor, 0)
 	manager := pokertable.NewManager()
-	table, err := manager.CreateTable(pokertable.TableSetting{
+	tableSetting := pokertable.TableSetting{
 		TableID: uuid.New().String(),
 		Meta: pokertable.TableMeta{
 			CompetitionID:       uuid.New().String(),
@@ -27,46 +30,8 @@ func TestActor_Basic(t *testing.T) {
 			MinChipUnit:         10,
 			ActionTime:          10,
 		},
-	})
-	assert.Nil(t, err, "create table failed")
-
-	// get table engine
-	tableEngine, err := manager.GetTableEngine(table.ID)
-	assert.Nil(t, err, "get table engine failed")
-
-	// Initializing bot
-	players := []pokertable.JoinPlayer{
-		{PlayerID: "Jeffrey", RedeemChips: 3000},
-		{PlayerID: "Chuck", RedeemChips: 3000},
-		{PlayerID: "Fred", RedeemChips: 3000},
 	}
-
-	// Preparing actors
-	actors := make([]Actor, 0)
-	for _, p := range players {
-
-		// Create new actor
-		a := NewActor()
-
-		// Initializing table engine adapter to communicate with table engine
-		tc := NewTableEngineAdapter(tableEngine, table)
-		a.SetAdapter(tc)
-
-		// Initializing bot runner
-		bot := NewBotRunner(p.PlayerID)
-		a.SetRunner(bot)
-
-		actors = append(actors, a)
-	}
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	// Preparing table state updater
-	tableEngine.OnTableErrorUpdated(func(table *pokertable.Table, err error) {
-		t.Log("ERROR:", err)
-	})
-	tableEngine.OnTableUpdated(func(table *pokertable.Table) {
+	tableUpdatedCallBack := func(table *pokertable.Table) {
 		// Update table state via adapter
 		for _, a := range actors {
 			a.GetTable().UpdateTableState(table)
@@ -85,9 +50,45 @@ func TestActor_Basic(t *testing.T) {
 			wg.Done()
 			return
 		}
-	})
+	}
+	tableErrorUpdatedCallBack := func(table *pokertable.Table, err error) {
+		t.Log("[Table] Error:", err)
+	}
+	tableStateUpdatedCallBack := func(event string, table *pokertable.Table) {}
+	tablePlayerStateUpdatedCallBack := func(string, string, *pokertable.TablePlayerState) {}
+	table, err := manager.CreateTable(tableSetting, tableUpdatedCallBack, tableErrorUpdatedCallBack, tableStateUpdatedCallBack, tablePlayerStateUpdatedCallBack)
+	assert.Nil(t, err, "create table failed")
 
-	// Add player to table
+	// get table engine
+	tableEngine, err = manager.GetTableEngine(table.ID)
+	assert.Nil(t, err, "get table engine failed")
+
+	// Initializing bot
+	players := []pokertable.JoinPlayer{
+		{PlayerID: "Jeffrey", RedeemChips: 3000},
+		{PlayerID: "Chuck", RedeemChips: 3000},
+		{PlayerID: "Fred", RedeemChips: 3000},
+	}
+
+	// Preparing actors
+	for _, p := range players {
+
+		// Create new actor
+		a := NewActor()
+
+		// Initializing table engine adapter to communicate with table engine
+		tc := NewTableEngineAdapter(tableEngine, table)
+		a.SetAdapter(tc)
+
+		// Initializing bot runner
+		bot := NewBotRunner(p.PlayerID)
+		a.SetRunner(bot)
+
+		actors = append(actors, a)
+	}
+	wg.Add(1)
+
+	// Add players to table
 	for _, p := range players {
 		assert.Nil(t, tableEngine.PlayerReserve(p), fmt.Sprintf("%s reserve error", p.PlayerID))
 		assert.Nil(t, tableEngine.PlayerJoin(p.PlayerID), fmt.Sprintf("%s join error", p.PlayerID))

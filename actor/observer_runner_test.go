@@ -11,11 +11,14 @@ import (
 )
 
 func TestActor_ObserverRunner_PlayerAct(t *testing.T) {
+	var wg sync.WaitGroup
+	var tableEngine pokertable.TableEngine
 
 	// Initializing table
 	// create manager & table
+	actors := make([]Actor, 0)
 	manager := pokertable.NewManager()
-	table, err := manager.CreateTable(pokertable.TableSetting{
+	tableSetting := pokertable.TableSetting{
 		TableID: uuid.New().String(),
 		Meta: pokertable.TableMeta{
 			CompetitionID:       uuid.New().String(),
@@ -27,21 +30,24 @@ func TestActor_ObserverRunner_PlayerAct(t *testing.T) {
 			MinChipUnit:         10,
 			ActionTime:          10,
 		},
-	})
+	}
+	tableUpdatedCallBack := func(table *pokertable.Table) {
+		// Update table state via adapter
+		for _, a := range actors {
+			a.GetTable().UpdateTableState(table)
+		}
+	}
+	tableErrorUpdatedCallBack := func(table *pokertable.Table, err error) {
+		t.Log("[Table] Error:", err)
+	}
+	tableStateUpdatedCallBack := func(event string, table *pokertable.Table) {}
+	tablePlayerStateUpdatedCallBack := func(string, string, *pokertable.TablePlayerState) {}
+	table, err := manager.CreateTable(tableSetting, tableUpdatedCallBack, tableErrorUpdatedCallBack, tableStateUpdatedCallBack, tablePlayerStateUpdatedCallBack)
 	assert.Nil(t, err, "create table failed")
 
 	// get table engine
-	tableEngine, err := manager.GetTableEngine(table.ID)
+	tableEngine, err = manager.GetTableEngine(table.ID)
 	assert.Nil(t, err, "get table engine failed")
-
-	// Initializing bot
-	players := []pokertable.JoinPlayer{
-		{PlayerID: "Jeffrey", RedeemChips: 3000},
-		{PlayerID: "Chuck", RedeemChips: 3000},
-		{PlayerID: "Fred", RedeemChips: 3000},
-	}
-
-	actors := make([]Actor, 0)
 
 	// Initializing observer
 	a := NewActor()
@@ -50,19 +56,12 @@ func TestActor_ObserverRunner_PlayerAct(t *testing.T) {
 	a.SetAdapter(tc)
 
 	observer := NewObserverRunner()
-	a.SetRunner(observer)
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-
 	observer.OnTableStateUpdated(func(table *pokertable.Table) {
-
 		if table.State.Status == pokertable.TableStateStatus_TableGameSettled {
 			if table.State.GameState.Status.CurrentEvent == "GameClosed" {
 				t.Log("GameClosed", table.State.GameState.GameID)
 
 				if len(table.AlivePlayers()) == 1 {
-					// tableEngine.CloseTable()
 					wg.Done()
 					return
 				}
@@ -84,10 +83,19 @@ func TestActor_ObserverRunner_PlayerAct(t *testing.T) {
 
 			//t.Log(gs.Status.LastAction.Type, gs.Status.LastAction.Source, gs.Status.LastAction.Value)
 		}
-
 	})
+	a.SetRunner(observer)
+
+	wg.Add(1)
 
 	actors = append(actors, a)
+
+	// Initializing bot
+	players := []pokertable.JoinPlayer{
+		{PlayerID: "Jeffrey", RedeemChips: 3000},
+		{PlayerID: "Chuck", RedeemChips: 3000},
+		{PlayerID: "Fred", RedeemChips: 3000},
+	}
 
 	// Preparing players
 	for _, p := range players {
@@ -105,15 +113,6 @@ func TestActor_ObserverRunner_PlayerAct(t *testing.T) {
 
 		actors = append(actors, a)
 	}
-
-	// Preparing table state updater
-	tableEngine.OnTableUpdated(func(table *pokertable.Table) {
-
-		// Update table state via adapter
-		for _, a := range actors {
-			a.GetTable().UpdateTableState(table)
-		}
-	})
 
 	// Add player to table
 	for _, p := range players {

@@ -26,14 +26,9 @@ func TestTableGame_Turn_Settlement(t *testing.T) {
 	}).([]pokertable.JoinPlayer)
 
 	// create manager & table
+	var tableEngine pokertable.TableEngine
 	manager := pokertable.NewManager()
-	table, err := manager.CreateTable(NewDefaultTableSetting())
-	assert.Nil(t, err, "create table failed")
-
-	// get table engine
-	tableEngine, err := manager.GetTableEngine(table.ID)
-	assert.Nil(t, err, "get table engine failed")
-	tableEngine.OnTableUpdated(func(table *pokertable.Table) {
+	tableUpdatedCallBack := func(table *pokertable.Table) {
 		switch table.State.Status {
 		case pokertable.TableStateStatus_TableGameOpened:
 			DebugPrintTableGameOpened(*table)
@@ -119,7 +114,18 @@ func TestTableGame_Turn_Settlement(t *testing.T) {
 				return
 			}
 		}
-	})
+	}
+	tableErrorUpdatedCallBack := func(table *pokertable.Table, err error) {
+		t.Log("[Table] Error:", err)
+	}
+	tableStateUpdatedCallBack := func(event string, table *pokertable.Table) {}
+	tablePlayerStateUpdatedCallBack := func(string, string, *pokertable.TablePlayerState) {}
+	table, err := manager.CreateTable(NewDefaultTableSetting(), tableUpdatedCallBack, tableErrorUpdatedCallBack, tableStateUpdatedCallBack, tablePlayerStateUpdatedCallBack)
+	assert.Nil(t, err, "create table failed")
+
+	// get table engine
+	tableEngine, err = manager.GetTableEngine(table.ID)
+	assert.Nil(t, err, "get table engine failed")
 
 	// players buy in
 	for _, joinPlayer := range players {

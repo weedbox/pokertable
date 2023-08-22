@@ -3,12 +3,12 @@ module github.com/weedbox/pokertable
 go 1.18
 
 require (
-	github.com/google/uuid v1.3.0
+	github.com/google/uuid v1.3.1
 	github.com/stretchr/testify v1.8.4
 	github.com/thoas/go-funk v0.9.3
-	github.com/weedbox/pokerface v0.0.0-20230806225619-817f92498fe1
-	github.com/weedbox/syncsaga v0.0.0-20230626205634-721bf83472e1
-	github.com/weedbox/timebank v0.0.0-20230626195305-39f7a14ece16
+	github.com/weedbox/pokerface v0.0.0-20230821165914-18906a6c6709
+	github.com/weedbox/syncsaga v0.0.0-20230821071725-a634f0872340
+	github.com/weedbox/timebank v0.0.0-20230713013837-bd7a6f808e3e
 )
 
 require (

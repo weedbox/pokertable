@@ -18,6 +18,8 @@ func TestActor_Basic(t *testing.T) {
 	// create manager & table
 	actors := make([]Actor, 0)
 	manager := pokertable.NewManager()
+	tableEngineOption := pokertable.NewTableEngineOptions()
+	tableEngineOption.Interval = 1
 	tableSetting := pokertable.TableSetting{
 		TableID: uuid.New().String(),
 		Meta: pokertable.TableMeta{
@@ -56,7 +58,7 @@ func TestActor_Basic(t *testing.T) {
 	}
 	tableStateUpdatedCallBack := func(event string, table *pokertable.Table) {}
 	tablePlayerStateUpdatedCallBack := func(string, string, *pokertable.TablePlayerState) {}
-	table, err := manager.CreateTable(tableSetting, tableUpdatedCallBack, tableErrorUpdatedCallBack, tableStateUpdatedCallBack, tablePlayerStateUpdatedCallBack)
+	table, err := manager.CreateTable(tableEngineOption, tableSetting, tableUpdatedCallBack, tableErrorUpdatedCallBack, tableStateUpdatedCallBack, tablePlayerStateUpdatedCallBack)
 	assert.Nil(t, err, "create table failed")
 
 	// get table engine
@@ -64,7 +66,7 @@ func TestActor_Basic(t *testing.T) {
 	assert.Nil(t, err, "get table engine failed")
 
 	// Initializing bot
-	redeemChips := int64(3000)
+	redeemChips := int64(4000)
 	players := []pokertable.JoinPlayer{
 		{PlayerID: "Jeffrey", RedeemChips: redeemChips},
 		{PlayerID: "Chuck", RedeemChips: redeemChips},

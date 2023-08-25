@@ -11,7 +11,7 @@ var (
 type Manager interface {
 	// TableEngine Actions
 	GetTableEngine(tableID string) (TableEngine, error)
-	CreateTable(tableSetting TableSetting, tableUpdatedCallBack func(*Table), tableErrorUpdatedCallBack func(*Table, error), tableStateUpdatedCallBack func(string, *Table), tablePlayerStateUpdatedCallBack func(string, string, *TablePlayerState)) (*Table, error)
+	CreateTable(engineOptions *TableEngineOptions, tableSetting TableSetting, tableUpdatedCallBack func(*Table), tableErrorUpdatedCallBack func(*Table, error), tableStateUpdatedCallBack func(string, *Table), tablePlayerStateUpdatedCallBack func(string, string, *TablePlayerState)) (*Table, error)
 	BalanceTable(tableID string) error
 	CloseTable(tableID string) error
 	StartTableGame(tableID string) error
@@ -55,9 +55,15 @@ func (m *manager) GetTableEngine(tableID string) (TableEngine, error) {
 	return tableEngine, nil
 }
 
-func (m *manager) CreateTable(tableSetting TableSetting, tableUpdatedCallBack func(*Table), tableErrorUpdatedCallBack func(*Table, error), tableStateUpdatedCallBack func(string, *Table), tablePlayerStateUpdatedCallBack func(string, string, *TablePlayerState)) (*Table, error) {
-	options := NewTableEngineOptions()
-	options.Interval = 1
+func (m *manager) CreateTable(engineOptions *TableEngineOptions, tableSetting TableSetting, tableUpdatedCallBack func(*Table), tableErrorUpdatedCallBack func(*Table, error), tableStateUpdatedCallBack func(string, *Table), tablePlayerStateUpdatedCallBack func(string, string, *TablePlayerState)) (*Table, error) {
+	var options *TableEngineOptions
+	if engineOptions != nil {
+		options = engineOptions
+	} else {
+		options = NewTableEngineOptions()
+		options.Interval = 1
+	}
+
 	gameBackend := NewNativeGameBackend()
 	tableEngine := NewTableEngine(options, WithGameBackend(gameBackend))
 	tableEngine.OnTableUpdated(tableUpdatedCallBack)

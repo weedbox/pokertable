@@ -42,7 +42,7 @@ func TestActor_ObserverRunner_PlayerAct(t *testing.T) {
 	}
 	tableStateUpdatedCallBack := func(event string, table *pokertable.Table) {}
 	tablePlayerStateUpdatedCallBack := func(string, string, *pokertable.TablePlayerState) {}
-	table, err := manager.CreateTable(tableSetting, tableUpdatedCallBack, tableErrorUpdatedCallBack, tableStateUpdatedCallBack, tablePlayerStateUpdatedCallBack)
+	table, err := manager.CreateTable(nil, tableSetting, tableUpdatedCallBack, tableErrorUpdatedCallBack, tableStateUpdatedCallBack, tablePlayerStateUpdatedCallBack)
 	assert.Nil(t, err, "create table failed")
 
 	// get table engine
@@ -91,10 +91,11 @@ func TestActor_ObserverRunner_PlayerAct(t *testing.T) {
 	actors = append(actors, a)
 
 	// Initializing bot
+	redeemChips := int64(3000)
 	players := []pokertable.JoinPlayer{
-		{PlayerID: "Jeffrey", RedeemChips: 3000},
-		{PlayerID: "Chuck", RedeemChips: 3000},
-		{PlayerID: "Fred", RedeemChips: 3000},
+		{PlayerID: "Jeffrey", RedeemChips: redeemChips},
+		{PlayerID: "Chuck", RedeemChips: redeemChips},
+		{PlayerID: "Fred", RedeemChips: redeemChips},
 	}
 
 	// Preparing players

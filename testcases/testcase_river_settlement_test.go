@@ -30,6 +30,8 @@ func TestTableGame_River_Settlement(t *testing.T) {
 	// create manager & table
 	var tableEngine pokertable.TableEngine
 	manager := pokertable.NewManager()
+	tableEngineOption := pokertable.NewTableEngineOptions()
+	tableEngineOption.Interval = 3
 	tableUpdatedCallBack := func(table *pokertable.Table) {
 		switch table.State.Status {
 		case pokertable.TableStateStatus_TableGameOpened:
@@ -106,7 +108,7 @@ func TestTableGame_River_Settlement(t *testing.T) {
 	}
 	tableStateUpdatedCallBack := func(event string, table *pokertable.Table) {}
 	tablePlayerStateUpdatedCallBack := func(string, string, *pokertable.TablePlayerState) {}
-	table, err := manager.CreateTable(NewDefaultTableSetting(), tableUpdatedCallBack, tableErrorUpdatedCallBack, tableStateUpdatedCallBack, tablePlayerStateUpdatedCallBack)
+	table, err := manager.CreateTable(tableEngineOption, NewDefaultTableSetting(), tableUpdatedCallBack, tableErrorUpdatedCallBack, tableStateUpdatedCallBack, tablePlayerStateUpdatedCallBack)
 	assert.Nil(t, err, "create table failed")
 
 	// get table engine

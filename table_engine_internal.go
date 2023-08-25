@@ -237,6 +237,12 @@ func (te *tableEngine) continueGame() error {
 	te.table.State.GamePlayerIndexes = []int{}
 	for i := 0; i < len(te.table.State.PlayerStates); i++ {
 		te.table.State.PlayerStates[i].Positions = make([]string, 0)
+		te.table.State.PlayerStates[i].GameStatistics.ActionTimes = 0
+		te.table.State.PlayerStates[i].GameStatistics.RaiseTimes = 0
+		te.table.State.PlayerStates[i].GameStatistics.CallTimes = 0
+		te.table.State.PlayerStates[i].GameStatistics.CheckTimes = 0
+		te.table.State.PlayerStates[i].GameStatistics.IsFold = false
+		te.table.State.PlayerStates[i].GameStatistics.FoldRound = ""
 	}
 
 	// 檢查是否暫停

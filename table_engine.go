@@ -260,6 +260,7 @@ func (te *tableEngine) PlayerReserve(joinPlayer JoinPlayer) error {
 			IsBetweenDealerBB: false,
 			Bankroll:          redeemChips,
 			IsIn:              false,
+			GameStatistics:    TablePlayerGameStatistics{},
 		}
 		te.table.State.PlayerStates = append(te.table.State.PlayerStates, &player)
 
@@ -490,7 +491,15 @@ func (te *tableEngine) PlayerBet(playerID string, chips int64) error {
 		return err
 	}
 
-	return te.game.Bet(gamePlayerIdx, chips)
+	err := te.game.Bet(gamePlayerIdx, chips)
+	if err == nil {
+		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
+		te.table.State.PlayerStates[playerIdx].GameStatistics.ActionTimes++
+		if te.game.GetGameState().Status.CurrentRaiser == gamePlayerIdx {
+			te.table.State.PlayerStates[playerIdx].GameStatistics.RaiseTimes++
+		}
+	}
+	return err
 }
 
 func (te *tableEngine) PlayerRaise(playerID string, chipLevel int64) error {
@@ -499,7 +508,13 @@ func (te *tableEngine) PlayerRaise(playerID string, chipLevel int64) error {
 		return err
 	}
 
-	return te.game.Raise(gamePlayerIdx, chipLevel)
+	err := te.game.Raise(gamePlayerIdx, chipLevel)
+	if err == nil {
+		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
+		te.table.State.PlayerStates[playerIdx].GameStatistics.ActionTimes++
+		te.table.State.PlayerStates[playerIdx].GameStatistics.RaiseTimes++
+	}
+	return err
 }
 
 func (te *tableEngine) PlayerCall(playerID string) error {
@@ -508,7 +523,13 @@ func (te *tableEngine) PlayerCall(playerID string) error {
 		return err
 	}
 
-	return te.game.Call(gamePlayerIdx)
+	err := te.game.Call(gamePlayerIdx)
+	if err == nil {
+		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
+		te.table.State.PlayerStates[playerIdx].GameStatistics.ActionTimes++
+		te.table.State.PlayerStates[playerIdx].GameStatistics.CallTimes++
+	}
+	return err
 }
 
 func (te *tableEngine) PlayerAllin(playerID string) error {
@@ -517,7 +538,15 @@ func (te *tableEngine) PlayerAllin(playerID string) error {
 		return err
 	}
 
-	return te.game.Allin(gamePlayerIdx)
+	err := te.game.Allin(gamePlayerIdx)
+	if err == nil {
+		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
+		te.table.State.PlayerStates[playerIdx].GameStatistics.ActionTimes++
+		if te.game.GetGameState().Status.CurrentRaiser == gamePlayerIdx {
+			te.table.State.PlayerStates[playerIdx].GameStatistics.RaiseTimes++
+		}
+	}
+	return err
 }
 
 func (te *tableEngine) PlayerCheck(playerID string) error {
@@ -526,7 +555,13 @@ func (te *tableEngine) PlayerCheck(playerID string) error {
 		return err
 	}
 
-	return te.game.Check(gamePlayerIdx)
+	err := te.game.Check(gamePlayerIdx)
+	if err == nil {
+		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
+		te.table.State.PlayerStates[playerIdx].GameStatistics.ActionTimes++
+		te.table.State.PlayerStates[playerIdx].GameStatistics.CheckTimes++
+	}
+	return err
 }
 
 func (te *tableEngine) PlayerFold(playerID string) error {
@@ -535,7 +570,14 @@ func (te *tableEngine) PlayerFold(playerID string) error {
 		return err
 	}
 
-	return te.game.Fold(gamePlayerIdx)
+	err := te.game.Fold(gamePlayerIdx)
+	if err == nil {
+		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
+		te.table.State.PlayerStates[playerIdx].GameStatistics.ActionTimes++
+		te.table.State.PlayerStates[playerIdx].GameStatistics.IsFold = true
+		te.table.State.PlayerStates[playerIdx].GameStatistics.FoldRound = te.game.GetGameState().Status.Round
+	}
+	return err
 }
 
 func (te *tableEngine) PlayerPass(playerID string) error {

@@ -57,13 +57,23 @@ type TableState struct {
 }
 
 type TablePlayerState struct {
-	PlayerID          string   `json:"player_id" mapstructure:"player_id"`                       // 玩家 ID
-	Seat              int      `json:"seat" mapstructure:"seat"`                                 // 座位編號 0 ~ 8
-	Positions         []string `json:"positions" mapstructure:"positions"`                       // 場上位置
-	IsParticipated    bool     `json:"is_participated" mapstructure:"is_participated"`           // 玩家是否參戰
-	IsBetweenDealerBB bool     `json:"is_between_dealer_bb" mapstructure:"is_between_dealer_bb"` // 玩家入場時是否在 Dealer & BB 之間
-	Bankroll          int64    `json:"bankroll" mapstructure:"bankroll"`                         // 玩家身上籌碼
-	IsIn              bool     `json:"is_in" mapstructure:"is_in"`                               // 玩家是否入座
+	PlayerID          string                    `json:"player_id" mapstructure:"player_id"`                       // 玩家 ID
+	Seat              int                       `json:"seat" mapstructure:"seat"`                                 // 座位編號 0 ~ 8
+	Positions         []string                  `json:"positions" mapstructure:"positions"`                       // 場上位置
+	IsParticipated    bool                      `json:"is_participated" mapstructure:"is_participated"`           // 玩家是否參戰
+	IsBetweenDealerBB bool                      `json:"is_between_dealer_bb" mapstructure:"is_between_dealer_bb"` // 玩家入場時是否在 Dealer & BB 之間
+	Bankroll          int64                     `json:"bankroll" mapstructure:"bankroll"`                         // 玩家身上籌碼
+	IsIn              bool                      `json:"is_in" mapstructure:"is_in"`                               // 玩家是否入座
+	GameStatistics    TablePlayerGameStatistics `json:"game_statistics" mapstructure:"game_statistics"`           // 玩家每手遊戲統計
+}
+
+type TablePlayerGameStatistics struct {
+	ActionTimes int    `json:"action_times" mapstructure:"action_times"` // 下注動作總次數
+	RaiseTimes  int    `json:"raise_times" mapstructure:"raise_times"`   // 加注總次數
+	CallTimes   int    `json:"call_times" mapstructure:"call_times"`     // 跟注總次數
+	CheckTimes  int    `json:"check_times" mapstructure:"check_times"`   // 過牌總次數
+	IsFold      bool   `json:"is_fold" mapstructure:"is_fold"`           // 是否蓋牌
+	FoldRound   string `json:"fold_round" mapstructure:"fold_round"`     // 蓋牌回合
 }
 
 type TableBlindState struct {

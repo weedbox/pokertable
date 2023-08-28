@@ -244,6 +244,7 @@ func (te *tableEngine) continueGame() error {
 		te.table.State.PlayerStates[i].GameStatistics.IsFold = false
 		te.table.State.PlayerStates[i].GameStatistics.FoldRound = ""
 	}
+	te.table.State.GameState = nil
 
 	// 檢查是否暫停
 	if te.table.ShouldPause() {

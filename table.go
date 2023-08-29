@@ -68,12 +68,13 @@ type TablePlayerState struct {
 }
 
 type TablePlayerGameStatistics struct {
-	ActionTimes int    `json:"action_times" mapstructure:"action_times"` // 下注動作總次數
-	RaiseTimes  int    `json:"raise_times" mapstructure:"raise_times"`   // 加注總次數
-	CallTimes   int    `json:"call_times" mapstructure:"call_times"`     // 跟注總次數
-	CheckTimes  int    `json:"check_times" mapstructure:"check_times"`   // 過牌總次數
-	IsFold      bool   `json:"is_fold" mapstructure:"is_fold"`           // 是否蓋牌
-	FoldRound   string `json:"fold_round" mapstructure:"fold_round"`     // 蓋牌回合
+	ActionTimes int      `json:"action_times" mapstructure:"action_times"` // 下注動作總次數
+	RaiseTimes  int      `json:"raise_times" mapstructure:"raise_times"`   // 加注總次數
+	CallTimes   int      `json:"call_times" mapstructure:"call_times"`     // 跟注總次數
+	CheckTimes  int      `json:"check_times" mapstructure:"check_times"`   // 過牌總次數
+	IsFold      bool     `json:"is_fold" mapstructure:"is_fold"`           // 是否蓋牌
+	FoldRound   string   `json:"fold_round" mapstructure:"fold_round"`     // 蓋牌回合
+	HoleCards   []string `json:"hole_cards" mapstructure:"hole_cards"`     // 玩家亮牌顯示
 }
 
 type TableBlindState struct {

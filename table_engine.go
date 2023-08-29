@@ -260,7 +260,9 @@ func (te *tableEngine) PlayerReserve(joinPlayer JoinPlayer) error {
 			IsBetweenDealerBB: false,
 			Bankroll:          redeemChips,
 			IsIn:              false,
-			GameStatistics:    TablePlayerGameStatistics{},
+			GameStatistics: TablePlayerGameStatistics{
+				HoleCards: te.newEmptyPlayerHoleCards(),
+			},
 		}
 		te.table.State.PlayerStates = append(te.table.State.PlayerStates, &player)
 

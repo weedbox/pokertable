@@ -243,6 +243,7 @@ func (te *tableEngine) continueGame() error {
 		te.table.State.PlayerStates[i].GameStatistics.CheckTimes = 0
 		te.table.State.PlayerStates[i].GameStatistics.IsFold = false
 		te.table.State.PlayerStates[i].GameStatistics.FoldRound = ""
+		te.table.State.PlayerStates[i].GameStatistics.HoleCards = te.newEmptyPlayerHoleCards()
 	}
 	te.table.State.GameState = nil
 
@@ -276,4 +277,12 @@ func (te *tableEngine) continueGame() error {
 func (te *tableEngine) onGameClosed() error {
 	te.settleGame()
 	return te.continueGame()
+}
+
+func (te *tableEngine) newEmptyPlayerHoleCards() []string {
+	holeCards := make([]string, 2)
+	if te.table.Meta.Rule == CompetitionRule_Omaha {
+		holeCards = make([]string, 4)
+	}
+	return holeCards
 }

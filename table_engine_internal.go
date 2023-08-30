@@ -61,6 +61,9 @@ func (te *tableEngine) updateGameState(gs *pokerface.GameState) {
 }
 
 func (te *tableEngine) openGame() error {
+	// Step 0: Reset state
+	te.resetTable()
+
 	// Step 1: 更新狀態
 	te.table.State.Status = TableStateStatus_TableGameOpened
 
@@ -233,20 +236,6 @@ func (te *tableEngine) settleGame() {
 }
 
 func (te *tableEngine) continueGame() error {
-	// reset state
-	te.table.State.GamePlayerIndexes = []int{}
-	for i := 0; i < len(te.table.State.PlayerStates); i++ {
-		te.table.State.PlayerStates[i].Positions = make([]string, 0)
-		te.table.State.PlayerStates[i].GameStatistics.ActionTimes = 0
-		te.table.State.PlayerStates[i].GameStatistics.RaiseTimes = 0
-		te.table.State.PlayerStates[i].GameStatistics.CallTimes = 0
-		te.table.State.PlayerStates[i].GameStatistics.CheckTimes = 0
-		te.table.State.PlayerStates[i].GameStatistics.IsFold = false
-		te.table.State.PlayerStates[i].GameStatistics.FoldRound = ""
-		te.table.State.PlayerStates[i].GameStatistics.HoleCards = te.newEmptyPlayerHoleCards()
-	}
-	te.table.State.GameState = nil
-
 	// 檢查是否暫停
 	if te.table.ShouldPause() {
 		// 暫停處理
@@ -285,4 +274,19 @@ func (te *tableEngine) newEmptyPlayerHoleCards() []string {
 		holeCards = make([]string, 4)
 	}
 	return holeCards
+}
+
+func (te *tableEngine) resetTable() {
+	te.table.State.GamePlayerIndexes = []int{}
+	for i := 0; i < len(te.table.State.PlayerStates); i++ {
+		te.table.State.PlayerStates[i].Positions = make([]string, 0)
+		te.table.State.PlayerStates[i].GameStatistics.ActionTimes = 0
+		te.table.State.PlayerStates[i].GameStatistics.RaiseTimes = 0
+		te.table.State.PlayerStates[i].GameStatistics.CallTimes = 0
+		te.table.State.PlayerStates[i].GameStatistics.CheckTimes = 0
+		te.table.State.PlayerStates[i].GameStatistics.IsFold = false
+		te.table.State.PlayerStates[i].GameStatistics.FoldRound = ""
+		te.table.State.PlayerStates[i].GameStatistics.HoleCards = te.newEmptyPlayerHoleCards()
+	}
+	te.table.State.GameState = nil
 }

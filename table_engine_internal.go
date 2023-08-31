@@ -268,14 +268,6 @@ func (te *tableEngine) onGameClosed() error {
 	return te.continueGame()
 }
 
-func (te *tableEngine) newEmptyPlayerHoleCards() []string {
-	holeCards := make([]string, 2)
-	if te.table.Meta.Rule == CompetitionRule_Omaha {
-		holeCards = make([]string, 4)
-	}
-	return holeCards
-}
-
 func (te *tableEngine) resetTable() {
 	te.table.State.GamePlayerIndexes = []int{}
 	for i := 0; i < len(te.table.State.PlayerStates); i++ {

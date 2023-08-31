@@ -286,7 +286,6 @@ func (te *tableEngine) resetTable() {
 		te.table.State.PlayerStates[i].GameStatistics.CheckTimes = 0
 		te.table.State.PlayerStates[i].GameStatistics.IsFold = false
 		te.table.State.PlayerStates[i].GameStatistics.FoldRound = ""
-		te.table.State.PlayerStates[i].GameStatistics.HoleCards = te.newEmptyPlayerHoleCards()
 	}
 	te.table.State.GameState = nil
 }

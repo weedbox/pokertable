@@ -2,6 +2,7 @@ package pokertable
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/thoas/go-funk"
 	"github.com/weedbox/pokerface"
@@ -136,6 +137,16 @@ func (t Table) GamePlayerIndex(playerID string) int {
 
 func (t Table) FindGamePlayerIdx(playerID string) int {
 	for gamePlayerIdx, playerIdx := range t.State.GamePlayerIndexes {
+		if playerIdx >= len(t.State.PlayerStates) {
+			fmt.Printf("[DEBUG#FindGamePlayerIdx] TableID: %s, PlayerID: %s, GamePlayerIndexes: %+v, len(PlayerStates): %d, TableSerial: %d\n",
+				t.ID,
+				playerID,
+				t.State.GamePlayerIndexes,
+				len(t.State.PlayerStates),
+				t.UpdateSerial,
+			)
+			continue
+		}
 		player := t.State.PlayerStates[playerIdx]
 		if player.PlayerID == playerID {
 			return gamePlayerIdx

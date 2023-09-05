@@ -58,7 +58,7 @@ type game struct {
 
 func NewGame(backend GameBackend, opts *pokerface.GameOptions) *game {
 	rg := syncsaga.NewReadyGroup(
-		syncsaga.WithTimeout(1, func(rg *syncsaga.ReadyGroup) {
+		syncsaga.WithTimeout(9, func(rg *syncsaga.ReadyGroup) {
 			// Auto Ready By Default
 			states := rg.GetParticipantStates()
 			for gamePlayerIdx, isReady := range states {

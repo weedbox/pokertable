@@ -39,24 +39,20 @@ type Manager interface {
 }
 
 type manager struct {
-	// tableEngines map[string]TableEngine
 	tableEngines sync.Map
 }
 
 func NewManager() Manager {
 	return &manager{
-		// tableEngines: make(map[string]TableEngine),
 		tableEngines: sync.Map{},
 	}
 }
 
 func (m *manager) GetTableEngine(tableID string) (TableEngine, error) {
-	// tableEngine, exist := m.tableEngines[tableID]
 	tableEngine, exist := m.tableEngines.Load(tableID)
 	if !exist {
 		return nil, ErrManagerTableNotFound
 	}
-	// return tableEngine, nil
 	return tableEngine.(TableEngine), nil
 }
 
@@ -75,12 +71,12 @@ func (m *manager) CreateTable(engineOptions *TableEngineOptions, tableSetting Ta
 	tableEngine.OnTableErrorUpdated(engineOptions.OnTableErrorUpdated)
 	tableEngine.OnTableStateUpdated(engineOptions.OnTableStateUpdated)
 	tableEngine.OnTablePlayerStateUpdated(engineOptions.OnTablePlayerStateUpdated)
+	tableEngine.OnTablePlayerReserved(engineOptions.OnTablePlayerReserved)
 	table, err := tableEngine.CreateTable(tableSetting)
 	if err != nil {
 		return nil, err
 	}
 
-	// m.tableEngines[table.ID] = tableEngine
 	m.tableEngines.Store(table.ID, tableEngine)
 	return table, nil
 }
@@ -104,7 +100,6 @@ func (m *manager) CloseTable(tableID string) error {
 		return err
 	}
 
-	// delete(m.tableEngines, tableID)
 	m.tableEngines.Delete(tableID)
 	return nil
 }

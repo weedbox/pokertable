@@ -45,16 +45,37 @@ type TableMeta struct {
 }
 
 type TableState struct {
-	Status            TableStateStatus     `json:"status" mapstructure:"status"`                           // 當前桌次狀態
-	StartAt           int64                `json:"start_at" mapstructure:"start_at"`                       // 開打時間 (Seconds)
-	SeatMap           []int                `json:"seat_map" mapstructure:"seat_map"`                       // 座位入座狀況，index: seat index (0-8), value: TablePlayerState index (-1 by default)
-	BlindState        *TableBlindState     `json:"blind_state" mapstructure:"blind_state"`                 // 盲注狀態
-	CurrentDealerSeat int                  `json:"current_dealer_seat" mapstructure:"current_dealer_seat"` // 當前 Dealer 座位編號
-	CurrentBBSeat     int                  `json:"current_bb_seat" mapstructure:"current_bb_seat"`         // 當前 BB 座位編號
-	PlayerStates      []*TablePlayerState  `json:"player_states" mapstructure:"player_states"`             // 賽局桌上玩家狀態
-	GameCount         int                  `json:"game_count" mapstructure:"game_count"`                   // 執行牌局遊戲次數 (遊戲跑幾輪)
-	GamePlayerIndexes []int                `json:"game_player_indexes" mapstructure:"game_player_indexes"` // 本手正在玩的 PlayerIndex 陣列 (陣列 index 為從 Dealer 位置開始的 PlayerIndex)，GameEngine 用
-	GameState         *pokerface.GameState `json:"game_state" mapstructure:"game_state"`                   // 本手狀態
+	Status               TableStateStatus       `json:"status" mapstructure:"status"`                                   // 當前桌次狀態
+	StartAt              int64                  `json:"start_at" mapstructure:"start_at"`                               // 開打時間 (Seconds)
+	SeatMap              []int                  `json:"seat_map" mapstructure:"seat_map"`                               // 座位入座狀況，index: seat index (0-8), value: TablePlayerState index (-1 by default)
+	BlindState           *TableBlindState       `json:"blind_state" mapstructure:"blind_state"`                         // 盲注狀態
+	CurrentDealerSeat    int                    `json:"current_dealer_seat" mapstructure:"current_dealer_seat"`         // 當前 Dealer 座位編號
+	CurrentBBSeat        int                    `json:"current_bb_seat" mapstructure:"current_bb_seat"`                 // 當前 BB 座位編號
+	PlayerStates         []*TablePlayerState    `json:"player_states" mapstructure:"player_states"`                     // 賽局桌上玩家狀態
+	GameCount            int                    `json:"game_count" mapstructure:"game_count"`                           // 執行牌局遊戲次數 (遊戲跑幾輪)
+	GamePlayerIndexes    []int                  `json:"game_player_indexes" mapstructure:"game_player_indexes"`         // 本手正在玩的 PlayerIndex 陣列 (陣列 index 為從 Dealer 位置開始的 PlayerIndex)，GameEngine 用
+	GameState            *pokerface.GameState   `json:"game_state" mapstructure:"game_state"`                           // 本手狀態
+	SeatChanges          *TableGameSeatChanges  `json:"seat_changes" mapstructure:"seat_changes"`                       // 新的一手座位狀況
+	LastPlayerGameAction *TablePlayerGameAction `json:"last_player_game_action" mapstructure:"last_player_game_action"` // 最新一筆玩家牌局動作
+}
+
+type TableGameSeatChanges struct {
+	NewDealer int `json:"new_dealer"`
+	NewSB     int `json:"new_sb"`
+	NewBB     int `json:"new_bb"`
+}
+
+type TablePlayerGameAction struct {
+	TableID   string   `json:"table_id" mapstructure:"table_id"`     // 桌次 ID
+	GameID    string   `json:"game_id" mapstructure:"game_id"`       // 遊戲 ID
+	GameCount int      `json:"game_count" mapstructure:"game_count"` // 執行牌局遊戲次數 (遊戲跑幾輪)
+	Round     string   `json:"round" mapstructure:"round"`           // 哪回合
+	UpdateAt  int64    `json:"update_at" mapstructure:"update_at"`   // 更新時間 (Seconds)
+	PlayerID  string   `json:"player_id" mapstructure:"player_id"`   // 玩家 ID
+	Seat      int      `json:"seat" mapstructure:"seat"`             // 座位編號 0 ~ 8
+	Positions []string `json:"positions" mapstructure:"positions"`   // 場上位置
+	Action    string   `json:"action" mapstructure:"action"`         // 動作
+	Chips     int64    `json:"chips" mapstructure:"chips"`           // 下注籌碼量
 }
 
 type TablePlayerState struct {
@@ -86,6 +107,20 @@ type TableBlindState struct {
 }
 
 // Table Getters
+func (t Table) Clone() (*Table, error) {
+	encoded, err := json.Marshal(t)
+	if err != nil {
+		return nil, err
+	}
+
+	var cloneTable Table
+	if err := json.Unmarshal(encoded, &cloneTable); err != nil {
+		return nil, err
+	}
+
+	return &cloneTable, nil
+}
+
 func (t Table) GetJSON() (string, error) {
 	encoded, err := json.Marshal(t)
 	if err != nil {

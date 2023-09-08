@@ -2,7 +2,6 @@ package pokertable
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -23,22 +22,13 @@ var (
 
 type TableEngineOpt func(*tableEngine)
 
-type TableEngineOptions struct {
-	Interval int
-}
-
-func NewTableEngineOptions() *TableEngineOptions {
-	return &TableEngineOptions{
-		Interval: 0, // 0 second by default
-	}
-}
-
 type TableEngine interface {
 	// Events
 	OnTableUpdated(fn func(*Table))                                       // 桌次更新事件監聽器
 	OnTableErrorUpdated(fn func(*Table, error))                           // 錯誤更新事件監聽器
 	OnTableStateUpdated(fn func(string, *Table))                          // 桌次狀態監聽器
 	OnTablePlayerStateUpdated(fn func(string, string, *TablePlayerState)) // 桌次玩家狀態監聽器
+	OnTablePlayerReserved(fn func(playerState *TablePlayerState))         // 桌次玩家確認座位監聽器
 
 	// Table Actions
 	GetTable() *Table                                      // 取得桌次
@@ -81,6 +71,7 @@ type tableEngine struct {
 	onTableErrorUpdated       func(*Table, error)
 	onTableStateUpdated       func(string, *Table)
 	onTablePlayerStateUpdated func(string, string, *TablePlayerState)
+	onTablePlayerReserved     func(playerState *TablePlayerState)
 }
 
 func NewTableEngine(options *TableEngineOptions, opts ...TableEngineOpt) TableEngine {
@@ -88,10 +79,11 @@ func NewTableEngine(options *TableEngineOptions, opts ...TableEngineOpt) TableEn
 		options:                   options,
 		rg:                        syncsaga.NewReadyGroup(),
 		tb:                        timebank.NewTimeBank(),
-		onTableUpdated:            func(t *Table) {},
-		onTableErrorUpdated:       func(t *Table, err error) {},
-		onTableStateUpdated:       func(string, *Table) {},
-		onTablePlayerStateUpdated: func(string, string, *TablePlayerState) {},
+		onTableUpdated:            options.OnTableUpdated,
+		onTableErrorUpdated:       options.OnTableErrorUpdated,
+		onTableStateUpdated:       options.OnTableStateUpdated,
+		onTablePlayerStateUpdated: options.OnTablePlayerStateUpdated,
+		onTablePlayerReserved:     options.OnTablePlayerReserved,
 	}
 
 	for _, opt := range opts {
@@ -121,6 +113,10 @@ func (te *tableEngine) OnTableStateUpdated(fn func(string, *Table)) {
 
 func (te *tableEngine) OnTablePlayerStateUpdated(fn func(string, string, *TablePlayerState)) {
 	te.onTablePlayerStateUpdated = fn
+}
+
+func (te *tableEngine) OnTablePlayerReserved(fn func(playerState *TablePlayerState)) {
+	te.onTablePlayerReserved = fn
 }
 
 func (te *tableEngine) GetTable() *Table {
@@ -213,10 +209,11 @@ func (te *tableEngine) StartTableGame() error {
 
 func (te *tableEngine) TableGameOpen() error {
 	// 開局
-	if err := te.openGame(); err != nil {
+	newTable, err := te.openGame(te.table)
+	if err != nil {
 		return err
 	}
-
+	te.table = newTable
 	te.emitEvent("TableGameOpen", "")
 
 	// 啟動本手遊戲引擎
@@ -269,7 +266,7 @@ func (te *tableEngine) PlayerReserve(joinPlayer JoinPlayer) error {
 
 		// decide seat
 		seatIdx := RandomSeat(te.table.State.SeatMap)
-		if seat != UnsetValue && te.table.State.SeatMap[seat] != UnsetValue {
+		if seat != UnsetValue && te.table.State.SeatMap[seat] == UnsetValue {
 			seatIdx = seat
 		}
 		te.table.State.SeatMap[seatIdx] = newPlayerIdx
@@ -277,6 +274,7 @@ func (te *tableEngine) PlayerReserve(joinPlayer JoinPlayer) error {
 		te.table.State.PlayerStates[newPlayerIdx].IsBetweenDealerBB = IsBetweenDealerBB(seatIdx, te.table.State.CurrentDealerSeat, te.table.State.CurrentBBSeat, te.table.Meta.TableMaxSeatCount, te.table.Meta.Rule)
 
 		te.emitTablePlayerStateEvent(te.table.State.PlayerStates[newPlayerIdx])
+		te.onTablePlayerReserved(te.table.State.PlayerStates[newPlayerIdx])
 	} else {
 		// ReBuy
 		// 補碼要檢查玩家是否介於 Dealer-BB 之間
@@ -285,6 +283,7 @@ func (te *tableEngine) PlayerReserve(joinPlayer JoinPlayer) error {
 		te.table.State.PlayerStates[targetPlayerIdx].IsParticipated = true
 
 		te.emitTablePlayerStateEvent(te.table.State.PlayerStates[targetPlayerIdx])
+		te.onTablePlayerReserved(te.table.State.PlayerStates[targetPlayerIdx])
 	}
 
 	te.emitEvent("PlayerReserve", joinPlayer.PlayerID)
@@ -296,20 +295,17 @@ PlayersBatchReserve 多位玩家確認座位
   - 適用時機: 拆併桌整桌玩家確認座位、開桌時有預設玩家
 */
 func (te *tableEngine) PlayersBatchReserve(joinPlayers []JoinPlayer) error {
-	if len(te.table.State.PlayerStates)+len(joinPlayers) > te.table.Meta.TableMaxSeatCount {
-		playerIDs := make([]string, 0)
-		for _, player := range te.table.State.PlayerStates {
-			playerIDs = append(playerIDs, player.PlayerID)
-		}
+	// playerIDs := make([]string, 0)
+	// for _, player := range te.table.State.PlayerStates {
+	// 	playerIDs = append(playerIDs, player.PlayerID)
+	// }
 
-		joinPlayerIDs := make([]string, 0)
-		for _, joinPlayer := range joinPlayers {
-			joinPlayerIDs = append(joinPlayerIDs, joinPlayer.PlayerID)
-		}
+	// joinPlayerIDs := make([]string, 0)
+	// for _, joinPlayer := range joinPlayers {
+	// 	joinPlayerIDs = append(joinPlayerIDs, joinPlayer.PlayerID)
+	// }
 
-		fmt.Printf("[DEBUG] 目前玩家: %d 人 (%s), 新加入玩家: %d 人 (%s)\n", len(playerIDs), strings.Join(playerIDs, ","), len(joinPlayerIDs), strings.Join(joinPlayerIDs, ","))
-		return ErrTableNoEmptySeats
-	}
+	// fmt.Printf("[DEBUG] 目前玩家: %d 人 (%s), 新加入玩家: %d 人 (%s)\n", len(playerIDs), strings.Join(playerIDs, ","), len(joinPlayerIDs), strings.Join(joinPlayerIDs, ","))
 
 	// Preparing ready group for waiting all players' join
 	te.rg.Stop()
@@ -319,12 +315,13 @@ func (te *tableEngine) PlayersBatchReserve(joinPlayers []JoinPlayer) error {
 		states := rg.GetParticipantStates()
 		for playerIdx, isReady := range states {
 			if !isReady {
-				// fmt.Printf("[DEBUG#tableEngine#PlayersBatchReserve] table [%s] %s is auto ready", te.table.ID, te.table.State.PlayerStates[playerIdx].PlayerID)
+				// fmt.Printf("[DEBUG#tableEngine#PlayersBatchReserve] table [%s] %s is auto ready\n", te.table.ID, te.table.State.PlayerStates[playerIdx].PlayerID)
 				rg.Ready(playerIdx)
 			}
 		}
 	})
 	te.rg.OnCompleted(func(rg *syncsaga.ReadyGroup) {
+		// fmt.Printf("[DEBUG#tableEngine#PlayersBatchReserve] OnCompleted. Status:%s\n", te.table.State.Status)
 		if te.table.State.Status == TableStateStatus_TableBalancing {
 			for i := 0; i < len(te.table.State.PlayerStates); i++ {
 				// 如果時間到了還沒有入座則自動入座
@@ -364,7 +361,6 @@ func (te *tableEngine) PlayersBatchReserve(joinPlayers []JoinPlayer) error {
 			te.rg.ResetParticipants()
 			return err
 		}
-		time.Sleep(time.Millisecond * 100)
 	}
 
 	te.emitEvent("PlayersBatchReserve", "")
@@ -429,34 +425,23 @@ PlayerLeave 玩家們離開桌次
   - CT/MTT 停止買入後被淘汰
 */
 func (te *tableEngine) PlayersLeave(playerIDs []string) error {
-	// find player index in PlayerStates
-	leavePlayerIndexes := make([]int, 0)
-	for _, playerID := range playerIDs {
-		playerIdx := te.table.FindPlayerIdx(playerID)
-		if playerIdx != UnsetValue {
-			leavePlayerIndexes = append(leavePlayerIndexes, playerIdx)
-		}
-	}
-
-	if len(leavePlayerIndexes) == 0 {
-		return nil
-	}
-
-	// set leave PlayerIdx seatMap to UnsetValue
-	leavePlayerIDMap := make(map[string]interface{})
-	for _, leavePlayerIdx := range leavePlayerIndexes {
-		leavePlayer := te.table.State.PlayerStates[leavePlayerIdx]
-		leavePlayerIDMap[leavePlayer.PlayerID] = struct{}{}
-		te.table.State.SeatMap[leavePlayer.Seat] = UnsetValue
-	}
+	te.lock.Lock()
+	defer te.lock.Unlock()
 
 	// delete target players in PlayerStates
-	te.table.State.PlayerStates = funk.Filter(te.table.State.PlayerStates, func(player *TablePlayerState) bool {
-		_, exist := leavePlayerIDMap[player.PlayerID]
-		return !exist
-	}).([]*TablePlayerState)
+	newPlayerStates := make([]*TablePlayerState, 0)
+	for _, player := range te.table.State.PlayerStates {
+		exist := funk.Contains(playerIDs, func(leavePlayerID string) bool {
+			return player.PlayerID == leavePlayerID
+		})
+		if !exist {
+			newPlayerStates = append(newPlayerStates, player)
+		}
+	}
+	te.table.State.PlayerStates = newPlayerStates
 
-	// update current SeatMap player indexes in SeatMap
+	// reset seatMap
+	te.table.State.SeatMap = NewDefaultSeatMap(te.table.Meta.TableMaxSeatCount)
 	for newPlayerIdx, player := range te.table.State.PlayerStates {
 		te.table.State.SeatMap[player.Seat] = newPlayerIdx
 	}
@@ -468,24 +453,43 @@ func (te *tableEngine) PlayersLeave(playerIDs []string) error {
 }
 
 func (te *tableEngine) PlayerReady(playerID string) error {
+	te.lock.Lock()
+	defer te.lock.Unlock()
+
 	gamePlayerIdx := te.table.FindGamePlayerIdx(playerID)
 	if err := te.validateGameMove(gamePlayerIdx); err != nil {
 		return err
 	}
 
-	return te.game.Ready(gamePlayerIdx)
+	err := te.game.Ready(gamePlayerIdx)
+	if err == nil {
+		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
+		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, "ready", 0)
+	}
+	return err
 }
 
 func (te *tableEngine) PlayerPay(playerID string, chips int64) error {
+	te.lock.Lock()
+	defer te.lock.Unlock()
+
 	gamePlayerIdx := te.table.FindGamePlayerIdx(playerID)
 	if err := te.validateGameMove(gamePlayerIdx); err != nil {
 		return err
 	}
 
-	return te.game.Pay(gamePlayerIdx, chips)
+	err := te.game.Pay(gamePlayerIdx, chips)
+	if err == nil {
+		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
+		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, "pay", chips)
+	}
+	return err
 }
 
 func (te *tableEngine) PlayerBet(playerID string, chips int64) error {
+	te.lock.Lock()
+	defer te.lock.Unlock()
+
 	gamePlayerIdx := te.table.FindGamePlayerIdx(playerID)
 	if err := te.validateGameMove(gamePlayerIdx); err != nil {
 		return err
@@ -494,6 +498,7 @@ func (te *tableEngine) PlayerBet(playerID string, chips int64) error {
 	err := te.game.Bet(gamePlayerIdx, chips)
 	if err == nil {
 		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
+		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, WagerAction_Bet, chips)
 		te.table.State.PlayerStates[playerIdx].GameStatistics.ActionTimes++
 		if te.game.GetGameState().Status.CurrentRaiser == gamePlayerIdx {
 			te.table.State.PlayerStates[playerIdx].GameStatistics.RaiseTimes++
@@ -503,6 +508,9 @@ func (te *tableEngine) PlayerBet(playerID string, chips int64) error {
 }
 
 func (te *tableEngine) PlayerRaise(playerID string, chipLevel int64) error {
+	te.lock.Lock()
+	defer te.lock.Unlock()
+
 	gamePlayerIdx := te.table.FindGamePlayerIdx(playerID)
 	if err := te.validateGameMove(gamePlayerIdx); err != nil {
 		return err
@@ -511,6 +519,7 @@ func (te *tableEngine) PlayerRaise(playerID string, chipLevel int64) error {
 	err := te.game.Raise(gamePlayerIdx, chipLevel)
 	if err == nil {
 		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
+		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, WagerAction_Raise, chipLevel)
 		te.table.State.PlayerStates[playerIdx].GameStatistics.ActionTimes++
 		te.table.State.PlayerStates[playerIdx].GameStatistics.RaiseTimes++
 	}
@@ -518,14 +527,23 @@ func (te *tableEngine) PlayerRaise(playerID string, chipLevel int64) error {
 }
 
 func (te *tableEngine) PlayerCall(playerID string) error {
+	te.lock.Lock()
+	defer te.lock.Unlock()
+
 	gamePlayerIdx := te.table.FindGamePlayerIdx(playerID)
 	if err := te.validateGameMove(gamePlayerIdx); err != nil {
 		return err
 	}
 
+	wager := int64(0)
+	if te.table.State.GameState != nil && gamePlayerIdx < len(te.table.State.GameState.Players) {
+		wager = te.table.State.GameState.Status.CurrentWager - te.table.State.GameState.GetPlayer(gamePlayerIdx).Wager
+	}
+
 	err := te.game.Call(gamePlayerIdx)
 	if err == nil {
 		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
+		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, WagerAction_Call, wager)
 		te.table.State.PlayerStates[playerIdx].GameStatistics.ActionTimes++
 		te.table.State.PlayerStates[playerIdx].GameStatistics.CallTimes++
 	}
@@ -533,14 +551,23 @@ func (te *tableEngine) PlayerCall(playerID string) error {
 }
 
 func (te *tableEngine) PlayerAllin(playerID string) error {
+	te.lock.Lock()
+	defer te.lock.Unlock()
+
 	gamePlayerIdx := te.table.FindGamePlayerIdx(playerID)
 	if err := te.validateGameMove(gamePlayerIdx); err != nil {
 		return err
 	}
 
+	wager := int64(0)
+	if te.table.State.GameState != nil && gamePlayerIdx < len(te.table.State.GameState.Players) {
+		wager = te.table.State.GameState.GetPlayer(gamePlayerIdx).StackSize
+	}
+
 	err := te.game.Allin(gamePlayerIdx)
 	if err == nil {
 		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
+		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, WagerAction_AllIn, wager)
 		te.table.State.PlayerStates[playerIdx].GameStatistics.ActionTimes++
 		if te.game.GetGameState().Status.CurrentRaiser == gamePlayerIdx {
 			te.table.State.PlayerStates[playerIdx].GameStatistics.RaiseTimes++
@@ -550,6 +577,9 @@ func (te *tableEngine) PlayerAllin(playerID string) error {
 }
 
 func (te *tableEngine) PlayerCheck(playerID string) error {
+	te.lock.Lock()
+	defer te.lock.Unlock()
+
 	gamePlayerIdx := te.table.FindGamePlayerIdx(playerID)
 	if err := te.validateGameMove(gamePlayerIdx); err != nil {
 		return err
@@ -558,6 +588,7 @@ func (te *tableEngine) PlayerCheck(playerID string) error {
 	err := te.game.Check(gamePlayerIdx)
 	if err == nil {
 		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
+		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, WagerAction_Check, 0)
 		te.table.State.PlayerStates[playerIdx].GameStatistics.ActionTimes++
 		te.table.State.PlayerStates[playerIdx].GameStatistics.CheckTimes++
 	}
@@ -565,6 +596,9 @@ func (te *tableEngine) PlayerCheck(playerID string) error {
 }
 
 func (te *tableEngine) PlayerFold(playerID string) error {
+	te.lock.Lock()
+	defer te.lock.Unlock()
+
 	gamePlayerIdx := te.table.FindGamePlayerIdx(playerID)
 	if err := te.validateGameMove(gamePlayerIdx); err != nil {
 		return err
@@ -573,6 +607,7 @@ func (te *tableEngine) PlayerFold(playerID string) error {
 	err := te.game.Fold(gamePlayerIdx)
 	if err == nil {
 		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
+		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, WagerAction_Fold, 0)
 		te.table.State.PlayerStates[playerIdx].GameStatistics.ActionTimes++
 		te.table.State.PlayerStates[playerIdx].GameStatistics.IsFold = true
 		te.table.State.PlayerStates[playerIdx].GameStatistics.FoldRound = te.game.GetGameState().Status.Round
@@ -581,10 +616,18 @@ func (te *tableEngine) PlayerFold(playerID string) error {
 }
 
 func (te *tableEngine) PlayerPass(playerID string) error {
+	te.lock.Lock()
+	defer te.lock.Unlock()
+
 	gamePlayerIdx := te.table.FindGamePlayerIdx(playerID)
 	if err := te.validateGameMove(gamePlayerIdx); err != nil {
 		return err
 	}
 
-	return te.game.Pass(gamePlayerIdx)
+	err := te.game.Pass(gamePlayerIdx)
+	if err == nil {
+		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
+		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, "pass", 0)
+	}
+	return err
 }

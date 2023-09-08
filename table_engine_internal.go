@@ -1,9 +1,11 @@
 package pokertable
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
+	"github.com/thoas/go-funk"
 	"github.com/weedbox/pokerface"
 )
 
@@ -57,116 +59,140 @@ func (te *tableEngine) updateGameState(gs *pokerface.GameState) {
 	default:
 		te.emitEvent(gs.Status.CurrentEvent, "")
 		te.emitTableStateEvent(TableStateEvent_GameUpdated)
+		if event == pokerface.GameEvent_RoundClosed {
+			te.table.State.LastPlayerGameAction = nil
+		}
 	}
 }
 
-func (te *tableEngine) openGame() error {
-	// Step 0: Reset state
-	te.resetTable()
+func (te *tableEngine) openGame(oldTable *Table) (*Table, error) {
+	// Step 0: Clone Table for calculation
+	cloneTable, err := oldTable.Clone()
+	if err != nil {
+		return oldTable, err
+	}
 
-	// Step 1: 更新狀態
-	te.table.State.Status = TableStateStatus_TableGameOpened
+	// Step 1: Reset state
+	cloneTable.State.GamePlayerIndexes = []int{}
+	cloneTable.State.GameState = nil
+	cloneTable.State.SeatChanges = nil
+	cloneTable.State.LastPlayerGameAction = nil
+	for i := 0; i < len(cloneTable.State.PlayerStates); i++ {
+		cloneTable.State.PlayerStates[i].Positions = make([]string, 0)
+		cloneTable.State.PlayerStates[i].GameStatistics.ActionTimes = 0
+		cloneTable.State.PlayerStates[i].GameStatistics.RaiseTimes = 0
+		cloneTable.State.PlayerStates[i].GameStatistics.CallTimes = 0
+		cloneTable.State.PlayerStates[i].GameStatistics.CheckTimes = 0
+		cloneTable.State.PlayerStates[i].GameStatistics.IsFold = false
+		cloneTable.State.PlayerStates[i].GameStatistics.FoldRound = ""
+	}
 
-	// Step 2: 檢查參賽資格
-	for i := 0; i < len(te.table.State.PlayerStates); i++ {
+	// Step 2: 更新狀態
+	cloneTable.State.Status = TableStateStatus_TableGameOpened
+
+	// Step 3: 檢查參賽資格
+	for i := 0; i < len(cloneTable.State.PlayerStates); i++ {
 		// 沒有入桌玩家直接不參加
-		if !te.table.State.PlayerStates[i].IsIn {
-			te.table.State.PlayerStates[i].IsParticipated = false
+		if !cloneTable.State.PlayerStates[i].IsIn {
+			cloneTable.State.PlayerStates[i].IsParticipated = false
 			continue
 		}
 
 		// 先讓沒有坐在 大盲、Dealer 之間的玩家參賽
-		if te.table.State.PlayerStates[i].IsParticipated || te.table.State.PlayerStates[i].IsBetweenDealerBB {
-			te.table.State.PlayerStates[i].IsParticipated = te.table.State.PlayerStates[i].Bankroll > 0
+		if cloneTable.State.PlayerStates[i].IsParticipated || cloneTable.State.PlayerStates[i].IsBetweenDealerBB {
+			cloneTable.State.PlayerStates[i].IsParticipated = cloneTable.State.PlayerStates[i].Bankroll > 0
 			continue
 		}
 
 		// 檢查後手 (有錢的玩家可參賽)
-		te.table.State.PlayerStates[i].IsParticipated = te.table.State.PlayerStates[i].Bankroll > 0
+		cloneTable.State.PlayerStates[i].IsParticipated = cloneTable.State.PlayerStates[i].Bankroll > 0
 	}
 
-	// Step 3: 處理可參賽玩家剩餘一人時，桌上有其他玩家情形
-	if len(te.table.ParticipatedPlayers()) < te.table.Meta.TableMinPlayerCount {
-		for i := 0; i < len(te.table.State.PlayerStates); i++ {
+	// Step 4: 處理可參賽玩家剩餘一人時，桌上有其他玩家情形
+	if len(cloneTable.ParticipatedPlayers()) < cloneTable.Meta.TableMinPlayerCount {
+		for i := 0; i < len(cloneTable.State.PlayerStates); i++ {
 			// 沒入桌或沒籌碼玩家不能玩
-			if te.table.State.PlayerStates[i].Bankroll == 0 || !te.table.State.PlayerStates[i].IsIn {
+			if cloneTable.State.PlayerStates[i].Bankroll == 0 || !cloneTable.State.PlayerStates[i].IsIn {
 				continue
 			}
 
-			te.table.State.PlayerStates[i].IsParticipated = true
-			te.table.State.PlayerStates[i].IsBetweenDealerBB = false
+			cloneTable.State.PlayerStates[i].IsParticipated = true
+			cloneTable.State.PlayerStates[i].IsBetweenDealerBB = false
 		}
 	}
 
-	// Step 4: 計算新 Dealer Seat & PlayerIndex
-	newDealerPlayerIdx := FindDealerPlayerIndex(te.table.State.GameCount, te.table.State.CurrentDealerSeat, te.table.Meta.TableMinPlayerCount, te.table.Meta.TableMaxSeatCount, te.table.State.PlayerStates, te.table.State.SeatMap)
-	newDealerTableSeatIdx := te.table.State.PlayerStates[newDealerPlayerIdx].Seat
+	// Step 5: 計算新 Dealer Seat & PlayerIndex
+	newDealerPlayerIdx := FindDealerPlayerIndex(cloneTable.State.GameCount, cloneTable.State.CurrentDealerSeat, cloneTable.Meta.TableMinPlayerCount, cloneTable.Meta.TableMaxSeatCount, cloneTable.State.PlayerStates, cloneTable.State.SeatMap)
+	newDealerTableSeatIdx := cloneTable.State.PlayerStates[newDealerPlayerIdx].Seat
 
-	// Step 5: 處理玩家參賽狀態，確認玩家在 BB-Dealer 的參賽權
-	for i := 0; i < len(te.table.State.PlayerStates); i++ {
-		if !te.table.State.PlayerStates[i].IsBetweenDealerBB {
+	// Step 6: 處理玩家參賽狀態，確認玩家在 BB-Dealer 的參賽權
+	for i := 0; i < len(cloneTable.State.PlayerStates); i++ {
+		if !cloneTable.State.PlayerStates[i].IsBetweenDealerBB {
 			continue
 		}
 
-		if newDealerTableSeatIdx-te.table.State.CurrentDealerSeat < 0 {
-			for j := te.table.State.CurrentDealerSeat + 1; j < newDealerTableSeatIdx+te.table.Meta.TableMaxSeatCount; j++ {
-				if (j % te.table.Meta.TableMaxSeatCount) != te.table.State.PlayerStates[i].Seat {
+		if newDealerTableSeatIdx-cloneTable.State.CurrentDealerSeat < 0 {
+			for j := cloneTable.State.CurrentDealerSeat + 1; j < newDealerTableSeatIdx+cloneTable.Meta.TableMaxSeatCount; j++ {
+				if (j % cloneTable.Meta.TableMaxSeatCount) != cloneTable.State.PlayerStates[i].Seat {
 					continue
 				}
 
-				if !te.table.State.PlayerStates[i].IsIn {
+				if !cloneTable.State.PlayerStates[i].IsIn {
 					continue
 				}
 
-				te.table.State.PlayerStates[i].IsParticipated = true
-				te.table.State.PlayerStates[i].IsBetweenDealerBB = false
+				cloneTable.State.PlayerStates[i].IsParticipated = true
+				cloneTable.State.PlayerStates[i].IsBetweenDealerBB = false
 			}
 		} else {
-			for j := te.table.State.CurrentDealerSeat + 1; j < newDealerTableSeatIdx; j++ {
-				if j != te.table.State.PlayerStates[i].Seat {
+			for j := cloneTable.State.CurrentDealerSeat + 1; j < newDealerTableSeatIdx; j++ {
+				if j != cloneTable.State.PlayerStates[i].Seat {
 					continue
 				}
 
-				if !te.table.State.PlayerStates[i].IsIn {
+				if !cloneTable.State.PlayerStates[i].IsIn {
 					continue
 				}
 
-				te.table.State.PlayerStates[i].IsParticipated = true
-				te.table.State.PlayerStates[i].IsBetweenDealerBB = false
+				cloneTable.State.PlayerStates[i].IsParticipated = true
+				cloneTable.State.PlayerStates[i].IsBetweenDealerBB = false
 			}
 		}
 	}
 
-	// Step 6: 計算 & 更新本手參與玩家的 PlayerIndex 陣列
-	gamePlayerIndexes := FindGamePlayerIndexes(newDealerTableSeatIdx, te.table.State.SeatMap, te.table.State.PlayerStates)
-	if len(gamePlayerIndexes) < te.table.Meta.TableMinPlayerCount {
-		return ErrTableOpenGameFailed
+	// Step 7: 計算 & 更新本手參與玩家的 PlayerIndex 陣列
+	gamePlayerIndexes := FindGamePlayerIndexes(newDealerTableSeatIdx, cloneTable.State.SeatMap, cloneTable.State.PlayerStates)
+	if len(gamePlayerIndexes) < cloneTable.Meta.TableMinPlayerCount {
+		fmt.Printf("[DEBUG#MTT#openGame] TableMinPlayerCount: %d, GamePlayerIndexes: %+v\n", cloneTable.Meta.TableMinPlayerCount, gamePlayerIndexes)
+		json, _ := cloneTable.GetJSON()
+		fmt.Println(json)
+		return oldTable, ErrTableOpenGameFailed
 	}
-	te.table.State.GamePlayerIndexes = gamePlayerIndexes
+	cloneTable.State.GamePlayerIndexes = gamePlayerIndexes
 
-	// Step 7: 計算 & 更新本手參與玩家位置資訊
-	positionMap := GetPlayerPositionMap(te.table.Meta.Rule, te.table.State.PlayerStates, te.table.State.GamePlayerIndexes)
-	for playerIdx := 0; playerIdx < len(te.table.State.PlayerStates); playerIdx++ {
+	// Step 8: 計算 & 更新本手參與玩家位置資訊
+	positionMap := GetPlayerPositionMap(cloneTable.Meta.Rule, cloneTable.State.PlayerStates, cloneTable.State.GamePlayerIndexes)
+	for playerIdx := 0; playerIdx < len(cloneTable.State.PlayerStates); playerIdx++ {
 		positions, exist := positionMap[playerIdx]
-		if exist && te.table.State.PlayerStates[playerIdx].IsParticipated {
-			te.table.State.PlayerStates[playerIdx].Positions = positions
+		if exist && cloneTable.State.PlayerStates[playerIdx].IsParticipated {
+			cloneTable.State.PlayerStates[playerIdx].Positions = positions
 		}
 	}
 
-	// Step 8: 更新桌次狀態 (GameCount, 當前 Dealer & BB 位置)
-	te.table.State.GameCount = te.table.State.GameCount + 1
-	te.table.State.CurrentDealerSeat = newDealerTableSeatIdx
+	// Step 9: 更新桌次狀態 (GameCount, 當前 Dealer & BB 位置)
+	cloneTable.State.GameCount = cloneTable.State.GameCount + 1
+	cloneTable.State.CurrentDealerSeat = newDealerTableSeatIdx
 	if len(gamePlayerIndexes) == 2 {
 		bbPlayerIdx := gamePlayerIndexes[1]
-		te.table.State.CurrentBBSeat = te.table.State.PlayerStates[bbPlayerIdx].Seat
+		cloneTable.State.CurrentBBSeat = cloneTable.State.PlayerStates[bbPlayerIdx].Seat
 	} else if len(gamePlayerIndexes) > 2 {
 		bbPlayerIdx := gamePlayerIndexes[2]
-		te.table.State.CurrentBBSeat = te.table.State.PlayerStates[bbPlayerIdx].Seat
+		cloneTable.State.CurrentBBSeat = cloneTable.State.PlayerStates[bbPlayerIdx].Seat
 	} else {
-		te.table.State.CurrentBBSeat = UnsetValue
+		cloneTable.State.CurrentBBSeat = UnsetValue
 	}
 
-	return nil
+	return cloneTable, nil
 }
 
 func (te *tableEngine) startGame() error {
@@ -231,6 +257,10 @@ func (te *tableEngine) settleGame() {
 		playerIdx := te.table.State.GamePlayerIndexes[player.Idx]
 		te.table.State.PlayerStates[playerIdx].Bankroll = player.Final
 	}
+
+	// 更新 SeatChanges
+	te.table.State.SeatChanges = te.calcSeatChanges(te.table)
+
 	te.emitEvent("SettleTableGameResult", "")
 	te.emitTableStateEvent(TableStateEvent_GameSettled)
 }
@@ -268,16 +298,95 @@ func (te *tableEngine) onGameClosed() error {
 	return te.continueGame()
 }
 
-func (te *tableEngine) resetTable() {
-	te.table.State.GamePlayerIndexes = []int{}
-	for i := 0; i < len(te.table.State.PlayerStates); i++ {
-		te.table.State.PlayerStates[i].Positions = make([]string, 0)
-		te.table.State.PlayerStates[i].GameStatistics.ActionTimes = 0
-		te.table.State.PlayerStates[i].GameStatistics.RaiseTimes = 0
-		te.table.State.PlayerStates[i].GameStatistics.CallTimes = 0
-		te.table.State.PlayerStates[i].GameStatistics.CheckTimes = 0
-		te.table.State.PlayerStates[i].GameStatistics.IsFold = false
-		te.table.State.PlayerStates[i].GameStatistics.FoldRound = ""
+func (te *tableEngine) calcSeatChanges(oldTable *Table) *TableGameSeatChanges {
+	te.lock.Lock()
+	defer te.lock.Unlock()
+
+	cloneTable, err := oldTable.Clone()
+	if err != nil {
+		te.emitErrorEvent("calculate seat changes clone old table", "", err)
+		return nil
 	}
-	te.table.State.GameState = nil
+
+	// Preparing seat changes
+	sc := &TableGameSeatChanges{}
+
+	leavePlayerIndexes := make([]int, 0)
+	for playerIdx, player := range oldTable.State.PlayerStates {
+		if player.Bankroll == 0 {
+			leavePlayerIndexes = append(leavePlayerIndexes, playerIdx)
+		}
+	}
+
+	if len(leavePlayerIndexes) > 0 {
+		// set leave PlayerIdx seatMap to UnsetValue
+		leavePlayerIDMap := make(map[string]interface{})
+		for _, leavePlayerIdx := range leavePlayerIndexes {
+			leavePlayer := cloneTable.State.PlayerStates[leavePlayerIdx]
+			leavePlayerIDMap[leavePlayer.PlayerID] = struct{}{}
+			cloneTable.State.SeatMap[leavePlayer.Seat] = UnsetValue
+		}
+
+		// delete target players in PlayerStates
+		cloneTable.State.PlayerStates = funk.Filter(cloneTable.State.PlayerStates, func(player *TablePlayerState) bool {
+			_, exist := leavePlayerIDMap[player.PlayerID]
+			return !exist
+		}).([]*TablePlayerState)
+
+		// update current SeatMap player indexes in SeatMap
+		for newPlayerIdx, player := range cloneTable.State.PlayerStates {
+			cloneTable.State.SeatMap[player.Seat] = newPlayerIdx
+		}
+	}
+
+	if len(cloneTable.State.PlayerStates) < 2 {
+		sc.NewDealer = cloneTable.State.PlayerStates[0].Seat
+		sc.NewSB = UnsetValue
+		sc.NewBB = UnsetValue
+	} else {
+		// try open next game
+		newTable, err := te.openGame(cloneTable)
+		if err != nil {
+			te.emitErrorEvent("calculate seat changes when try open game", "", err)
+			return nil
+		}
+
+		// Update dealer, sb and bb
+		newSBSeat := UnsetValue
+		for _, player := range newTable.State.PlayerStates {
+			if funk.Contains(player.Positions, Position_SB) {
+				newSBSeat = player.Seat
+				break
+			}
+		}
+
+		sc.NewDealer = newTable.State.CurrentDealerSeat
+		sc.NewSB = newSBSeat
+		sc.NewBB = newTable.State.CurrentBBSeat
+	}
+
+	return sc
+}
+
+func (te *tableEngine) createPlayerGameAction(playerID string, playerIdx int, action string, chips int64) *TablePlayerGameAction {
+	pga := &TablePlayerGameAction{
+		TableID:   te.table.ID,
+		GameCount: te.table.State.GameCount,
+		UpdateAt:  time.Now().Unix(),
+		PlayerID:  playerID,
+		Action:    action,
+		Chips:     chips,
+	}
+
+	if te.table.State.GameState != nil {
+		pga.GameID = te.table.State.GameState.GameID
+		pga.Round = te.table.State.GameState.Status.Round
+	}
+
+	if playerIdx < len(te.table.State.PlayerStates) {
+		pga.Seat = te.table.State.PlayerStates[playerIdx].Seat
+		pga.Positions = te.table.State.PlayerStates[playerIdx].Positions
+	}
+
+	return pga
 }

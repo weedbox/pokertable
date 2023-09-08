@@ -18,8 +18,6 @@ func TestActor_Basic(t *testing.T) {
 	// create manager & table
 	actors := make([]Actor, 0)
 	manager := pokertable.NewManager()
-	tableEngineOption := pokertable.NewTableEngineOptions()
-	tableEngineOption.Interval = 1
 	tableSetting := pokertable.TableSetting{
 		TableID: uuid.New().String(),
 		Meta: pokertable.TableMeta{
@@ -33,7 +31,21 @@ func TestActor_Basic(t *testing.T) {
 			ActionTime:          10,
 		},
 	}
-	tableUpdatedCallBack := func(table *pokertable.Table) {
+	tableEngineOption := pokertable.NewTableEngineOptions()
+	tableEngineOption.Interval = 1
+	tableEngineOption.OnTableUpdated = func(table *pokertable.Table) {
+		if table.State.LastPlayerGameAction != nil {
+			fmt.Printf("[#%d][%s][%s][%s, %d][%+v], Seat: %d\n",
+				table.State.LastPlayerGameAction.GameCount,
+				table.State.LastPlayerGameAction.Round,
+				table.State.LastPlayerGameAction.PlayerID,
+				table.State.LastPlayerGameAction.Action,
+				table.State.LastPlayerGameAction.Chips,
+				table.State.LastPlayerGameAction.Positions,
+				table.State.LastPlayerGameAction.Seat,
+			)
+		}
+
 		// Update table state via adapter
 		for _, a := range actors {
 			a.GetTable().UpdateTableState(table)
@@ -53,12 +65,10 @@ func TestActor_Basic(t *testing.T) {
 			return
 		}
 	}
-	tableErrorUpdatedCallBack := func(table *pokertable.Table, err error) {
+	tableEngineOption.OnTableErrorUpdated = func(table *pokertable.Table, err error) {
 		t.Log("[Table] Error:", err)
 	}
-	tableStateUpdatedCallBack := func(event string, table *pokertable.Table) {}
-	tablePlayerStateUpdatedCallBack := func(string, string, *pokertable.TablePlayerState) {}
-	table, err := manager.CreateTable(tableEngineOption, tableSetting, tableUpdatedCallBack, tableErrorUpdatedCallBack, tableStateUpdatedCallBack, tablePlayerStateUpdatedCallBack)
+	table, err := manager.CreateTable(tableEngineOption, tableSetting)
 	assert.Nil(t, err, "create table failed")
 
 	// get table engine

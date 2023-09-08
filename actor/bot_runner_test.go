@@ -31,7 +31,9 @@ func TestActor_BotRunner_Humanize(t *testing.T) {
 			ActionTime:          1,
 		},
 	}
-	tableUpdatedCallBack := func(table *pokertable.Table) {
+	tableEngineOption := pokertable.NewTableEngineOptions()
+	tableEngineOption.Interval = 1
+	tableEngineOption.OnTableUpdated = func(table *pokertable.Table) {
 		// Update table state via adapter
 		for _, a := range actors {
 			a.GetTable().UpdateTableState(table)
@@ -50,12 +52,10 @@ func TestActor_BotRunner_Humanize(t *testing.T) {
 			}
 		}
 	}
-	tableErrorUpdatedCallBack := func(table *pokertable.Table, err error) {
+	tableEngineOption.OnTableErrorUpdated = func(table *pokertable.Table, err error) {
 		t.Log("[Table] Error:", err)
 	}
-	tableStateUpdatedCallBack := func(event string, table *pokertable.Table) {}
-	tablePlayerStateUpdatedCallBack := func(string, string, *pokertable.TablePlayerState) {}
-	table, err := manager.CreateTable(nil, tableSetting, tableUpdatedCallBack, tableErrorUpdatedCallBack, tableStateUpdatedCallBack, tablePlayerStateUpdatedCallBack)
+	table, err := manager.CreateTable(tableEngineOption, tableSetting)
 	assert.Nil(t, err, "create table failed")
 
 	// get table engine

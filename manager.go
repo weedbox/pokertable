@@ -2,6 +2,7 @@ package pokertable
 
 import (
 	"errors"
+	"sync"
 )
 
 var (
@@ -11,7 +12,7 @@ var (
 type Manager interface {
 	// TableEngine Actions
 	GetTableEngine(tableID string) (TableEngine, error)
-	CreateTable(engineOptions *TableEngineOptions, tableSetting TableSetting, tableUpdatedCallBack func(*Table), tableErrorUpdatedCallBack func(*Table, error), tableStateUpdatedCallBack func(string, *Table), tablePlayerStateUpdatedCallBack func(string, string, *TablePlayerState)) (*Table, error)
+	CreateTable(engineOptions *TableEngineOptions, tableSetting TableSetting) (*Table, error)
 	BalanceTable(tableID string) error
 	CloseTable(tableID string) error
 	StartTableGame(tableID string) error
@@ -38,24 +39,28 @@ type Manager interface {
 }
 
 type manager struct {
-	tableEngines map[string]TableEngine
+	// tableEngines map[string]TableEngine
+	tableEngines sync.Map
 }
 
 func NewManager() Manager {
 	return &manager{
-		tableEngines: make(map[string]TableEngine),
+		// tableEngines: make(map[string]TableEngine),
+		tableEngines: sync.Map{},
 	}
 }
 
 func (m *manager) GetTableEngine(tableID string) (TableEngine, error) {
-	tableEngine, exist := m.tableEngines[tableID]
+	// tableEngine, exist := m.tableEngines[tableID]
+	tableEngine, exist := m.tableEngines.Load(tableID)
 	if !exist {
 		return nil, ErrManagerTableNotFound
 	}
-	return tableEngine, nil
+	// return tableEngine, nil
+	return tableEngine.(TableEngine), nil
 }
 
-func (m *manager) CreateTable(engineOptions *TableEngineOptions, tableSetting TableSetting, tableUpdatedCallBack func(*Table), tableErrorUpdatedCallBack func(*Table, error), tableStateUpdatedCallBack func(string, *Table), tablePlayerStateUpdatedCallBack func(string, string, *TablePlayerState)) (*Table, error) {
+func (m *manager) CreateTable(engineOptions *TableEngineOptions, tableSetting TableSetting) (*Table, error) {
 	var options *TableEngineOptions
 	if engineOptions != nil {
 		options = engineOptions
@@ -66,16 +71,17 @@ func (m *manager) CreateTable(engineOptions *TableEngineOptions, tableSetting Ta
 
 	gameBackend := NewNativeGameBackend()
 	tableEngine := NewTableEngine(options, WithGameBackend(gameBackend))
-	tableEngine.OnTableUpdated(tableUpdatedCallBack)
-	tableEngine.OnTableErrorUpdated(tableErrorUpdatedCallBack)
-	tableEngine.OnTableStateUpdated(tableStateUpdatedCallBack)
-	tableEngine.OnTablePlayerStateUpdated(tablePlayerStateUpdatedCallBack)
+	tableEngine.OnTableUpdated(engineOptions.OnTableUpdated)
+	tableEngine.OnTableErrorUpdated(engineOptions.OnTableErrorUpdated)
+	tableEngine.OnTableStateUpdated(engineOptions.OnTableStateUpdated)
+	tableEngine.OnTablePlayerStateUpdated(engineOptions.OnTablePlayerStateUpdated)
 	table, err := tableEngine.CreateTable(tableSetting)
 	if err != nil {
 		return nil, err
 	}
 
-	m.tableEngines[table.ID] = tableEngine
+	// m.tableEngines[table.ID] = tableEngine
+	m.tableEngines.Store(table.ID, tableEngine)
 	return table, nil
 }
 
@@ -98,7 +104,8 @@ func (m *manager) CloseTable(tableID string) error {
 		return err
 	}
 
-	delete(m.tableEngines, tableID)
+	// delete(m.tableEngines, tableID)
+	m.tableEngines.Delete(tableID)
 	return nil
 }
 

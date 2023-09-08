@@ -19,7 +19,7 @@ func (te *tableEngine) emitEvent(eventName string, playerID string) {
 	te.table.UpdateSerial++
 
 	// emit event
-	fmt.Printf("->[Table %s][#%d][%d][%s] emit Event: %s\n", te.table.ID, te.table.UpdateSerial, te.table.State.GameCount, playerID, eventName)
+	// fmt.Printf("->[Table %s][#%d][%d][%s] emit Event: %s\n", te.table.ID, te.table.UpdateSerial, te.table.State.GameCount, playerID, eventName)
 	te.onTableUpdated(te.table)
 }
 

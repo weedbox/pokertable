@@ -41,8 +41,8 @@ func IsBetweenDealerBB(seatIdx, currDealerTableSeatIdx, currBBTableSeatIdx, maxP
 }
 
 /*
-	FindDealerPlayerIndex 找到 Dealer 資訊
-	  - @return NewDealerPlayerIndex
+FindDealerPlayerIndex 找到 Dealer 資訊
+  - @return NewDealerPlayerIndex
 */
 func FindDealerPlayerIndex(gameCount, prevDealerSeatIdx, minPlayingCount, maxSeatCount int, players []*TablePlayerState, seatMap []int) int {
 	newDealerIdx := UnsetValue
@@ -75,11 +75,11 @@ func FindDealerPlayerIndex(gameCount, prevDealerSeatIdx, minPlayingCount, maxSea
 }
 
 /*
-	FindGamePlayerIndexes 找出參與本手的玩家 PlayerIndex 陣列
-	  - @return gamePlayerIndexes
-	    - index 0: dealer player index
-		- index 1: sb player index
-		- index 2 : bb player index
+FindGamePlayerIndexes 找出參與本手的玩家 PlayerIndex 陣列
+  - @return gamePlayerIndexes
+  - index 0: dealer player index
+  - index 1: sb player index
+  - index 2: bb player index
 */
 func FindGamePlayerIndexes(dealerSeatIdx int, seatMap []int, players []*TablePlayerState) []int {
 	dealerPlayerIndex := seatMap[dealerSeatIdx]
@@ -207,13 +207,14 @@ func newPositions(playerCount int) [][]string {
 }
 
 /*
-	rotateIntArray 給定 source, 以 startIndex 當作第一個元素做 Rotations
-		- @param source Given source array
-		- @param startIndex Base index for the rotation
-		- @return rotated source
-	Example:
-		- Given: []int{0, 1, 2, 3, 4}, startIndex = 2
-		- Output: []int{2, 3, 4, 0, 1}
+rotateIntArray 給定 source, 以 startIndex 當作第一個元素做 Rotations
+  - @param source Given source array
+  - @param startIndex Base index for the rotation
+  - @return rotated source
+
+Example:
+  - Given: []int{0, 1, 2, 3, 4}, startIndex = 2
+  - Output: []int{2, 3, 4, 0, 1}
 */
 func rotateIntArray(source []int, startIndex int) []int {
 	if startIndex > len(source) {

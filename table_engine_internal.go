@@ -312,9 +312,13 @@ func (te *tableEngine) calcSeatChanges(oldTable *Table) *TableGameSeatChanges {
 	sc := &TableGameSeatChanges{}
 
 	leavePlayerIndexes := make([]int, 0)
+	alivePlayerIndexes := make([]int, 0)
 	for playerIdx, player := range oldTable.State.PlayerStates {
-		if player.Bankroll == 0 {
+		if player.Bankroll == 0 && te.table.Meta.Mode == "mtt" {
 			leavePlayerIndexes = append(leavePlayerIndexes, playerIdx)
+		}
+		if player.Bankroll > 0 {
+			alivePlayerIndexes = append(alivePlayerIndexes, playerIdx)
 		}
 	}
 
@@ -341,6 +345,10 @@ func (te *tableEngine) calcSeatChanges(oldTable *Table) *TableGameSeatChanges {
 
 	if len(cloneTable.State.PlayerStates) < 2 {
 		sc.NewDealer = cloneTable.State.PlayerStates[0].Seat
+		sc.NewSB = UnsetValue
+		sc.NewBB = UnsetValue
+	} else if len(alivePlayerIndexes) == 1 {
+		sc.NewDealer = cloneTable.State.PlayerStates[alivePlayerIndexes[0]].Seat
 		sc.NewSB = UnsetValue
 		sc.NewBB = UnsetValue
 	} else {

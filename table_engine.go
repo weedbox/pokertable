@@ -24,11 +24,11 @@ type TableEngineOpt func(*tableEngine)
 
 type TableEngine interface {
 	// Events
-	OnTableUpdated(fn func(*Table))                                       // 桌次更新事件監聽器
-	OnTableErrorUpdated(fn func(*Table, error))                           // 錯誤更新事件監聽器
-	OnTableStateUpdated(fn func(string, *Table))                          // 桌次狀態監聽器
-	OnTablePlayerStateUpdated(fn func(string, string, *TablePlayerState)) // 桌次玩家狀態監聽器
-	OnTablePlayerReserved(fn func(playerState *TablePlayerState))         // 桌次玩家確認座位監聽器
+	OnTableUpdated(fn func(*Table))                                                     // 桌次更新事件監聽器
+	OnTableErrorUpdated(fn func(*Table, error))                                         // 錯誤更新事件監聽器
+	OnTableStateUpdated(fn func(string, *Table))                                        // 桌次狀態監聽器
+	OnTablePlayerStateUpdated(fn func(string, string, *TablePlayerState))               // 桌次玩家狀態監聽器
+	OnTablePlayerReserved(fn func(competitionID string, playerState *TablePlayerState)) // 桌次玩家確認座位監聽器
 
 	// Table Actions
 	GetTable() *Table                                      // 取得桌次
@@ -71,7 +71,7 @@ type tableEngine struct {
 	onTableErrorUpdated       func(*Table, error)
 	onTableStateUpdated       func(string, *Table)
 	onTablePlayerStateUpdated func(string, string, *TablePlayerState)
-	onTablePlayerReserved     func(playerState *TablePlayerState)
+	onTablePlayerReserved     func(competitionID string, playerState *TablePlayerState)
 }
 
 func NewTableEngine(options *TableEngineOptions, opts ...TableEngineOpt) TableEngine {
@@ -115,7 +115,7 @@ func (te *tableEngine) OnTablePlayerStateUpdated(fn func(string, string, *TableP
 	te.onTablePlayerStateUpdated = fn
 }
 
-func (te *tableEngine) OnTablePlayerReserved(fn func(playerState *TablePlayerState)) {
+func (te *tableEngine) OnTablePlayerReserved(fn func(competitionID string, playerState *TablePlayerState)) {
 	te.onTablePlayerReserved = fn
 }
 
@@ -274,7 +274,7 @@ func (te *tableEngine) PlayerReserve(joinPlayer JoinPlayer) error {
 		te.table.State.PlayerStates[newPlayerIdx].IsBetweenDealerBB = IsBetweenDealerBB(seatIdx, te.table.State.CurrentDealerSeat, te.table.State.CurrentBBSeat, te.table.Meta.TableMaxSeatCount, te.table.Meta.Rule)
 
 		te.emitTablePlayerStateEvent(te.table.State.PlayerStates[newPlayerIdx])
-		te.onTablePlayerReserved(te.table.State.PlayerStates[newPlayerIdx])
+		te.onTablePlayerReserved(te.table.Meta.CompetitionID, te.table.State.PlayerStates[newPlayerIdx])
 	} else {
 		// ReBuy
 		// 補碼要檢查玩家是否介於 Dealer-BB 之間
@@ -283,7 +283,7 @@ func (te *tableEngine) PlayerReserve(joinPlayer JoinPlayer) error {
 		te.table.State.PlayerStates[targetPlayerIdx].IsParticipated = true
 
 		te.emitTablePlayerStateEvent(te.table.State.PlayerStates[targetPlayerIdx])
-		te.onTablePlayerReserved(te.table.State.PlayerStates[targetPlayerIdx])
+		te.onTablePlayerReserved(te.table.Meta.CompetitionID, te.table.State.PlayerStates[targetPlayerIdx])
 	}
 
 	te.emitEvent("PlayerReserve", joinPlayer.PlayerID)

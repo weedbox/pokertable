@@ -60,9 +60,9 @@ type TableState struct {
 }
 
 type TableGameSeatChanges struct {
-	NewDealer int `json:"new_dealer"`
-	NewSB     int `json:"new_sb"`
-	NewBB     int `json:"new_bb"`
+	NewDealer int `json:"new_dealer"` // 下一手 Dealer 座位編號
+	NewSB     int `json:"new_sb"`     // 下一手 SB 座位編號
+	NewBB     int `json:"new_bb"`     // 下一手 BB 座位編號
 }
 
 type TablePlayerGameAction struct {

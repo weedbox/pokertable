@@ -136,10 +136,9 @@ func DebugPrintTableGameSettled(t pokertable.Table) {
 
 	fmt.Println("---------- Seat Changes ----------")
 	if t.State.SeatChanges != nil {
-		fmt.Println("Seats:", t.State.SeatChanges.Seats)
-		fmt.Println("Dealer:", t.State.SeatChanges.Dealer)
-		fmt.Println("SB:", t.State.SeatChanges.SB)
-		fmt.Println("BB:", t.State.SeatChanges.BB)
+		fmt.Println("New Dealer:", t.State.SeatChanges.NewDealer)
+		fmt.Println("New SB:", t.State.SeatChanges.NewSB)
+		fmt.Println("New BB:", t.State.SeatChanges.NewBB)
 	} else {
 		fmt.Println("Seat Changes is nil")
 	}

@@ -75,15 +75,16 @@ type tableEngine struct {
 }
 
 func NewTableEngine(options *TableEngineOptions, opts ...TableEngineOpt) TableEngine {
+	callbacks := NewTableEngineCallbacks()
 	te := &tableEngine{
 		options:                   options,
 		rg:                        syncsaga.NewReadyGroup(),
 		tb:                        timebank.NewTimeBank(),
-		onTableUpdated:            options.OnTableUpdated,
-		onTableErrorUpdated:       options.OnTableErrorUpdated,
-		onTableStateUpdated:       options.OnTableStateUpdated,
-		onTablePlayerStateUpdated: options.OnTablePlayerStateUpdated,
-		onTablePlayerReserved:     options.OnTablePlayerReserved,
+		onTableUpdated:            callbacks.OnTableUpdated,
+		onTableErrorUpdated:       callbacks.OnTableErrorUpdated,
+		onTableStateUpdated:       callbacks.OnTableStateUpdated,
+		onTablePlayerStateUpdated: callbacks.OnTablePlayerStateUpdated,
+		onTablePlayerReserved:     callbacks.OnTablePlayerReserved,
 	}
 
 	for _, opt := range opts {

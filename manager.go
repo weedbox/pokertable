@@ -12,7 +12,7 @@ var (
 type Manager interface {
 	// TableEngine Actions
 	GetTableEngine(tableID string) (TableEngine, error)
-	CreateTable(engineOptions *TableEngineOptions, tableSetting TableSetting) (*Table, error)
+	CreateTable(options *TableEngineOptions, callbacks *TableEngineCallbacks, setting TableSetting) (*Table, error)
 	BalanceTable(tableID string) error
 	CloseTable(tableID string) error
 	StartTableGame(tableID string) error
@@ -56,23 +56,30 @@ func (m *manager) GetTableEngine(tableID string) (TableEngine, error) {
 	return tableEngine.(TableEngine), nil
 }
 
-func (m *manager) CreateTable(engineOptions *TableEngineOptions, tableSetting TableSetting) (*Table, error) {
-	var options *TableEngineOptions
-	if engineOptions != nil {
-		options = engineOptions
+func (m *manager) CreateTable(options *TableEngineOptions, callbacks *TableEngineCallbacks, setting TableSetting) (*Table, error) {
+	var engineOptions *TableEngineOptions
+	if options != nil {
+		engineOptions = options
 	} else {
-		options = NewTableEngineOptions()
-		options.Interval = 1
+		engineOptions = NewTableEngineOptions()
+		engineOptions.Interval = 1
+	}
+
+	var engineCallbacks *TableEngineCallbacks
+	if callbacks != nil {
+		engineCallbacks = callbacks
+	} else {
+		engineCallbacks = NewTableEngineCallbacks()
 	}
 
 	gameBackend := NewNativeGameBackend()
-	tableEngine := NewTableEngine(options, WithGameBackend(gameBackend))
-	tableEngine.OnTableUpdated(engineOptions.OnTableUpdated)
-	tableEngine.OnTableErrorUpdated(engineOptions.OnTableErrorUpdated)
-	tableEngine.OnTableStateUpdated(engineOptions.OnTableStateUpdated)
-	tableEngine.OnTablePlayerStateUpdated(engineOptions.OnTablePlayerStateUpdated)
-	tableEngine.OnTablePlayerReserved(engineOptions.OnTablePlayerReserved)
-	table, err := tableEngine.CreateTable(tableSetting)
+	tableEngine := NewTableEngine(engineOptions, WithGameBackend(gameBackend))
+	tableEngine.OnTableUpdated(engineCallbacks.OnTableUpdated)
+	tableEngine.OnTableErrorUpdated(engineCallbacks.OnTableErrorUpdated)
+	tableEngine.OnTableStateUpdated(engineCallbacks.OnTableStateUpdated)
+	tableEngine.OnTablePlayerStateUpdated(engineCallbacks.OnTablePlayerStateUpdated)
+	tableEngine.OnTablePlayerReserved(engineCallbacks.OnTablePlayerReserved)
+	table, err := tableEngine.CreateTable(setting)
 	if err != nil {
 		return nil, err
 	}

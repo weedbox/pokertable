@@ -30,7 +30,8 @@ func TestTableGame_Turn_Settlement(t *testing.T) {
 	manager := pokertable.NewManager()
 	tableEngineOption := pokertable.NewTableEngineOptions()
 	tableEngineOption.Interval = 3
-	tableEngineOption.OnTableUpdated = func(table *pokertable.Table) {
+	tableEngineCallbacks := pokertable.NewTableEngineCallbacks()
+	tableEngineCallbacks.OnTableUpdated = func(table *pokertable.Table) {
 		switch table.State.Status {
 		case pokertable.TableStateStatus_TableGameOpened:
 			DebugPrintTableGameOpened(*table)
@@ -117,10 +118,10 @@ func TestTableGame_Turn_Settlement(t *testing.T) {
 			}
 		}
 	}
-	tableEngineOption.OnTableErrorUpdated = func(table *pokertable.Table, err error) {
+	tableEngineCallbacks.OnTableErrorUpdated = func(table *pokertable.Table, err error) {
 		t.Log("[Table] Error:", err)
 	}
-	table, err := manager.CreateTable(tableEngineOption, NewDefaultTableSetting())
+	table, err := manager.CreateTable(tableEngineOption, tableEngineCallbacks, NewDefaultTableSetting())
 	assert.Nil(t, err, "create table failed")
 
 	// get table engine

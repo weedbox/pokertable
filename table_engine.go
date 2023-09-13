@@ -254,7 +254,7 @@ func (te *tableEngine) PlayerReserve(joinPlayer JoinPlayer) error {
 			PlayerID:          playerID,
 			Seat:              UnsetValue,
 			Positions:         []string{Position_Unknown},
-			IsParticipated:    true,
+			IsParticipated:    false,
 			IsBetweenDealerBB: false,
 			Bankroll:          redeemChips,
 			IsIn:              false,

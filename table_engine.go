@@ -2,6 +2,7 @@ package pokertable
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -316,13 +317,13 @@ func (te *tableEngine) PlayersBatchReserve(joinPlayers []JoinPlayer) error {
 		states := rg.GetParticipantStates()
 		for playerIdx, isReady := range states {
 			if !isReady {
-				// fmt.Printf("[DEBUG#tableEngine#PlayersBatchReserve] table [%s] %s is auto ready\n", te.table.ID, te.table.State.PlayerStates[playerIdx].PlayerID)
+				fmt.Printf("[DEBUG#tableEngine#PlayersBatchReserve] table [%s] %s is auto ready\n", te.table.ID, te.table.State.PlayerStates[playerIdx].PlayerID)
 				rg.Ready(playerIdx)
 			}
 		}
 	})
 	te.rg.OnCompleted(func(rg *syncsaga.ReadyGroup) {
-		// fmt.Printf("[DEBUG#tableEngine#PlayersBatchReserve] OnCompleted. Status:%s\n", te.table.State.Status)
+		fmt.Printf("[DEBUG#tableEngine#PlayersBatchReserve] OnCompleted. Status:%s\n", te.table.State.Status)
 		if te.table.State.Status == TableStateStatus_TableBalancing {
 			for i := 0; i < len(te.table.State.PlayerStates); i++ {
 				// 如果時間到了還沒有入座則自動入座
@@ -340,16 +341,6 @@ func (te *tableEngine) PlayersBatchReserve(joinPlayers []JoinPlayer) error {
 		}
 	})
 
-	te.rg.ResetParticipants()
-	for playerIdx := range te.table.State.PlayerStates {
-		if !te.table.State.PlayerStates[playerIdx].IsIn {
-			// 新加入的玩家才要放到 ready group 做處理
-			te.rg.Add(int64(playerIdx), false)
-		}
-	}
-
-	te.rg.Start()
-
 	// reserve player
 	if te.table.State.GameCount <= 0 {
 		te.table.State.Status = TableStateStatus_TableBalancing
@@ -363,6 +354,16 @@ func (te *tableEngine) PlayersBatchReserve(joinPlayers []JoinPlayer) error {
 			return err
 		}
 	}
+
+	te.rg.ResetParticipants()
+	for playerIdx := range te.table.State.PlayerStates {
+		if !te.table.State.PlayerStates[playerIdx].IsIn {
+			// 新加入的玩家才要放到 ready group 做處理
+			te.rg.Add(int64(playerIdx), false)
+		}
+	}
+
+	te.rg.Start()
 
 	te.emitEvent("PlayersBatchReserve", "")
 

@@ -109,6 +109,10 @@ func FindGamePlayerIndexes(dealerSeatIdx int, seatMap []int, players []*TablePla
 		}
 	}
 
+	if len(gamePlayerIndexes) == 0 {
+		return gamePlayerIndexes
+	}
+
 	// 調整玩家陣列 Index, 以 DealerIndex 當基準當作第一個元素做 Rotations
 	gamePlayerIndexes = rotateIntArray(gamePlayerIndexes, seatMapDealerPlayerIdx)
 

@@ -87,10 +87,6 @@ func (br *botRunner) UpdateTableState(table *pokertable.Table) error {
 		return nil
 	}
 
-	if table.State.Status == pokertable.TableStateStatus_TableGameStandby {
-		return nil
-	}
-
 	// Update player index in game
 	gamePlayerIdx := br.actor.GetTable().GetGamePlayerIndex(br.playerID)
 

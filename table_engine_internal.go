@@ -66,25 +66,10 @@ func (te *tableEngine) updateGameState(gs *pokerface.GameState) {
 }
 
 func (te *tableEngine) openGame(oldTable *Table) (*Table, error) {
-	// Step 0: Clone Table for calculation
+	// Step 1: Clone Table for calculation
 	cloneTable, err := oldTable.Clone()
 	if err != nil {
 		return oldTable, err
-	}
-
-	// Step 1: Reset state
-	cloneTable.State.GamePlayerIndexes = []int{}
-	cloneTable.State.GameState = nil
-	cloneTable.State.SeatChanges = nil
-	cloneTable.State.LastPlayerGameAction = nil
-	for i := 0; i < len(cloneTable.State.PlayerStates); i++ {
-		cloneTable.State.PlayerStates[i].Positions = make([]string, 0)
-		cloneTable.State.PlayerStates[i].GameStatistics.ActionTimes = 0
-		cloneTable.State.PlayerStates[i].GameStatistics.RaiseTimes = 0
-		cloneTable.State.PlayerStates[i].GameStatistics.CallTimes = 0
-		cloneTable.State.PlayerStates[i].GameStatistics.CheckTimes = 0
-		cloneTable.State.PlayerStates[i].GameStatistics.IsFold = false
-		cloneTable.State.PlayerStates[i].GameStatistics.FoldRound = ""
 	}
 
 	// Step 2: 更新狀態
@@ -272,31 +257,37 @@ func (te *tableEngine) settleGame() {
 }
 
 func (te *tableEngine) continueGame() error {
-	// 檢查是否暫停
-	if te.table.ShouldPause() {
-		// 暫停處理
-		te.table.State.Status = TableStateStatus_TablePausing
-		te.emitEvent("ContinueGame -> Pause", "")
-		te.emitTableStateEvent(TableStateEvent_StatusUpdated)
-	} else {
-		// 正常繼續新的一手
-		te.table.State.Status = TableStateStatus_TableGameStandby
-		te.emitEvent("ContinueGame -> Standby", "")
-		te.emitTableStateEvent(TableStateEvent_StatusUpdated)
+	return te.delay(te.options.Interval, func() error {
+		// Reset table state
+		te.table.State.GamePlayerIndexes = []int{}
+		te.table.State.GameState = nil
+		te.table.State.SeatChanges = nil
+		te.table.State.LastPlayerGameAction = nil
+		for i := 0; i < len(te.table.State.PlayerStates); i++ {
+			te.table.State.PlayerStates[i].Positions = make([]string, 0)
+			te.table.State.PlayerStates[i].GameStatistics.ActionTimes = 0
+			te.table.State.PlayerStates[i].GameStatistics.RaiseTimes = 0
+			te.table.State.PlayerStates[i].GameStatistics.CallTimes = 0
+			te.table.State.PlayerStates[i].GameStatistics.CheckTimes = 0
+			te.table.State.PlayerStates[i].GameStatistics.IsFold = false
+			te.table.State.PlayerStates[i].GameStatistics.FoldRound = ""
+		}
 
-		if err := te.delay(te.options.Interval, func() error {
+		// 檢查是否暫停
+		if te.table.ShouldPause() {
+			// 暫停處理
+			te.table.State.Status = TableStateStatus_TablePausing
+			te.emitEvent("ContinueGame -> Pause", "")
+			te.emitTableStateEvent(TableStateEvent_StatusUpdated)
+		} else {
 			// 自動開下一手條件: 非 TableStateStatus_TableGamePlaying 或 非 TableStateStatus_TableBalancing 或 非 TableStateStatus_TableBalancing 且有籌碼玩家 >= 最小開打人數
 			stopOpenNextGame := (te.table.State.Status == TableStateStatus_TableGamePlaying || te.table.State.Status == TableStateStatus_TableBalancing || te.table.State.Status == TableStateStatus_TableClosed) && len(te.table.AlivePlayers()) >= te.table.Meta.TableMinPlayerCount
 			if !stopOpenNextGame {
 				return te.TableGameOpen()
 			}
-			return nil
-		}); err != nil {
-			return err
 		}
-	}
-
-	return nil
+		return nil
+	})
 }
 
 func (te *tableEngine) onGameClosed() error {
@@ -317,37 +308,21 @@ func (te *tableEngine) calcSeatChanges(oldTable *Table) *TableGameSeatChanges {
 	// Preparing seat changes
 	sc := &TableGameSeatChanges{}
 
-	leavePlayerIndexes := make([]int, 0)
+	// find no chips players
+	leavePlayerIDs := make([]string, 0)
 	alivePlayerIndexes := make([]int, 0)
 	for playerIdx, player := range oldTable.State.PlayerStates {
-		if player.Bankroll == 0 && te.table.Meta.Mode == "mtt" {
-			leavePlayerIndexes = append(leavePlayerIndexes, playerIdx)
-		}
-		if player.Bankroll > 0 {
+		if player.Bankroll <= 0 {
+			leavePlayerIDs = append(leavePlayerIDs, player.PlayerID)
+		} else {
 			alivePlayerIndexes = append(alivePlayerIndexes, playerIdx)
 		}
 	}
 
-	if len(leavePlayerIndexes) > 0 {
-		// set leave PlayerIdx seatMap to UnsetValue
-		leavePlayerIDMap := make(map[string]interface{})
-		for _, leavePlayerIdx := range leavePlayerIndexes {
-			leavePlayer := cloneTable.State.PlayerStates[leavePlayerIdx]
-			leavePlayerIDMap[leavePlayer.PlayerID] = struct{}{}
-			cloneTable.State.SeatMap[leavePlayer.Seat] = UnsetValue
-		}
-
-		// delete target players in PlayerStates
-		cloneTable.State.PlayerStates = funk.Filter(cloneTable.State.PlayerStates, func(player *TablePlayerState) bool {
-			_, exist := leavePlayerIDMap[player.PlayerID]
-			return !exist
-		}).([]*TablePlayerState)
-
-		// update current SeatMap player indexes in SeatMap
-		for newPlayerIdx, player := range cloneTable.State.PlayerStates {
-			cloneTable.State.SeatMap[player.Seat] = newPlayerIdx
-		}
-	}
+	// delete no chips players
+	newPlayerStates, newSeatMap := te.calcLeavePlayers(leavePlayerIDs, cloneTable.State.PlayerStates, cloneTable.Meta.TableMaxSeatCount)
+	cloneTable.State.PlayerStates = newPlayerStates
+	cloneTable.State.SeatMap = newSeatMap
 
 	if len(cloneTable.State.PlayerStates) < 2 {
 		sc.NewDealer = cloneTable.State.PlayerStates[0].Seat
@@ -380,6 +355,27 @@ func (te *tableEngine) calcSeatChanges(oldTable *Table) *TableGameSeatChanges {
 	}
 
 	return sc
+}
+
+func (te *tableEngine) calcLeavePlayers(leavePlayerIDs []string, currentPlayers []*TablePlayerState, tableMaxSeatCount int) ([]*TablePlayerState, []int) {
+	// calc delete target players in PlayerStates
+	newPlayerStates := make([]*TablePlayerState, 0)
+	for _, player := range currentPlayers {
+		exist := funk.Contains(leavePlayerIDs, func(leavePlayerID string) bool {
+			return player.PlayerID == leavePlayerID
+		})
+		if !exist {
+			newPlayerStates = append(newPlayerStates, player)
+		}
+	}
+
+	// calc seatMap
+	newSeatMap := NewDefaultSeatMap(tableMaxSeatCount)
+	for newPlayerIdx, player := range newPlayerStates {
+		newSeatMap[player.Seat] = newPlayerIdx
+	}
+
+	return newPlayerStates, newSeatMap
 }
 
 func (te *tableEngine) createPlayerGameAction(playerID string, playerIdx int, action string, chips int64) *TablePlayerGameAction {

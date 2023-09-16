@@ -19,7 +19,6 @@ const (
 	TableStateStatus_TableClosed    TableStateStatus = "table_closed"    // 桌次已結束
 
 	// TableStateStatus: Game
-	TableStateStatus_TableGameStandby TableStateStatus = "table_game_standby" // 桌次內遊戲尚未開始
 	TableStateStatus_TableGameOpened  TableStateStatus = "table_game_opened"  // 桌次內遊戲已開局
 	TableStateStatus_TableGamePlaying TableStateStatus = "table_game_playing" // 桌次內遊戲開打中
 	TableStateStatus_TableGameSettled TableStateStatus = "table_game_settled" // 桌次內遊戲已結算

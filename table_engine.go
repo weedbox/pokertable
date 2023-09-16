@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/thoas/go-funk"
 	"github.com/weedbox/syncsaga"
 	"github.com/weedbox/timebank"
 )
@@ -204,16 +203,23 @@ func (te *tableEngine) StartTableGame() error {
 	te.emitEvent("StartTableGame", "")
 
 	//  開局
-	te.TableGameOpen()
-
-	return nil
+	return te.TableGameOpen()
 }
 
 func (te *tableEngine) TableGameOpen() error {
 	// 開局
 	newTable, err := te.openGame(te.table)
 	if err != nil {
-		return err
+		// 嘗試重新開局
+		if err == ErrTableOpenGameFailed {
+			time.Sleep(time.Second * 3)
+			newTable, err = te.openGame(te.table)
+			if err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
 	}
 	te.table = newTable
 	te.emitEvent("TableGameOpen", "")
@@ -277,18 +283,31 @@ func (te *tableEngine) PlayerReserve(joinPlayer JoinPlayer) error {
 
 		te.emitTablePlayerStateEvent(te.table.State.PlayerStates[newPlayerIdx])
 		te.onTablePlayerReserved(te.table.Meta.CompetitionID, te.table.State.PlayerStates[newPlayerIdx])
+
+		// 玩家確認座位後，如果時間到了還沒有入座則自動入座
+		if err := timebank.NewTimeBank().NewTask(2*time.Second, func(isCancelled bool) {
+			if isCancelled {
+				return
+			}
+
+			if !te.table.State.PlayerStates[newPlayerIdx].IsIn {
+				_ = te.PlayerJoin(playerID)
+			}
+		}); err != nil {
+			return err
+		}
 	} else {
 		// ReBuy
 		// 補碼要檢查玩家是否介於 Dealer-BB 之間
 		te.table.State.PlayerStates[targetPlayerIdx].IsBetweenDealerBB = IsBetweenDealerBB(te.table.State.PlayerStates[targetPlayerIdx].Seat, te.table.State.CurrentDealerSeat, te.table.State.CurrentBBSeat, te.table.Meta.TableMaxSeatCount, te.table.Meta.Rule)
 		te.table.State.PlayerStates[targetPlayerIdx].Bankroll += redeemChips
-		te.table.State.PlayerStates[targetPlayerIdx].IsParticipated = true
 
 		te.emitTablePlayerStateEvent(te.table.State.PlayerStates[targetPlayerIdx])
 		te.onTablePlayerReserved(te.table.Meta.CompetitionID, te.table.State.PlayerStates[targetPlayerIdx])
 	}
 
 	te.emitEvent("PlayerReserve", joinPlayer.PlayerID)
+
 	return nil
 }
 
@@ -384,6 +403,10 @@ func (te *tableEngine) PlayerJoin(playerID string) error {
 		return ErrTablePlayerInvalidAction
 	}
 
+	if te.table.State.PlayerStates[playerIdx].IsIn {
+		return nil
+	}
+
 	te.table.State.PlayerStates[playerIdx].IsIn = true
 
 	if te.table.State.Status == TableStateStatus_TableBalancing {
@@ -430,23 +453,9 @@ func (te *tableEngine) PlayersLeave(playerIDs []string) error {
 	te.lock.Lock()
 	defer te.lock.Unlock()
 
-	// delete target players in PlayerStates
-	newPlayerStates := make([]*TablePlayerState, 0)
-	for _, player := range te.table.State.PlayerStates {
-		exist := funk.Contains(playerIDs, func(leavePlayerID string) bool {
-			return player.PlayerID == leavePlayerID
-		})
-		if !exist {
-			newPlayerStates = append(newPlayerStates, player)
-		}
-	}
+	newPlayerStates, newSeatMap := te.calcLeavePlayers(playerIDs, te.table.State.PlayerStates, te.table.Meta.TableMaxSeatCount)
 	te.table.State.PlayerStates = newPlayerStates
-
-	// reset seatMap
-	te.table.State.SeatMap = NewDefaultSeatMap(te.table.Meta.TableMaxSeatCount)
-	for newPlayerIdx, player := range te.table.State.PlayerStates {
-		te.table.State.SeatMap[player.Seat] = newPlayerIdx
-	}
+	te.table.State.SeatMap = newSeatMap
 
 	te.emitEvent("PlayersLeave", strings.Join(playerIDs, ","))
 	te.emitTableStateEvent(TableStateEvent_PlayersLeave)

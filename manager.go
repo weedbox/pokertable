@@ -10,6 +10,8 @@ var (
 )
 
 type Manager interface {
+	Reset()
+
 	// TableEngine Actions
 	GetTableEngine(tableID string) (TableEngine, error)
 	CreateTable(options *TableEngineOptions, callbacks *TableEngineCallbacks, setting TableSetting) (*Table, error)
@@ -46,6 +48,10 @@ func NewManager() Manager {
 	return &manager{
 		tableEngines: sync.Map{},
 	}
+}
+
+func (m *manager) Reset() {
+	m.tableEngines = sync.Map{}
 }
 
 func (m *manager) GetTableEngine(tableID string) (TableEngine, error) {

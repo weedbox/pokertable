@@ -67,6 +67,7 @@ type tableEngine struct {
 	gameBackend               GameBackend
 	rg                        *syncsaga.ReadyGroup
 	tb                        *timebank.TimeBank
+	joinCheckerTimeBank       map[string]*timebank.TimeBank
 	onTableUpdated            func(*Table)
 	onTableErrorUpdated       func(*Table, error)
 	onTableStateUpdated       func(string, *Table)
@@ -80,6 +81,7 @@ func NewTableEngine(options *TableEngineOptions, opts ...TableEngineOpt) TableEn
 		options:                   options,
 		rg:                        syncsaga.NewReadyGroup(),
 		tb:                        timebank.NewTimeBank(),
+		joinCheckerTimeBank:       make(map[string]*timebank.TimeBank),
 		onTableUpdated:            callbacks.OnTableUpdated,
 		onTableErrorUpdated:       callbacks.OnTableErrorUpdated,
 		onTableStateUpdated:       callbacks.OnTableStateUpdated,
@@ -285,7 +287,11 @@ func (te *tableEngine) PlayerReserve(joinPlayer JoinPlayer) error {
 		te.onTablePlayerReserved(te.table.Meta.CompetitionID, te.table.State.PlayerStates[newPlayerIdx])
 
 		// 玩家確認座位後，如果時間到了還沒有入座則自動入座
-		if err := timebank.NewTimeBank().NewTask(2*time.Second, func(isCancelled bool) {
+		if _, ok := te.joinCheckerTimeBank[playerID]; !ok {
+			te.joinCheckerTimeBank[playerID] = timebank.NewTimeBank()
+		}
+		te.joinCheckerTimeBank[playerID].Cancel()
+		if err := te.joinCheckerTimeBank[playerID].NewTask(2*time.Second, func(isCancelled bool) {
 			if isCancelled {
 				return
 			}
@@ -407,6 +413,7 @@ func (te *tableEngine) PlayerJoin(playerID string) error {
 		return nil
 	}
 
+	te.joinCheckerTimeBank[playerID].Cancel()
 	te.table.State.PlayerStates[playerIdx].IsIn = true
 
 	if te.table.State.Status == TableStateStatus_TableBalancing {

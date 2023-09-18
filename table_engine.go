@@ -296,8 +296,18 @@ func (te *tableEngine) PlayerReserve(joinPlayer JoinPlayer) error {
 				return
 			}
 
-			if !te.table.State.PlayerStates[newPlayerIdx].IsIn {
-				_ = te.PlayerJoin(playerID)
+			targetPlayerIdx := UnsetValue
+			for idx, p := range te.table.State.PlayerStates {
+				if p.PlayerID == playerID {
+					targetPlayerIdx = idx
+					break
+				}
+			}
+
+			if targetPlayerIdx != UnsetValue && !te.table.State.PlayerStates[newPlayerIdx].IsIn {
+				if err := te.PlayerJoin(playerID); err != nil {
+					te.emitErrorEvent("auto in", "", err)
+				}
 			}
 		}); err != nil {
 			return err

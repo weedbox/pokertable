@@ -25,11 +25,11 @@ const (
 )
 
 type Table struct {
+	UpdateSerial int64       `json:"update_serial" mapstructure:"update_serial"` // 更新序列號 (數字越大越晚發生)
 	ID           string      `json:"id" mapstructure:"id"`
 	Meta         TableMeta   `json:"meta" mapstructure:"meta"`
 	State        *TableState `json:"state" mapstructure:"state"`
-	UpdateAt     int64       `json:"update_at" mapstructure:"update_at"`         // 更新時間 (Seconds)
-	UpdateSerial int64       `json:"update_serial" mapstructure:"update_serial"` // 更新序列號 (數字越大越晚發生)
+	UpdateAt     int64       `json:"update_at" mapstructure:"update_at"` // 更新時間 (Seconds)
 }
 
 type TableMeta struct {

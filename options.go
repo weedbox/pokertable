@@ -5,7 +5,7 @@ type TableEngineCallbacks struct {
 	OnTableErrorUpdated       func(t *Table, err error)
 	OnTableStateUpdated       func(string, *Table)
 	OnTablePlayerStateUpdated func(string, string, *TablePlayerState)
-	OnTablePlayerReserved     func(competitionID string, playerState *TablePlayerState)
+	OnTablePlayerReserved     func(string, string, *TablePlayerState)
 }
 
 func NewTableEngineCallbacks() *TableEngineCallbacks {
@@ -14,7 +14,7 @@ func NewTableEngineCallbacks() *TableEngineCallbacks {
 		OnTableErrorUpdated:       func(*Table, error) {},
 		OnTableStateUpdated:       func(string, *Table) {},
 		OnTablePlayerStateUpdated: func(string, string, *TablePlayerState) {},
-		OnTablePlayerReserved:     func(string, *TablePlayerState) {},
+		OnTablePlayerReserved:     func(string, string, *TablePlayerState) {},
 	}
 }
 

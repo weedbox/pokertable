@@ -411,7 +411,10 @@ func (te *tableEngine) PlayerJoin(playerID string) error {
 		return nil
 	}
 
-	te.autoJoinChecker[playerID].Cancel()
+	if _, ok := te.autoJoinChecker[playerID]; ok {
+		te.autoJoinChecker[playerID].Cancel()
+	}
+
 	te.table.State.PlayerStates[playerIdx].IsIn = true
 
 	if te.table.State.Status == TableStateStatus_TableBalancing {

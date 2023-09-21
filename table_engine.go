@@ -67,7 +67,7 @@ type tableEngine struct {
 	gameBackend               GameBackend
 	rg                        *syncsaga.ReadyGroup
 	tb                        *timebank.TimeBank
-	joinCheckerTimeBank       map[string]*timebank.TimeBank
+	autoJoinChecker           map[string]*timebank.TimeBank
 	onTableUpdated            func(*Table)
 	onTableErrorUpdated       func(*Table, error)
 	onTableStateUpdated       func(string, *Table)
@@ -81,7 +81,7 @@ func NewTableEngine(options *TableEngineOptions, opts ...TableEngineOpt) TableEn
 		options:                   options,
 		rg:                        syncsaga.NewReadyGroup(),
 		tb:                        timebank.NewTimeBank(),
-		joinCheckerTimeBank:       make(map[string]*timebank.TimeBank),
+		autoJoinChecker:           make(map[string]*timebank.TimeBank),
 		onTableUpdated:            callbacks.OnTableUpdated,
 		onTableErrorUpdated:       callbacks.OnTableErrorUpdated,
 		onTableStateUpdated:       callbacks.OnTableStateUpdated,
@@ -287,11 +287,11 @@ func (te *tableEngine) PlayerReserve(joinPlayer JoinPlayer) error {
 		te.onTablePlayerReserved(te.table.Meta.CompetitionID, te.table.ID, te.table.State.PlayerStates[newPlayerIdx])
 
 		// 玩家確認座位後，如果時間到了還沒有入座則自動入座
-		if _, ok := te.joinCheckerTimeBank[playerID]; !ok {
-			te.joinCheckerTimeBank[playerID] = timebank.NewTimeBank()
+		if _, ok := te.autoJoinChecker[playerID]; !ok {
+			te.autoJoinChecker[playerID] = timebank.NewTimeBank()
 		}
-		te.joinCheckerTimeBank[playerID].Cancel()
-		if err := te.joinCheckerTimeBank[playerID].NewTask(2*time.Second, func(isCancelled bool) {
+		te.autoJoinChecker[playerID].Cancel()
+		if err := te.autoJoinChecker[playerID].NewTask(time.Minute, func(isCancelled bool) {
 			if isCancelled {
 				return
 			}
@@ -332,21 +332,9 @@ PlayersBatchReserve 多位玩家確認座位
   - 適用時機: 拆併桌整桌玩家確認座位、開桌時有預設玩家
 */
 func (te *tableEngine) PlayersBatchReserve(joinPlayers []JoinPlayer) error {
-	// playerIDs := make([]string, 0)
-	// for _, player := range te.table.State.PlayerStates {
-	// 	playerIDs = append(playerIDs, player.PlayerID)
-	// }
-
-	// joinPlayerIDs := make([]string, 0)
-	// for _, joinPlayer := range joinPlayers {
-	// 	joinPlayerIDs = append(joinPlayerIDs, joinPlayer.PlayerID)
-	// }
-
-	// fmt.Printf("[DEBUG] 目前玩家: %d 人 (%s), 新加入玩家: %d 人 (%s)\n", len(playerIDs), strings.Join(playerIDs, ","), len(joinPlayerIDs), strings.Join(joinPlayerIDs, ","))
-
 	// Preparing ready group for waiting all players' join
 	te.rg.Stop()
-	te.rg.SetTimeoutInterval(2) // TODO: ask for longest period for timeout
+	te.rg.SetTimeoutInterval(15)
 	te.rg.OnTimeout(func(rg *syncsaga.ReadyGroup) {
 		// Auto Ready By Default
 		states := rg.GetParticipantStates()
@@ -423,7 +411,7 @@ func (te *tableEngine) PlayerJoin(playerID string) error {
 		return nil
 	}
 
-	te.joinCheckerTimeBank[playerID].Cancel()
+	te.autoJoinChecker[playerID].Cancel()
 	te.table.State.PlayerStates[playerIdx].IsIn = true
 
 	if te.table.State.Status == TableStateStatus_TableBalancing {

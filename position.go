@@ -50,10 +50,10 @@ func FindDealerPlayerIndex(gameCount, prevDealerSeatIdx, minPlayingCount, maxSea
 		// 第一次開局，隨機挑選一位玩家當 Dealer
 		newDealerIdx = rand.Intn(len(players))
 
-		// 如果沒入桌玩家就照順序選有入桌玩家
-		if !players[newDealerIdx].IsIn {
+		// 如果玩家沒資格就照順序選有資格玩家
+		if !players[newDealerIdx].IsParticipated {
 			for playerIdx := 0; playerIdx < len(players); playerIdx++ {
-				if players[playerIdx].IsIn {
+				if players[playerIdx].IsParticipated {
 					newDealerIdx = playerIdx
 					break
 				}

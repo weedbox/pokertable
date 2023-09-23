@@ -461,9 +461,10 @@ func (te *tableEngine) PlayersLeave(playerIDs []string) error {
 	te.lock.Lock()
 	defer te.lock.Unlock()
 
-	newPlayerStates, newSeatMap := te.calcLeavePlayers(playerIDs, te.table.State.PlayerStates, te.table.Meta.TableMaxSeatCount)
+	newPlayerStates, newSeatMap, newGamePlayerIndexes := te.calcLeavePlayers(te.table.State.Status, playerIDs, te.table.State.PlayerStates, te.table.Meta.TableMaxSeatCount)
 	te.table.State.PlayerStates = newPlayerStates
 	te.table.State.SeatMap = newSeatMap
+	te.table.State.GamePlayerIndexes = newGamePlayerIndexes
 
 	te.emitEvent("PlayersLeave", strings.Join(playerIDs, ","))
 	te.emitTableStateEvent(TableStateEvent_PlayersLeave)

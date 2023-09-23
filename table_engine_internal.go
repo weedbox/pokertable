@@ -154,7 +154,7 @@ func (te *tableEngine) openGame(oldTable *Table) (*Table, error) {
 	// Step 7: 計算 & 更新本手參與玩家的 PlayerIndex 陣列
 	gamePlayerIndexes := FindGamePlayerIndexes(newDealerTableSeatIdx, cloneTable.State.SeatMap, cloneTable.State.PlayerStates)
 	if len(gamePlayerIndexes) < cloneTable.Meta.TableMinPlayerCount {
-		fmt.Printf("[DEBUG#MTT#openGame] TableMinPlayerCount: %d, GamePlayerIndexes: %+v\n", cloneTable.Meta.TableMinPlayerCount, gamePlayerIndexes)
+		fmt.Printf("[DEBUG#MTT#openGame] Competition (%s), Table (%s), TableMinPlayerCount: %d, GamePlayerIndexes: %+v\n", cloneTable.Meta.CompetitionID, cloneTable.ID, cloneTable.Meta.TableMinPlayerCount, gamePlayerIndexes)
 		json, _ := cloneTable.GetJSON()
 		fmt.Println(json)
 		return oldTable, ErrTableOpenGameFailed
@@ -320,9 +320,10 @@ func (te *tableEngine) calcSeatChanges(oldTable *Table) *TableGameSeatChanges {
 	}
 
 	// delete no chips players
-	newPlayerStates, newSeatMap := te.calcLeavePlayers(leavePlayerIDs, cloneTable.State.PlayerStates, cloneTable.Meta.TableMaxSeatCount)
+	newPlayerStates, newSeatMap, newGamePlayerIndexes := te.calcLeavePlayers(cloneTable.State.Status, leavePlayerIDs, cloneTable.State.PlayerStates, cloneTable.Meta.TableMaxSeatCount)
 	cloneTable.State.PlayerStates = newPlayerStates
 	cloneTable.State.SeatMap = newSeatMap
+	cloneTable.State.GamePlayerIndexes = newGamePlayerIndexes
 
 	if len(cloneTable.State.PlayerStates) < 2 {
 		sc.NewDealer = cloneTable.State.PlayerStates[0].Seat
@@ -357,7 +358,7 @@ func (te *tableEngine) calcSeatChanges(oldTable *Table) *TableGameSeatChanges {
 	return sc
 }
 
-func (te *tableEngine) calcLeavePlayers(leavePlayerIDs []string, currentPlayers []*TablePlayerState, tableMaxSeatCount int) ([]*TablePlayerState, []int) {
+func (te *tableEngine) calcLeavePlayers(status TableStateStatus, leavePlayerIDs []string, currentPlayers []*TablePlayerState, tableMaxSeatCount int) ([]*TablePlayerState, []int, []int) {
 	// calc delete target players in PlayerStates
 	newPlayerStates := make([]*TablePlayerState, 0)
 	for _, player := range currentPlayers {
@@ -375,7 +376,33 @@ func (te *tableEngine) calcLeavePlayers(leavePlayerIDs []string, currentPlayers 
 		newSeatMap[player.Seat] = newPlayerIdx
 	}
 
-	return newPlayerStates, newSeatMap
+	// calc new gamePlayerIndexes
+	newPlayerData := make(map[string]int)
+	for newPlayerIdx, player := range newPlayerStates {
+		newPlayerData[player.PlayerID] = newPlayerIdx
+	}
+
+	currentGamePlayerData := make(map[int]string) // key: currentPlayerIdx, value: currentPlayerID
+	for _, playerIdx := range te.table.State.GamePlayerIndexes {
+		currentGamePlayerData[playerIdx] = te.table.State.PlayerStates[playerIdx].PlayerID
+	}
+	gameStatuses := []TableStateStatus{
+		TableStateStatus_TableGameOpened,
+		TableStateStatus_TableGamePlaying,
+		TableStateStatus_TableGameSettled,
+	}
+	newGamePlayerIndexes := make([]int, 0)
+	if funk.Contains(gameStatuses, status) {
+		for _, currentPlayerIdx := range te.table.State.GamePlayerIndexes {
+			playerID := currentGamePlayerData[currentPlayerIdx]
+			newPlayerIdx := newPlayerData[playerID]
+			newGamePlayerIndexes = append(newGamePlayerIndexes, newPlayerIdx)
+		}
+	} else {
+		newGamePlayerIndexes = te.table.State.GamePlayerIndexes
+	}
+
+	return newPlayerStates, newSeatMap, newGamePlayerIndexes
 }
 
 func (te *tableEngine) createPlayerGameAction(playerID string, playerIdx int, action string, chips int64) *TablePlayerGameAction {

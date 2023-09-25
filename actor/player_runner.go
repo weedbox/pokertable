@@ -9,6 +9,7 @@ import (
 )
 
 type PlayerStatus int32
+type TableGameWagerActionUpdatedFunc func(tableID, gameID string, gameCount int, round, action string, chips int64)
 
 const (
 	PlayerStatus_Running PlayerStatus = iota

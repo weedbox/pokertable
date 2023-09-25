@@ -96,6 +96,9 @@ func TestActor_Basic(t *testing.T) {
 
 		// Initializing bot runner
 		bot := NewBotRunner(p.PlayerID)
+		bot.OnTableAutoJoinActionRequested(func(competitionID, tableID, playerID string) {
+			assert.Nil(t, tableEngine.PlayerJoin(playerID), fmt.Sprintf("%s join error", playerID))
+		})
 		a.SetRunner(bot)
 
 		actors = append(actors, a)
@@ -105,7 +108,6 @@ func TestActor_Basic(t *testing.T) {
 	// Add players to table
 	for _, p := range players {
 		assert.Nil(t, tableEngine.PlayerReserve(p), fmt.Sprintf("%s reserve error", p.PlayerID))
-		assert.Nil(t, tableEngine.PlayerJoin(p.PlayerID), fmt.Sprintf("%s join error", p.PlayerID))
 	}
 
 	// Start game

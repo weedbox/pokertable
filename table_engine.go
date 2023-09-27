@@ -78,10 +78,9 @@ type tableEngine struct {
 func NewTableEngine(options *TableEngineOptions, opts ...TableEngineOpt) TableEngine {
 	callbacks := NewTableEngineCallbacks()
 	te := &tableEngine{
-		options: options,
-		rg:      syncsaga.NewReadyGroup(),
-		tb:      timebank.NewTimeBank(),
-		// autoJoinChecker:           make(map[string]*timebank.TimeBank),
+		options:                   options,
+		rg:                        syncsaga.NewReadyGroup(),
+		tb:                        timebank.NewTimeBank(),
 		onTableUpdated:            callbacks.OnTableUpdated,
 		onTableErrorUpdated:       callbacks.OnTableErrorUpdated,
 		onTableStateUpdated:       callbacks.OnTableStateUpdated,
@@ -285,33 +284,6 @@ func (te *tableEngine) PlayerReserve(joinPlayer JoinPlayer) error {
 
 		te.emitTablePlayerStateEvent(te.table.State.PlayerStates[newPlayerIdx])
 		te.emitTablePlayerReservedEvent(te.table.State.PlayerStates[newPlayerIdx])
-
-		// 玩家確認座位後，如果時間到了還沒有入座則自動入座
-		// if _, ok := te.autoJoinChecker[playerID]; !ok {
-		// 	te.autoJoinChecker[playerID] = timebank.NewTimeBank()
-		// }
-		// te.autoJoinChecker[playerID].Cancel()
-		// if err := te.autoJoinChecker[playerID].NewTask(time.Minute, func(isCancelled bool) {
-		// 	if isCancelled {
-		// 		return
-		// 	}
-
-		// 	targetPlayerIdx := UnsetValue
-		// 	for idx, p := range te.table.State.PlayerStates {
-		// 		if p.PlayerID == playerID {
-		// 			targetPlayerIdx = idx
-		// 			break
-		// 		}
-		// 	}
-
-		// 	if targetPlayerIdx != UnsetValue && !te.table.State.PlayerStates[targetPlayerIdx].IsIn {
-		// 		if err := te.PlayerJoin(playerID); err != nil {
-		// 			te.emitErrorEvent("auto in", "", err)
-		// 		}
-		// 	}
-		// }); err != nil {
-		// 	return err
-		// }
 	} else {
 		// ReBuy
 		// 補碼要檢查玩家是否介於 Dealer-BB 之間
@@ -410,10 +382,6 @@ func (te *tableEngine) PlayerJoin(playerID string) error {
 	if te.table.State.PlayerStates[playerIdx].IsIn {
 		return nil
 	}
-
-	// if _, ok := te.autoJoinChecker[playerID]; ok {
-	// 	te.autoJoinChecker[playerID].Cancel()
-	// }
 
 	te.table.State.PlayerStates[playerIdx].IsIn = true
 

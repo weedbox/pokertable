@@ -116,6 +116,10 @@ func (te *tableEngine) openGame(oldTable *Table) (*Table, error) {
 			continue
 		}
 
+		if !cloneTable.State.PlayerStates[i].IsParticipated {
+			continue
+		}
+
 		if newDealerTableSeatIdx-cloneTable.State.CurrentDealerSeat < 0 {
 			for j := cloneTable.State.CurrentDealerSeat + 1; j < newDealerTableSeatIdx+cloneTable.Meta.TableMaxSeatCount; j++ {
 				if (j % cloneTable.Meta.TableMaxSeatCount) != cloneTable.State.PlayerStates[i].Seat {
@@ -123,12 +127,7 @@ func (te *tableEngine) openGame(oldTable *Table) (*Table, error) {
 				}
 
 				cloneTable.State.PlayerStates[i].IsBetweenDealerBB = false
-
-				if !cloneTable.State.PlayerStates[i].IsIn {
-					cloneTable.State.PlayerStates[i].IsParticipated = false
-				} else {
-					cloneTable.State.PlayerStates[i].IsParticipated = true
-				}
+				cloneTable.State.PlayerStates[i].IsParticipated = true
 			}
 		} else {
 			for j := cloneTable.State.CurrentDealerSeat + 1; j < newDealerTableSeatIdx; j++ {
@@ -136,17 +135,8 @@ func (te *tableEngine) openGame(oldTable *Table) (*Table, error) {
 					continue
 				}
 
-				if !cloneTable.State.PlayerStates[i].IsIn {
-					continue
-				}
-
 				cloneTable.State.PlayerStates[i].IsBetweenDealerBB = false
-
-				if !cloneTable.State.PlayerStates[i].IsIn {
-					cloneTable.State.PlayerStates[i].IsParticipated = false
-				} else {
-					cloneTable.State.PlayerStates[i].IsParticipated = true
-				}
+				cloneTable.State.PlayerStates[i].IsParticipated = true
 			}
 		}
 	}
@@ -247,6 +237,10 @@ func (te *tableEngine) settleGame() {
 	for _, player := range te.table.State.GameState.Result.Players {
 		playerIdx := te.table.State.GamePlayerIndexes[player.Idx]
 		te.table.State.PlayerStates[playerIdx].Bankroll = player.Final
+
+		if te.table.State.PlayerStates[playerIdx].Bankroll == 0 {
+			te.table.State.PlayerStates[playerIdx].IsParticipated = false
+		}
 	}
 
 	// 更新 SeatChanges

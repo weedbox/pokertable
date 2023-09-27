@@ -82,6 +82,8 @@ func TestActor_Basic(t *testing.T) {
 		{PlayerID: "Jeffrey", RedeemChips: redeemChips},
 		{PlayerID: "Chuck", RedeemChips: redeemChips},
 		{PlayerID: "Fred", RedeemChips: redeemChips},
+		{PlayerID: "Loz", RedeemChips: redeemChips},
+		{PlayerID: "Kimi", RedeemChips: redeemChips},
 	}
 
 	// Preparing actors

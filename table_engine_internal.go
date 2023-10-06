@@ -274,9 +274,8 @@ func (te *tableEngine) continueGame() error {
 			te.emitEvent("ContinueGame -> Pause", "")
 			te.emitTableStateEvent(TableStateEvent_StatusUpdated)
 		} else {
-			// 自動開下一手條件: 非 TableStateStatus_TableGamePlaying 或 非 TableStateStatus_TableBalancing 或 非 TableStateStatus_TableBalancing 且有籌碼玩家 >= 最小開打人數
-			stopOpenNextGame := (te.table.State.Status == TableStateStatus_TableGamePlaying || te.table.State.Status == TableStateStatus_TableBalancing || te.table.State.Status == TableStateStatus_TableClosed) && len(te.table.AlivePlayers()) >= te.table.Meta.TableMinPlayerCount
-			if !stopOpenNextGame {
+			// 自動開下一手條件: status = TableStateStatus_TableGameSettled 且有籌碼玩家 >= 最小開打人數
+			if te.table.State.Status == TableStateStatus_TableGameSettled && len(te.table.AlivePlayers()) >= te.table.Meta.TableMinPlayerCount {
 				return te.TableGameOpen()
 			}
 		}

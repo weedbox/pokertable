@@ -121,17 +121,20 @@ func FindGamePlayerIndexes(dealerSeatIdx int, seatMap []int, players []*TablePla
 
 func GetPlayerPositionMap(rule string, players []*TablePlayerState, gamePlayerIndexes []int) map[int][]string {
 	playerPositionMap := make(map[int][]string)
-	switch rule {
-	case CompetitionRule_Default, CompetitionRule_Omaha:
-		positions := newPositions(len(gamePlayerIndexes))
-		for gamePlayerIdx, playerIdx := range gamePlayerIndexes {
-			playerPositionMap[playerIdx] = positions[gamePlayerIdx]
-		}
-	case CompetitionRule_ShortDeck:
-		dealerPlayerIdx := gamePlayerIndexes[0]
-		playerPositionMap[dealerPlayerIdx] = []string{Position_Dealer}
+	positions := newPositions(len(gamePlayerIndexes))
+	for gamePlayerIdx, playerIdx := range gamePlayerIndexes {
+		playerPositionMap[playerIdx] = positions[gamePlayerIdx]
 	}
-
+	// switch rule {
+	// case CompetitionRule_Default, CompetitionRule_Omaha:
+	// 	positions := newPositions(len(gamePlayerIndexes))
+	// 	for gamePlayerIdx, playerIdx := range gamePlayerIndexes {
+	// 		playerPositionMap[playerIdx] = positions[gamePlayerIdx]
+	// 	}
+	// case CompetitionRule_ShortDeck:
+	// 	dealerPlayerIdx := gamePlayerIndexes[0]
+	// 	playerPositionMap[dealerPlayerIdx] = []string{Position_Dealer}
+	// }
 	return playerPositionMap
 }
 

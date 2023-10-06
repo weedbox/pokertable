@@ -25,37 +25,37 @@ const (
 )
 
 type Table struct {
-	UpdateSerial int64       `json:"update_serial" mapstructure:"update_serial"` // 更新序列號 (數字越大越晚發生)
-	ID           string      `json:"id" mapstructure:"id"`
-	Meta         TableMeta   `json:"meta" mapstructure:"meta"`
-	State        *TableState `json:"state" mapstructure:"state"`
-	UpdateAt     int64       `json:"update_at" mapstructure:"update_at"` // 更新時間 (Seconds)
+	UpdateSerial int64       `json:"update_serial"` // 更新序列號 (數字越大越晚發生)
+	ID           string      `json:"id"`            // 桌次 Unique ID
+	Meta         TableMeta   `json:"meta"`          // 桌次固定資料
+	State        *TableState `json:"state"`         // 桌次動態資料
+	UpdateAt     int64       `json:"update_at"`     // 更新時間 (Seconds)
 }
 
 type TableMeta struct {
-	CompetitionID       string `json:"competition_id" mapstructure:"competition_id"`                 // 賽事 ID
-	Rule                string `json:"rule" mapstructure:"rule"`                                     // 德州撲克規則, 常牌(default), 短牌(short_deck), 奧瑪哈(omaha)
-	Mode                string `json:"mode" mapstructure:"mode"`                                     // 賽事模式 (CT, MTT, Cash)
-	MaxDuration         int    `json:"max_duration" mapstructure:"max_duration"`                     // 比賽時間總長 (Seconds)
-	TableMaxSeatCount   int    `json:"table_max_seat_count" mapstructure:"table_max_seat_count"`     // 每桌人數上限
-	TableMinPlayerCount int    `json:"table_min_player_count" mapstructure:"table_min_player_count"` // 每桌最小開打數
-	MinChipUnit         int64  `json:"min_chip_unit" mapstructure:"min_chip_unit"`                   // 最小單位籌碼量
-	ActionTime          int    `json:"action_time" mapstructure:"action_time"`                       // 玩家動作思考時間 (Seconds)
+	CompetitionID       string `json:"competition_id"`         // 賽事 ID
+	Rule                string `json:"rule"`                   // 德州撲克規則, 常牌(default), 短牌(short_deck), 奧瑪哈(omaha)
+	Mode                string `json:"mode"`                   // 賽事模式 (CT, MTT, Cash)
+	MaxDuration         int    `json:"max_duration"`           // 比賽時間總長 (Seconds)
+	TableMaxSeatCount   int    `json:"table_max_seat_count"`   // 每桌人數上限
+	TableMinPlayerCount int    `json:"table_min_player_count"` // 每桌最小開打數
+	MinChipUnit         int64  `json:"min_chip_unit"`          // 最小單位籌碼量
+	ActionTime          int    `json:"action_time"`            // 玩家動作思考時間 (Seconds)
 }
 
 type TableState struct {
-	Status               TableStateStatus       `json:"status" mapstructure:"status"`                                   // 當前桌次狀態
-	StartAt              int64                  `json:"start_at" mapstructure:"start_at"`                               // 開打時間 (Seconds)
-	SeatMap              []int                  `json:"seat_map" mapstructure:"seat_map"`                               // 座位入座狀況，index: seat index (0-8), value: TablePlayerState index (-1 by default)
-	BlindState           *TableBlindState       `json:"blind_state" mapstructure:"blind_state"`                         // 盲注狀態
-	CurrentDealerSeat    int                    `json:"current_dealer_seat" mapstructure:"current_dealer_seat"`         // 當前 Dealer 座位編號
-	CurrentBBSeat        int                    `json:"current_bb_seat" mapstructure:"current_bb_seat"`                 // 當前 BB 座位編號
-	PlayerStates         []*TablePlayerState    `json:"player_states" mapstructure:"player_states"`                     // 賽局桌上玩家狀態
-	GameCount            int                    `json:"game_count" mapstructure:"game_count"`                           // 執行牌局遊戲次數 (遊戲跑幾輪)
-	GamePlayerIndexes    []int                  `json:"game_player_indexes" mapstructure:"game_player_indexes"`         // 本手正在玩的 PlayerIndex 陣列 (陣列 index 為從 Dealer 位置開始的 PlayerIndex)，GameEngine 用
-	GameState            *pokerface.GameState   `json:"game_state" mapstructure:"game_state"`                           // 本手狀態
-	SeatChanges          *TableGameSeatChanges  `json:"seat_changes" mapstructure:"seat_changes"`                       // 新的一手座位狀況
-	LastPlayerGameAction *TablePlayerGameAction `json:"last_player_game_action" mapstructure:"last_player_game_action"` // 最新一筆玩家牌局動作
+	Status               TableStateStatus       `json:"statu"`                   // 當前桌次狀態
+	StartAt              int64                  `json:"start_at"`                // 開打時間 (Seconds)
+	SeatMap              []int                  `json:"seat_map"`                // 座位入座狀況，index: seat index (0-8), value: TablePlayerState index (-1 by default)
+	BlindState           *TableBlindState       `json:"blind_state"`             // 盲注狀態
+	CurrentDealerSeat    int                    `json:"current_dealer_seat"`     // 當前 Dealer 座位編號
+	CurrentBBSeat        int                    `json:"current_bb_seat"`         // 當前 BB 座位編號
+	PlayerStates         []*TablePlayerState    `json:"player_states"`           // 賽局桌上玩家狀態
+	GameCount            int                    `json:"game_count"`              // 執行牌局遊戲次數 (遊戲跑幾輪)
+	GamePlayerIndexes    []int                  `json:"game_player_indexes"`     // 本手正在玩的 PlayerIndex 陣列 (陣列 index 為從 Dealer 位置開始的 PlayerIndex)，GameEngine 用
+	GameState            *pokerface.GameState   `json:"game_state"`              // 本手狀態
+	SeatChanges          *TableGameSeatChanges  `json:"seat_changes"`            // 新的一手座位狀況
+	LastPlayerGameAction *TablePlayerGameAction `json:"last_player_game_action"` // 最新一筆玩家牌局動作
 }
 
 type TableGameSeatChanges struct {
@@ -65,44 +65,44 @@ type TableGameSeatChanges struct {
 }
 
 type TablePlayerGameAction struct {
-	TableID   string   `json:"table_id" mapstructure:"table_id"`     // 桌次 ID
-	GameID    string   `json:"game_id" mapstructure:"game_id"`       // 遊戲 ID
-	GameCount int      `json:"game_count" mapstructure:"game_count"` // 執行牌局遊戲次數 (遊戲跑幾輪)
-	Round     string   `json:"round" mapstructure:"round"`           // 哪回合
-	UpdateAt  int64    `json:"update_at" mapstructure:"update_at"`   // 更新時間 (Seconds)
-	PlayerID  string   `json:"player_id" mapstructure:"player_id"`   // 玩家 ID
-	Seat      int      `json:"seat" mapstructure:"seat"`             // 座位編號 0 ~ 8
-	Positions []string `json:"positions" mapstructure:"positions"`   // 場上位置
-	Action    string   `json:"action" mapstructure:"action"`         // 動作
-	Chips     int64    `json:"chips" mapstructure:"chips"`           // 下注籌碼量
+	TableID   string   `json:"table_id"`   // 桌次 ID
+	GameID    string   `json:"game_id"`    // 遊戲 ID
+	GameCount int      `json:"game_count"` // 執行牌局遊戲次數 (遊戲跑幾輪)
+	Round     string   `json:"round"`      // 哪回合
+	UpdateAt  int64    `json:"update_at"`  // 更新時間 (Seconds)
+	PlayerID  string   `json:"player_id"`  // 玩家 ID
+	Seat      int      `json:"seat"`       // 座位編號 0 ~ 8
+	Positions []string `json:"positions"`  // 場上位置
+	Action    string   `json:"action"`     // 動作
+	Chips     int64    `json:"chips"`      // 下注籌碼量
 }
 
 type TablePlayerState struct {
-	PlayerID          string                    `json:"player_id" mapstructure:"player_id"`                       // 玩家 ID
-	Seat              int                       `json:"seat" mapstructure:"seat"`                                 // 座位編號 0 ~ 8
-	Positions         []string                  `json:"positions" mapstructure:"positions"`                       // 場上位置
-	IsParticipated    bool                      `json:"is_participated" mapstructure:"is_participated"`           // 玩家是否參戰
-	IsBetweenDealerBB bool                      `json:"is_between_dealer_bb" mapstructure:"is_between_dealer_bb"` // 玩家入場時是否在 Dealer & BB 之間
-	Bankroll          int64                     `json:"bankroll" mapstructure:"bankroll"`                         // 玩家身上籌碼
-	IsIn              bool                      `json:"is_in" mapstructure:"is_in"`                               // 玩家是否入座
-	GameStatistics    TablePlayerGameStatistics `json:"game_statistics" mapstructure:"game_statistics"`           // 玩家每手遊戲統計
+	PlayerID          string                    `json:"player_id"`            // 玩家 ID
+	Seat              int                       `json:"seat"`                 // 座位編號 0 ~ 8
+	Positions         []string                  `json:"positions"`            // 場上位置
+	IsParticipated    bool                      `json:"is_participated"`      // 玩家是否參戰
+	IsBetweenDealerBB bool                      `json:"is_between_dealer_bb"` // 玩家入場時是否在 Dealer & BB 之間
+	Bankroll          int64                     `json:"bankroll"`             // 玩家身上籌碼
+	IsIn              bool                      `json:"is_in"`                // 玩家是否入座
+	GameStatistics    TablePlayerGameStatistics `json:"game_statistics"`      // 玩家每手遊戲統計
 }
 
 type TablePlayerGameStatistics struct {
-	ActionTimes int    `json:"action_times" mapstructure:"action_times"` // 下注動作總次數
-	RaiseTimes  int    `json:"raise_times" mapstructure:"raise_times"`   // 加注總次數
-	CallTimes   int    `json:"call_times" mapstructure:"call_times"`     // 跟注總次數
-	CheckTimes  int    `json:"check_times" mapstructure:"check_times"`   // 過牌總次數
-	IsFold      bool   `json:"is_fold" mapstructure:"is_fold"`           // 是否蓋牌
-	FoldRound   string `json:"fold_round" mapstructure:"fold_round"`     // 蓋牌回合
+	ActionTimes int    `json:"action_times"` // 下注動作總次數
+	RaiseTimes  int    `json:"raise_times"`  // 加注總次數
+	CallTimes   int    `json:"call_times"`   // 跟注總次數
+	CheckTimes  int    `json:"check_times"`  // 過牌總次數
+	IsFold      bool   `json:"is_fold"`      // 是否蓋牌
+	FoldRound   string `json:"fold_round"`   // 蓋牌回合
 }
 
 type TableBlindState struct {
-	Level  int   `json:"level" mapstructure:"level"`   // 盲注等級(-1 表示中場休息)
-	Ante   int64 `json:"ante" mapstructure:"ante"`     // 前注籌碼量
-	Dealer int64 `json:"dealer" mapstructure:"dealer"` // 庄位籌碼量
-	SB     int64 `json:"sb" mapstructure:"sb"`         // 大盲籌碼量
-	BB     int64 `json:"bb" mapstructure:"bb"`         // 小盲籌碼量
+	Level  int   `json:"level"`  // 盲注等級(-1 表示中場休息)
+	Ante   int64 `json:"ante"`   // 前注籌碼量
+	Dealer int64 `json:"dealer"` // 庄位籌碼量
+	SB     int64 `json:"sb"`     // 大盲籌碼量
+	BB     int64 `json:"bb"`     // 小盲籌碼量
 }
 
 // Table Getters

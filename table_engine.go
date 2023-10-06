@@ -35,6 +35,7 @@ type TableEngine interface {
 	GetGame() Game                                         // 取得遊戲引擎
 	CreateTable(tableSetting TableSetting) (*Table, error) // 建立桌
 	BalanceTable() error                                   // 等待拆併桌中
+	PauseTable() error                                     // 暫停桌
 	CloseTable() error                                     // 關閉桌
 	StartTableGame() error                                 // 開打遊戲
 	TableGameOpen() error                                  // 開下一輪遊戲
@@ -182,6 +183,16 @@ func (te *tableEngine) BalanceTable() error {
 	te.table.State.Status = TableStateStatus_TableBalancing
 
 	te.emitEvent("BalanceTable", "")
+	te.emitTableStateEvent(TableStateEvent_StatusUpdated)
+	return nil
+}
+
+/*
+PauseTable 暫停桌
+  - 適用時機: 外部暫停自動開桌
+*/
+func (te *tableEngine) PauseTable() error {
+	te.table.State.Status = TableStateStatus_TablePausing
 	te.emitTableStateEvent(TableStateEvent_StatusUpdated)
 	return nil
 }

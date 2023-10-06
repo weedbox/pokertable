@@ -16,6 +16,7 @@ type Manager interface {
 	GetTableEngine(tableID string) (TableEngine, error)
 	CreateTable(options *TableEngineOptions, callbacks *TableEngineCallbacks, setting TableSetting) (*Table, error)
 	BalanceTable(tableID string) error
+	PauseTable(tableID string) error
 	CloseTable(tableID string) error
 	StartTableGame(tableID string) error
 	TableGameOpen(tableID string) error
@@ -101,6 +102,15 @@ func (m *manager) BalanceTable(tableID string) error {
 	}
 
 	return tableEngine.BalanceTable()
+}
+
+func (m *manager) PauseTable(tableID string) error {
+	tableEngine, err := m.GetTableEngine(tableID)
+	if err != nil {
+		return ErrManagerTableNotFound
+	}
+
+	return tableEngine.PauseTable()
 }
 
 func (m *manager) CloseTable(tableID string) error {

@@ -388,8 +388,10 @@ func (te *tableEngine) calcLeavePlayers(status TableStateStatus, leavePlayerIDs 
 	if funk.Contains(gameStatuses, status) {
 		for _, currentPlayerIdx := range te.table.State.GamePlayerIndexes {
 			playerID := currentGamePlayerData[currentPlayerIdx]
-			newPlayerIdx := newPlayerData[playerID]
-			newGamePlayerIndexes = append(newGamePlayerIndexes, newPlayerIdx)
+			// sync newPlayerData player idx to newGamePlayerIndexes
+			if newPlayerIdx, exist := newPlayerData[playerID]; exist {
+				newGamePlayerIndexes = append(newGamePlayerIndexes, newPlayerIdx)
+			}
 		}
 	} else {
 		newGamePlayerIndexes = te.table.State.GamePlayerIndexes

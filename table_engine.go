@@ -61,14 +61,13 @@ type TableEngine interface {
 }
 
 type tableEngine struct {
-	lock        sync.Mutex
-	options     *TableEngineOptions
-	table       *Table
-	game        Game
-	gameBackend GameBackend
-	rg          *syncsaga.ReadyGroup
-	tb          *timebank.TimeBank
-	// autoJoinChecker           map[string]*timebank.TimeBank
+	lock                      sync.Mutex
+	options                   *TableEngineOptions
+	table                     *Table
+	game                      Game
+	gameBackend               GameBackend
+	rg                        *syncsaga.ReadyGroup
+	tb                        *timebank.TimeBank
 	onTableUpdated            func(*Table)
 	onTableErrorUpdated       func(*Table, error)
 	onTableStateUpdated       func(string, *Table)
@@ -290,19 +289,22 @@ func (te *tableEngine) PlayerReserve(joinPlayer JoinPlayer) error {
 			seatIdx = seat
 		}
 		te.table.State.SeatMap[seatIdx] = newPlayerIdx
-		te.table.State.PlayerStates[newPlayerIdx].Seat = seatIdx
-		te.table.State.PlayerStates[newPlayerIdx].IsBetweenDealerBB = IsBetweenDealerBB(seatIdx, te.table.State.CurrentDealerSeat, te.table.State.CurrentBBSeat, te.table.Meta.TableMaxSeatCount, te.table.Meta.Rule)
 
-		te.emitTablePlayerStateEvent(te.table.State.PlayerStates[newPlayerIdx])
-		te.emitTablePlayerReservedEvent(te.table.State.PlayerStates[newPlayerIdx])
+		playerState := te.table.State.PlayerStates[newPlayerIdx]
+		playerState.Seat = seatIdx
+		playerState.IsBetweenDealerBB = IsBetweenDealerBB(seatIdx, te.table.State.CurrentDealerSeat, te.table.State.CurrentBBSeat, te.table.Meta.TableMaxSeatCount, te.table.Meta.Rule)
+
+		te.emitTablePlayerStateEvent(playerState)
+		te.emitTablePlayerReservedEvent(playerState)
 	} else {
 		// ReBuy
 		// 補碼要檢查玩家是否介於 Dealer-BB 之間
-		te.table.State.PlayerStates[targetPlayerIdx].IsBetweenDealerBB = IsBetweenDealerBB(te.table.State.PlayerStates[targetPlayerIdx].Seat, te.table.State.CurrentDealerSeat, te.table.State.CurrentBBSeat, te.table.Meta.TableMaxSeatCount, te.table.Meta.Rule)
-		te.table.State.PlayerStates[targetPlayerIdx].Bankroll += redeemChips
+		playerState := te.table.State.PlayerStates[targetPlayerIdx]
+		playerState.IsBetweenDealerBB = IsBetweenDealerBB(playerState.Seat, te.table.State.CurrentDealerSeat, te.table.State.CurrentBBSeat, te.table.Meta.TableMaxSeatCount, te.table.Meta.Rule)
+		playerState.Bankroll += redeemChips
 
-		te.emitTablePlayerStateEvent(te.table.State.PlayerStates[targetPlayerIdx])
-		te.emitTablePlayerReservedEvent(te.table.State.PlayerStates[targetPlayerIdx])
+		te.emitTablePlayerStateEvent(playerState)
+		te.emitTablePlayerReservedEvent(playerState)
 	}
 
 	te.emitEvent("PlayerReserve", joinPlayer.PlayerID)
@@ -417,13 +419,14 @@ func (te *tableEngine) PlayerRedeemChips(joinPlayer JoinPlayer) error {
 	}
 
 	// 如果是 Bankroll 為 0 的情況，增購要檢查玩家是否介於 Dealer-BB 之間
-	if te.table.State.PlayerStates[playerIdx].Bankroll == 0 {
-		te.table.State.PlayerStates[playerIdx].IsBetweenDealerBB = IsBetweenDealerBB(te.table.State.PlayerStates[playerIdx].Seat, te.table.State.CurrentDealerSeat, te.table.State.CurrentBBSeat, te.table.Meta.TableMaxSeatCount, te.table.Meta.Rule)
+	playerState := te.table.State.PlayerStates[playerIdx]
+	if playerState.Bankroll == 0 {
+		playerState.IsBetweenDealerBB = IsBetweenDealerBB(playerState.Seat, te.table.State.CurrentDealerSeat, te.table.State.CurrentBBSeat, te.table.Meta.TableMaxSeatCount, te.table.Meta.Rule)
 	}
-	te.table.State.PlayerStates[playerIdx].Bankroll += joinPlayer.RedeemChips
+	playerState.Bankroll += joinPlayer.RedeemChips
 
 	te.emitEvent("PlayerRedeemChips", joinPlayer.PlayerID)
-	te.emitTablePlayerStateEvent(te.table.State.PlayerStates[playerIdx])
+	te.emitTablePlayerStateEvent(playerState)
 	return nil
 }
 
@@ -498,9 +501,11 @@ func (te *tableEngine) PlayerBet(playerID string, chips int64) error {
 	if err == nil {
 		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
 		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, WagerAction_Bet, chips)
-		te.table.State.PlayerStates[playerIdx].GameStatistics.ActionTimes++
+
+		playerState := te.table.State.PlayerStates[playerIdx]
+		playerState.GameStatistics.ActionTimes++
 		if te.game.GetGameState().Status.CurrentRaiser == gamePlayerIdx {
-			te.table.State.PlayerStates[playerIdx].GameStatistics.RaiseTimes++
+			playerState.GameStatistics.RaiseTimes++
 		}
 	}
 	return err
@@ -519,8 +524,10 @@ func (te *tableEngine) PlayerRaise(playerID string, chipLevel int64) error {
 	if err == nil {
 		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
 		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, WagerAction_Raise, chipLevel)
-		te.table.State.PlayerStates[playerIdx].GameStatistics.ActionTimes++
-		te.table.State.PlayerStates[playerIdx].GameStatistics.RaiseTimes++
+
+		playerState := te.table.State.PlayerStates[playerIdx]
+		playerState.GameStatistics.ActionTimes++
+		playerState.GameStatistics.RaiseTimes++
 	}
 	return err
 }
@@ -543,8 +550,10 @@ func (te *tableEngine) PlayerCall(playerID string) error {
 	if err == nil {
 		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
 		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, WagerAction_Call, wager)
-		te.table.State.PlayerStates[playerIdx].GameStatistics.ActionTimes++
-		te.table.State.PlayerStates[playerIdx].GameStatistics.CallTimes++
+
+		playerState := te.table.State.PlayerStates[playerIdx]
+		playerState.GameStatistics.ActionTimes++
+		playerState.GameStatistics.CallTimes++
 	}
 	return err
 }
@@ -567,9 +576,11 @@ func (te *tableEngine) PlayerAllin(playerID string) error {
 	if err == nil {
 		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
 		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, WagerAction_AllIn, wager)
-		te.table.State.PlayerStates[playerIdx].GameStatistics.ActionTimes++
+
+		playerState := te.table.State.PlayerStates[playerIdx]
+		playerState.GameStatistics.ActionTimes++
 		if te.game.GetGameState().Status.CurrentRaiser == gamePlayerIdx {
-			te.table.State.PlayerStates[playerIdx].GameStatistics.RaiseTimes++
+			playerState.GameStatistics.RaiseTimes++
 		}
 	}
 	return err
@@ -588,8 +599,10 @@ func (te *tableEngine) PlayerCheck(playerID string) error {
 	if err == nil {
 		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
 		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, WagerAction_Check, 0)
-		te.table.State.PlayerStates[playerIdx].GameStatistics.ActionTimes++
-		te.table.State.PlayerStates[playerIdx].GameStatistics.CheckTimes++
+
+		playerState := te.table.State.PlayerStates[playerIdx]
+		playerState.GameStatistics.ActionTimes++
+		playerState.GameStatistics.CheckTimes++
 	}
 	return err
 }
@@ -607,9 +620,11 @@ func (te *tableEngine) PlayerFold(playerID string) error {
 	if err == nil {
 		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
 		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, WagerAction_Fold, 0)
-		te.table.State.PlayerStates[playerIdx].GameStatistics.ActionTimes++
-		te.table.State.PlayerStates[playerIdx].GameStatistics.IsFold = true
-		te.table.State.PlayerStates[playerIdx].GameStatistics.FoldRound = te.game.GetGameState().Status.Round
+
+		playerState := te.table.State.PlayerStates[playerIdx]
+		playerState.GameStatistics.ActionTimes++
+		playerState.GameStatistics.IsFold = true
+		playerState.GameStatistics.FoldRound = te.game.GetGameState().Status.Round
 	}
 	return err
 }

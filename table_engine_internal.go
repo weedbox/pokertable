@@ -77,32 +77,36 @@ func (te *tableEngine) openGame(oldTable *Table) (*Table, error) {
 
 	// Step 3: 檢查參賽資格
 	for i := 0; i < len(cloneTable.State.PlayerStates); i++ {
+		playerState := cloneTable.State.PlayerStates[i]
+
 		// 沒有入桌玩家直接不參加
-		if !cloneTable.State.PlayerStates[i].IsIn {
-			cloneTable.State.PlayerStates[i].IsParticipated = false
+		if !playerState.IsIn {
+			playerState.IsParticipated = false
 			continue
 		}
 
 		// 先讓沒有坐在 大盲、Dealer 之間的玩家參賽
-		if cloneTable.State.PlayerStates[i].IsParticipated || cloneTable.State.PlayerStates[i].IsBetweenDealerBB {
-			cloneTable.State.PlayerStates[i].IsParticipated = cloneTable.State.PlayerStates[i].Bankroll > 0
+		if playerState.IsParticipated || playerState.IsBetweenDealerBB {
+			playerState.IsParticipated = playerState.Bankroll > 0
 			continue
 		}
 
 		// 檢查後手 (有錢的玩家可參賽)
-		cloneTable.State.PlayerStates[i].IsParticipated = cloneTable.State.PlayerStates[i].Bankroll > 0
+		playerState.IsParticipated = playerState.Bankroll > 0
 	}
 
 	// Step 4: 處理可參賽玩家剩餘一人時，桌上有其他玩家情形
 	if len(cloneTable.ParticipatedPlayers()) < cloneTable.Meta.TableMinPlayerCount {
 		for i := 0; i < len(cloneTable.State.PlayerStates); i++ {
+			playerState := cloneTable.State.PlayerStates[i]
+
 			// 沒入桌或沒籌碼玩家不能玩
-			if cloneTable.State.PlayerStates[i].Bankroll == 0 || !cloneTable.State.PlayerStates[i].IsIn {
+			if playerState.Bankroll == 0 || !playerState.IsIn {
 				continue
 			}
 
-			cloneTable.State.PlayerStates[i].IsParticipated = true
-			cloneTable.State.PlayerStates[i].IsBetweenDealerBB = false
+			playerState.IsParticipated = true
+			playerState.IsBetweenDealerBB = false
 		}
 	}
 
@@ -112,31 +116,33 @@ func (te *tableEngine) openGame(oldTable *Table) (*Table, error) {
 
 	// Step 6: 處理玩家參賽狀態，確認玩家在 BB-Dealer 的參賽權
 	for i := 0; i < len(cloneTable.State.PlayerStates); i++ {
-		if !cloneTable.State.PlayerStates[i].IsBetweenDealerBB {
+		playerState := cloneTable.State.PlayerStates[i]
+
+		if !playerState.IsBetweenDealerBB {
 			continue
 		}
 
-		if !cloneTable.State.PlayerStates[i].IsParticipated {
+		if !playerState.IsParticipated {
 			continue
 		}
 
 		if newDealerTableSeatIdx-cloneTable.State.CurrentDealerSeat < 0 {
 			for j := cloneTable.State.CurrentDealerSeat + 1; j < newDealerTableSeatIdx+cloneTable.Meta.TableMaxSeatCount; j++ {
-				if (j % cloneTable.Meta.TableMaxSeatCount) != cloneTable.State.PlayerStates[i].Seat {
+				if (j % cloneTable.Meta.TableMaxSeatCount) != playerState.Seat {
 					continue
 				}
 
-				cloneTable.State.PlayerStates[i].IsBetweenDealerBB = false
-				cloneTable.State.PlayerStates[i].IsParticipated = true
+				playerState.IsBetweenDealerBB = false
+				playerState.IsParticipated = true
 			}
 		} else {
 			for j := cloneTable.State.CurrentDealerSeat + 1; j < newDealerTableSeatIdx; j++ {
-				if j != cloneTable.State.PlayerStates[i].Seat {
+				if j != playerState.Seat {
 					continue
 				}
 
-				cloneTable.State.PlayerStates[i].IsBetweenDealerBB = false
-				cloneTable.State.PlayerStates[i].IsParticipated = true
+				playerState.IsBetweenDealerBB = false
+				playerState.IsParticipated = true
 			}
 		}
 	}
@@ -236,10 +242,10 @@ func (te *tableEngine) settleGame() {
 	// 把玩家輸贏籌碼更新到 Bankroll
 	for _, player := range te.table.State.GameState.Result.Players {
 		playerIdx := te.table.State.GamePlayerIndexes[player.Idx]
-		te.table.State.PlayerStates[playerIdx].Bankroll = player.Final
-
-		if te.table.State.PlayerStates[playerIdx].Bankroll == 0 {
-			te.table.State.PlayerStates[playerIdx].IsParticipated = false
+		playerState := te.table.State.PlayerStates[playerIdx]
+		playerState.Bankroll = player.Final
+		if playerState.Bankroll == 0 {
+			playerState.IsParticipated = false
 		}
 	}
 
@@ -258,13 +264,14 @@ func (te *tableEngine) continueGame() error {
 		te.table.State.SeatChanges = nil
 		te.table.State.LastPlayerGameAction = nil
 		for i := 0; i < len(te.table.State.PlayerStates); i++ {
-			te.table.State.PlayerStates[i].Positions = make([]string, 0)
-			te.table.State.PlayerStates[i].GameStatistics.ActionTimes = 0
-			te.table.State.PlayerStates[i].GameStatistics.RaiseTimes = 0
-			te.table.State.PlayerStates[i].GameStatistics.CallTimes = 0
-			te.table.State.PlayerStates[i].GameStatistics.CheckTimes = 0
-			te.table.State.PlayerStates[i].GameStatistics.IsFold = false
-			te.table.State.PlayerStates[i].GameStatistics.FoldRound = ""
+			playerState := te.table.State.PlayerStates[i]
+			playerState.Positions = make([]string, 0)
+			playerState.GameStatistics.ActionTimes = 0
+			playerState.GameStatistics.RaiseTimes = 0
+			playerState.GameStatistics.CallTimes = 0
+			playerState.GameStatistics.CheckTimes = 0
+			playerState.GameStatistics.IsFold = false
+			playerState.GameStatistics.FoldRound = ""
 		}
 
 		// 檢查是否暫停

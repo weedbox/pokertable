@@ -44,7 +44,7 @@ type TableMeta struct {
 }
 
 type TableState struct {
-	Status               TableStateStatus       `json:"statu"`                   // 當前桌次狀態
+	Status               TableStateStatus       `json:"status"`                  // 當前桌次狀態
 	StartAt              int64                  `json:"start_at"`                // 開打時間 (Seconds)
 	SeatMap              []int                  `json:"seat_map"`                // 座位入座狀況，index: seat index (0-8), value: TablePlayerState index (-1 by default)
 	BlindState           *TableBlindState       `json:"blind_state"`             // 盲注狀態

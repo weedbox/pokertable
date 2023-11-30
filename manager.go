@@ -52,6 +52,11 @@ func NewManager() Manager {
 }
 
 func (m *manager) Reset() {
+	m.tableEngines.Range(func(key, value interface{}) bool {
+		_ = value.(TableEngine).CloseTable()
+		return true
+	})
+
 	m.tableEngines = sync.Map{}
 }
 

@@ -428,5 +428,13 @@ func (te *tableEngine) createPlayerGameAction(playerID string, playerIdx int, ac
 		pga.Positions = te.table.State.PlayerStates[playerIdx].Positions
 	}
 
+	if player != nil {
+		pga.Bankroll = player.Bankroll
+		pga.InitialStackSize = player.InitialStackSize
+		pga.StackSize = player.StackSize
+		pga.Pot = player.Pot
+		pga.Wager = player.Wager
+	}
+
 	return pga
 }

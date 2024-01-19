@@ -228,7 +228,7 @@ func (te *tableEngine) startGame() error {
 	})
 
 	// start game
-	if err := te.game.Start(); err != nil {
+	if _, err := te.game.Start(); err != nil {
 		return err
 	}
 
@@ -407,14 +407,15 @@ func (te *tableEngine) calcLeavePlayers(status TableStateStatus, leavePlayerIDs 
 	return newPlayerStates, newSeatMap, newGamePlayerIndexes
 }
 
-func (te *tableEngine) createPlayerGameAction(playerID string, playerIdx int, action string, chips int64) *TablePlayerGameAction {
+func (te *tableEngine) createPlayerGameAction(playerID string, playerIdx int, action string, chips int64, player *pokerface.PlayerState) *TablePlayerGameAction {
 	pga := &TablePlayerGameAction{
-		TableID:   te.table.ID,
-		GameCount: te.table.State.GameCount,
-		UpdateAt:  time.Now().Unix(),
-		PlayerID:  playerID,
-		Action:    action,
-		Chips:     chips,
+		CompetitionID: te.table.Meta.CompetitionID,
+		TableID:       te.table.ID,
+		GameCount:     te.table.State.GameCount,
+		UpdateAt:      time.Now().Unix(),
+		PlayerID:      playerID,
+		Action:        action,
+		Chips:         chips,
 	}
 
 	if te.table.State.GameState != nil {

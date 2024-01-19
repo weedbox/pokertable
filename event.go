@@ -46,3 +46,9 @@ func (te *tableEngine) emitTablePlayerReservedEvent(player *TablePlayerState) {
 	// fmt.Printf("->emit player reserved Event: %s\n", player.PlayerID)
 	te.onTablePlayerReserved(te.table.Meta.CompetitionID, te.table.ID, player)
 }
+
+func (te *tableEngine) emitGamePlayerActionEvent(gameAction TablePlayerGameAction) {
+	// emit event
+	// fmt.Printf("->emit player game action Event: %s\n", player.PlayerID)
+	te.onGamePlayerActionUpdated(gameAction)
+}

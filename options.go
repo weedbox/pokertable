@@ -6,6 +6,7 @@ type TableEngineCallbacks struct {
 	OnTableStateUpdated       func(string, *Table)
 	OnTablePlayerStateUpdated func(string, string, *TablePlayerState)
 	OnTablePlayerReserved     func(string, string, *TablePlayerState)
+	OnGamePlayerActionUpdated func(TablePlayerGameAction)
 }
 
 func NewTableEngineCallbacks() *TableEngineCallbacks {
@@ -15,6 +16,7 @@ func NewTableEngineCallbacks() *TableEngineCallbacks {
 		OnTableStateUpdated:       func(string, *Table) {},
 		OnTablePlayerStateUpdated: func(string, string, *TablePlayerState) {},
 		OnTablePlayerReserved:     func(string, string, *TablePlayerState) {},
+		OnGamePlayerActionUpdated: func(TablePlayerGameAction) {},
 	}
 }
 

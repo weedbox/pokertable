@@ -29,6 +29,7 @@ type TableEngine interface {
 	OnTableStateUpdated(fn func(string, *Table))                                                 // 桌次狀態監聽器
 	OnTablePlayerStateUpdated(fn func(string, string, *TablePlayerState))                        // 桌次玩家狀態監聽器
 	OnTablePlayerReserved(fn func(competitionID, tableID string, playerState *TablePlayerState)) // 桌次玩家確認座位監聽器
+	OnGamePlayerActionUpdated(fn func(TablePlayerGameAction))                                    // 遊戲玩家動作更新事件監聽器
 
 	// Table Actions
 	GetTable() *Table                                      // 取得桌次
@@ -73,6 +74,7 @@ type tableEngine struct {
 	onTableStateUpdated       func(string, *Table)
 	onTablePlayerStateUpdated func(string, string, *TablePlayerState)
 	onTablePlayerReserved     func(competitionID, tableID string, playerState *TablePlayerState)
+	onGamePlayerActionUpdated func(TablePlayerGameAction)
 }
 
 func NewTableEngine(options *TableEngineOptions, opts ...TableEngineOpt) TableEngine {
@@ -86,6 +88,7 @@ func NewTableEngine(options *TableEngineOptions, opts ...TableEngineOpt) TableEn
 		onTableStateUpdated:       callbacks.OnTableStateUpdated,
 		onTablePlayerStateUpdated: callbacks.OnTablePlayerStateUpdated,
 		onTablePlayerReserved:     callbacks.OnTablePlayerReserved,
+		onGamePlayerActionUpdated: callbacks.OnGamePlayerActionUpdated,
 	}
 
 	for _, opt := range opts {
@@ -119,6 +122,10 @@ func (te *tableEngine) OnTablePlayerStateUpdated(fn func(string, string, *TableP
 
 func (te *tableEngine) OnTablePlayerReserved(fn func(competitionID, tableID string, playerState *TablePlayerState)) {
 	te.onTablePlayerReserved = fn
+}
+
+func (te *tableEngine) OnGamePlayerActionUpdated(fn func(TablePlayerGameAction)) {
+	te.onGamePlayerActionUpdated = fn
 }
 
 func (te *tableEngine) GetTable() *Table {
@@ -481,10 +488,10 @@ func (te *tableEngine) PlayerReady(playerID string) error {
 		return err
 	}
 
-	err := te.game.Ready(gamePlayerIdx)
+	gs, err := te.game.Ready(gamePlayerIdx)
 	if err == nil {
 		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
-		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, "ready", 0)
+		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, "ready", 0, gs.GetPlayer(gamePlayerIdx))
 	}
 	return err
 }
@@ -498,10 +505,10 @@ func (te *tableEngine) PlayerPay(playerID string, chips int64) error {
 		return err
 	}
 
-	err := te.game.Pay(gamePlayerIdx, chips)
+	gs, err := te.game.Pay(gamePlayerIdx, chips)
 	if err == nil {
 		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
-		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, "pay", chips)
+		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, "pay", chips, gs.GetPlayer(gamePlayerIdx))
 	}
 	return err
 }
@@ -515,10 +522,11 @@ func (te *tableEngine) PlayerBet(playerID string, chips int64) error {
 		return err
 	}
 
-	err := te.game.Bet(gamePlayerIdx, chips)
+	gs, err := te.game.Bet(gamePlayerIdx, chips)
 	if err == nil {
 		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
-		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, WagerAction_Bet, chips)
+		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, WagerAction_Bet, chips, gs.GetPlayer(gamePlayerIdx))
+		te.emitGamePlayerActionEvent(*te.table.State.LastPlayerGameAction)
 
 		playerState := te.table.State.PlayerStates[playerIdx]
 		playerState.GameStatistics.ActionTimes++
@@ -538,10 +546,11 @@ func (te *tableEngine) PlayerRaise(playerID string, chipLevel int64) error {
 		return err
 	}
 
-	err := te.game.Raise(gamePlayerIdx, chipLevel)
+	gs, err := te.game.Raise(gamePlayerIdx, chipLevel)
 	if err == nil {
 		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
-		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, WagerAction_Raise, chipLevel)
+		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, WagerAction_Raise, chipLevel, gs.GetPlayer(gamePlayerIdx))
+		te.emitGamePlayerActionEvent(*te.table.State.LastPlayerGameAction)
 
 		playerState := te.table.State.PlayerStates[playerIdx]
 		playerState.GameStatistics.ActionTimes++
@@ -564,10 +573,11 @@ func (te *tableEngine) PlayerCall(playerID string) error {
 		wager = te.table.State.GameState.Status.CurrentWager - te.table.State.GameState.GetPlayer(gamePlayerIdx).Wager
 	}
 
-	err := te.game.Call(gamePlayerIdx)
+	gs, err := te.game.Call(gamePlayerIdx)
 	if err == nil {
 		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
-		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, WagerAction_Call, wager)
+		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, WagerAction_Call, wager, gs.GetPlayer(gamePlayerIdx))
+		te.emitGamePlayerActionEvent(*te.table.State.LastPlayerGameAction)
 
 		playerState := te.table.State.PlayerStates[playerIdx]
 		playerState.GameStatistics.ActionTimes++
@@ -590,10 +600,11 @@ func (te *tableEngine) PlayerAllin(playerID string) error {
 		wager = te.table.State.GameState.GetPlayer(gamePlayerIdx).StackSize
 	}
 
-	err := te.game.Allin(gamePlayerIdx)
+	gs, err := te.game.Allin(gamePlayerIdx)
 	if err == nil {
 		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
-		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, WagerAction_AllIn, wager)
+		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, WagerAction_AllIn, wager, gs.GetPlayer(gamePlayerIdx))
+		te.emitGamePlayerActionEvent(*te.table.State.LastPlayerGameAction)
 
 		playerState := te.table.State.PlayerStates[playerIdx]
 		playerState.GameStatistics.ActionTimes++
@@ -613,10 +624,11 @@ func (te *tableEngine) PlayerCheck(playerID string) error {
 		return err
 	}
 
-	err := te.game.Check(gamePlayerIdx)
+	gs, err := te.game.Check(gamePlayerIdx)
 	if err == nil {
 		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
-		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, WagerAction_Check, 0)
+		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, WagerAction_Check, 0, gs.GetPlayer(gamePlayerIdx))
+		te.emitGamePlayerActionEvent(*te.table.State.LastPlayerGameAction)
 
 		playerState := te.table.State.PlayerStates[playerIdx]
 		playerState.GameStatistics.ActionTimes++
@@ -634,10 +646,11 @@ func (te *tableEngine) PlayerFold(playerID string) error {
 		return err
 	}
 
-	err := te.game.Fold(gamePlayerIdx)
+	gs, err := te.game.Fold(gamePlayerIdx)
 	if err == nil {
 		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
-		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, WagerAction_Fold, 0)
+		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, WagerAction_Fold, 0, gs.GetPlayer(gamePlayerIdx))
+		te.emitGamePlayerActionEvent(*te.table.State.LastPlayerGameAction)
 
 		playerState := te.table.State.PlayerStates[playerIdx]
 		playerState.GameStatistics.ActionTimes++
@@ -656,10 +669,11 @@ func (te *tableEngine) PlayerPass(playerID string) error {
 		return err
 	}
 
-	err := te.game.Pass(gamePlayerIdx)
+	gs, err := te.game.Pass(gamePlayerIdx)
 	if err == nil {
 		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
-		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, "pass", 0)
+		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, "pass", 0, gs.GetPlayer(gamePlayerIdx))
+		te.emitGamePlayerActionEvent(*te.table.State.LastPlayerGameAction)
 	}
 	return err
 }

@@ -65,16 +65,22 @@ type TableGameSeatChanges struct {
 }
 
 type TablePlayerGameAction struct {
-	TableID   string   `json:"table_id"`   // 桌次 ID
-	GameID    string   `json:"game_id"`    // 遊戲 ID
-	GameCount int      `json:"game_count"` // 執行牌局遊戲次數 (遊戲跑幾輪)
-	Round     string   `json:"round"`      // 哪回合
-	UpdateAt  int64    `json:"update_at"`  // 更新時間 (Seconds)
-	PlayerID  string   `json:"player_id"`  // 玩家 ID
-	Seat      int      `json:"seat"`       // 座位編號 0 ~ 8
-	Positions []string `json:"positions"`  // 場上位置
-	Action    string   `json:"action"`     // 動作
-	Chips     int64    `json:"chips"`      // 下注籌碼量
+	CompetitionID    string   `json:"competition_id"`     // 賽事 ID
+	TableID          string   `json:"table_id"`           // 桌次 ID
+	GameID           string   `json:"game_id"`            // 遊戲 ID
+	GameCount        int      `json:"game_count"`         // 執行牌局遊戲次數 (遊戲跑幾輪)
+	Round            string   `json:"round"`              // 哪回合
+	UpdateAt         int64    `json:"update_at"`          // 更新時間 (Seconds)
+	PlayerID         string   `json:"player_id"`          // 玩家 ID
+	Seat             int      `json:"seat"`               // 座位編號 0 ~ 8
+	Positions        []string `json:"positions"`          // 場上位置
+	Action           string   `json:"action"`             // 動作
+	Chips            int64    `json:"chips"`              // 下注籌碼量
+	Bankroll         int64    `json:"bankroll"`           // GameState.Player Bankroll
+	InitialStackSize int64    `json:"initial_stack_size"` // GameState.Player InitialStackSize
+	StackSize        int64    `json:"stack_size"`         // GameState.Player StackSize
+	Pot              int64    `json:"pot"`                // GameState.Player Pot
+	Wager            int64    `json:"wager"`              // GameState.Player Wager
 }
 
 type TablePlayerState struct {

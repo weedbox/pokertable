@@ -91,6 +91,7 @@ func (m *manager) CreateTable(options *TableEngineOptions, callbacks *TableEngin
 	tableEngine.OnTableStateUpdated(engineCallbacks.OnTableStateUpdated)
 	tableEngine.OnTablePlayerStateUpdated(engineCallbacks.OnTablePlayerStateUpdated)
 	tableEngine.OnTablePlayerReserved(engineCallbacks.OnTablePlayerReserved)
+	tableEngine.OnGamePlayerActionUpdated(engineCallbacks.OnGamePlayerActionUpdated)
 	table, err := tableEngine.CreateTable(setting)
 	if err != nil {
 		return nil, err

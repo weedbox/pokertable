@@ -220,12 +220,30 @@ func (te *tableEngine) StartTableGame() error {
 func (te *tableEngine) TableGameOpen() error {
 	// 開局
 	newTable, err := te.openGame(te.table)
+
+	retry := 7
 	if err != nil {
-		// 嘗試重新開局
+		// 20 秒內嘗試重新開局，每三秒一次，共七次
 		if err == ErrTableOpenGameFailed {
-			time.Sleep(time.Second * 3)
-			newTable, err = te.openGame(te.table)
-			if err != nil {
+			reopened := false
+
+			for i := 0; i < retry; i++ {
+				time.Sleep(time.Second * 3)
+				newTable, err = te.openGame(te.table)
+				if err != nil {
+					if err == ErrTableOpenGameFailed {
+						fmt.Printf("table (%s): failed to open game. retry %d time(s)...\n", te.table.ID, i+1)
+						continue
+					} else {
+						return err
+					}
+				} else {
+					reopened = true
+					break
+				}
+			}
+
+			if !reopened {
 				return err
 			}
 		} else {

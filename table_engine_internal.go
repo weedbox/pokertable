@@ -166,17 +166,26 @@ func (te *tableEngine) openGame(oldTable *Table) (*Table, error) {
 		}
 	}
 
-	// Step 9: 更新桌次狀態 (GameCount, 當前 Dealer & BB 位置)
+	// Step 9: 更新桌次狀態 (GameCount, 當前 Dealer & BB 位置, 下一手 BB 座位玩家索引值陣列)
 	cloneTable.State.GameCount = cloneTable.State.GameCount + 1
 	cloneTable.State.CurrentDealerSeat = newDealerTableSeatIdx
 	if len(gamePlayerIndexes) == 2 {
 		bbPlayerIdx := gamePlayerIndexes[1]
 		cloneTable.State.CurrentBBSeat = cloneTable.State.PlayerStates[bbPlayerIdx].Seat
+		cloneTable.State.NextBBOrderPlayerIndexes = []int{gamePlayerIndexes[0], gamePlayerIndexes[1]}
 	} else if len(gamePlayerIndexes) > 2 {
 		bbPlayerIdx := gamePlayerIndexes[2]
 		cloneTable.State.CurrentBBSeat = cloneTable.State.PlayerStates[bbPlayerIdx].Seat
+
+		// starts with SB GamePlayerIndex (sb next round will be bb)
+		for i := 1; i < len(gamePlayerIndexes)+1; i++ {
+			gpIdx := i % len(gamePlayerIndexes)
+			playerIdx := gamePlayerIndexes[gpIdx]
+			cloneTable.State.NextBBOrderPlayerIndexes = append(cloneTable.State.NextBBOrderPlayerIndexes, playerIdx)
+		}
 	} else {
 		cloneTable.State.CurrentBBSeat = UnsetValue
+		cloneTable.State.NextBBOrderPlayerIndexes = []int{}
 	}
 
 	return cloneTable, nil
@@ -260,6 +269,7 @@ func (te *tableEngine) continueGame() error {
 	return te.delay(te.options.Interval, func() error {
 		// Reset table state
 		te.table.State.GamePlayerIndexes = []int{}
+		te.table.State.NextBBOrderPlayerIndexes = []int{}
 		te.table.State.GameState = nil
 		te.table.State.SeatChanges = nil
 		te.table.State.LastPlayerGameAction = nil

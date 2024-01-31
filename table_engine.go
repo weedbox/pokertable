@@ -161,12 +161,13 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
 			SB:     UnsetValue,
 			BB:     UnsetValue,
 		},
-		CurrentDealerSeat: UnsetValue,
-		CurrentBBSeat:     UnsetValue,
-		SeatMap:           NewDefaultSeatMap(tableSetting.Meta.TableMaxSeatCount),
-		PlayerStates:      make([]*TablePlayerState, 0),
-		GamePlayerIndexes: make([]int, 0),
-		Status:            TableStateStatus_TableCreated,
+		CurrentDealerSeat:        UnsetValue,
+		CurrentBBSeat:            UnsetValue,
+		SeatMap:                  NewDefaultSeatMap(tableSetting.Meta.TableMaxSeatCount),
+		PlayerStates:             make([]*TablePlayerState, 0),
+		GamePlayerIndexes:        make([]int, 0),
+		Status:                   TableStateStatus_TableCreated,
+		NextBBOrderPlayerIndexes: make([]int, 0),
 	}
 	table.State = &state
 	te.table = table
@@ -350,13 +351,13 @@ func (te *tableEngine) PlayersBatchReserve(joinPlayers []JoinPlayer) error {
 		states := rg.GetParticipantStates()
 		for playerIdx, isReady := range states {
 			if !isReady {
-				fmt.Printf("[DEBUG#tableEngine#PlayersBatchReserve] table [%s] %s is auto ready\n", te.table.ID, te.table.State.PlayerStates[playerIdx].PlayerID)
+				// fmt.Printf("[DEBUG#tableEngine#PlayersBatchReserve] table [%s] %s is auto ready\n", te.table.ID, te.table.State.PlayerStates[playerIdx].PlayerID)
 				rg.Ready(playerIdx)
 			}
 		}
 	})
 	te.rg.OnCompleted(func(rg *syncsaga.ReadyGroup) {
-		fmt.Printf("[DEBUG#tableEngine#PlayersBatchReserve] OnCompleted. Status:%s\n", te.table.State.Status)
+		// fmt.Printf("[DEBUG#tableEngine#PlayersBatchReserve] OnCompleted. Status:%s\n", te.table.State.Status)
 		if te.table.State.Status == TableStateStatus_TableBalancing {
 			for i := 0; i < len(te.table.State.PlayerStates); i++ {
 				// 如果時間到了還沒有入座則自動入座

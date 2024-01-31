@@ -44,18 +44,19 @@ type TableMeta struct {
 }
 
 type TableState struct {
-	Status               TableStateStatus       `json:"status"`                  // 當前桌次狀態
-	StartAt              int64                  `json:"start_at"`                // 開打時間 (Seconds)
-	SeatMap              []int                  `json:"seat_map"`                // 座位入座狀況，index: seat index (0-8), value: TablePlayerState index (-1 by default)
-	BlindState           *TableBlindState       `json:"blind_state"`             // 盲注狀態
-	CurrentDealerSeat    int                    `json:"current_dealer_seat"`     // 當前 Dealer 座位編號
-	CurrentBBSeat        int                    `json:"current_bb_seat"`         // 當前 BB 座位編號
-	PlayerStates         []*TablePlayerState    `json:"player_states"`           // 賽局桌上玩家狀態
-	GameCount            int                    `json:"game_count"`              // 執行牌局遊戲次數 (遊戲跑幾輪)
-	GamePlayerIndexes    []int                  `json:"game_player_indexes"`     // 本手正在玩的 PlayerIndex 陣列 (陣列 index 為從 Dealer 位置開始的 PlayerIndex)，GameEngine 用
-	GameState            *pokerface.GameState   `json:"game_state"`              // 本手狀態
-	SeatChanges          *TableGameSeatChanges  `json:"seat_changes"`            // 新的一手座位狀況
-	LastPlayerGameAction *TablePlayerGameAction `json:"last_player_game_action"` // 最新一筆玩家牌局動作
+	Status                   TableStateStatus       `json:"status"`                       // 當前桌次狀態
+	StartAt                  int64                  `json:"start_at"`                     // 開打時間 (Seconds)
+	SeatMap                  []int                  `json:"seat_map"`                     // 座位入座狀況，index: seat index (0-8), value: TablePlayerState index (-1 by default)
+	BlindState               *TableBlindState       `json:"blind_state"`                  // 盲注狀態
+	CurrentDealerSeat        int                    `json:"current_dealer_seat"`          // 當前 Dealer 座位編號
+	CurrentBBSeat            int                    `json:"current_bb_seat"`              // 當前 BB 座位編號
+	PlayerStates             []*TablePlayerState    `json:"player_states"`                // 賽局桌上玩家狀態
+	GameCount                int                    `json:"game_count"`                   // 執行牌局遊戲次數 (遊戲跑幾輪)
+	GamePlayerIndexes        []int                  `json:"game_player_indexes"`          // 本手正在玩的 PlayerIndex 陣列 (陣列 index 為從 Dealer 位置開始的 PlayerIndex)，GameEngine 用
+	GameState                *pokerface.GameState   `json:"game_state"`                   // 本手狀態
+	SeatChanges              *TableGameSeatChanges  `json:"seat_changes"`                 // 新的一手座位狀況
+	LastPlayerGameAction     *TablePlayerGameAction `json:"last_player_game_action"`      // 最新一筆玩家牌局動作
+	NextBBOrderPlayerIndexes []int                  `json:"next_bb_order_player_indexes"` // 下一手 BB 座位玩家索引值陣列
 }
 
 type TableGameSeatChanges struct {

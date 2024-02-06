@@ -66,7 +66,7 @@ func TestActor_Basic(t *testing.T) {
 			return
 		}
 	}
-	tableEngineCallbacks.OnTableErrorUpdated = func(table *pokertable.Table, err error) {
+	tableEngineCallbacks.OnTableErrorUpdated = func(table *pokertable.Table, err string) {
 		t.Log("[Table] Error:", err)
 	}
 	table, err := manager.CreateTable(tableEngineOption, tableEngineCallbacks, tableSetting)

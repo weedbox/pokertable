@@ -40,7 +40,7 @@ func TestActor_ObserverRunner_PlayerAct(t *testing.T) {
 			a.GetTable().UpdateTableState(table)
 		}
 	}
-	tableEngineCallbacks.OnTableErrorUpdated = func(table *pokertable.Table, err error) {
+	tableEngineCallbacks.OnTableErrorUpdated = func(table *pokertable.Table, err string) {
 		t.Log("[Table] Error:", err)
 	}
 	table, err := manager.CreateTable(tableEngineOption, tableEngineCallbacks, tableSetting)

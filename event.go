@@ -26,7 +26,7 @@ func (te *tableEngine) emitEvent(eventName string, playerID string) {
 // TODO: replace err(error) with errMsg(string)
 func (te *tableEngine) emitErrorEvent(eventName string, playerID string, err error) {
 	fmt.Printf("->[Table %s][#%d][%d][%s] emit ERROR Event: %s, Error: %v\n", te.table.ID, te.table.UpdateSerial, te.table.State.GameCount, playerID, eventName, err)
-	te.onTableErrorUpdated(te.table, err)
+	te.onTableErrorUpdated(te.table, err.Error())
 }
 
 func (te *tableEngine) emitTableStateEvent(eventName string) {

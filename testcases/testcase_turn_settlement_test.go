@@ -118,7 +118,7 @@ func TestTableGame_Turn_Settlement(t *testing.T) {
 			}
 		}
 	}
-	tableEngineCallbacks.OnTableErrorUpdated = func(table *pokertable.Table, err error) {
+	tableEngineCallbacks.OnTableErrorUpdated = func(table *pokertable.Table, err string) {
 		t.Log("[Table] Error:", err)
 	}
 	table, err := manager.CreateTable(tableEngineOption, tableEngineCallbacks, NewDefaultTableSetting())

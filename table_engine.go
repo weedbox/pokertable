@@ -25,7 +25,7 @@ type TableEngineOpt func(*tableEngine)
 type TableEngine interface {
 	// Events
 	OnTableUpdated(fn func(*Table))                                                              // 桌次更新事件監聽器
-	OnTableErrorUpdated(fn func(*Table, error))                                                  // 錯誤更新事件監聽器
+	OnTableErrorUpdated(fn func(*Table, string))                                                 // 錯誤更新事件監聽器
 	OnTableStateUpdated(fn func(string, *Table))                                                 // 桌次狀態監聽器
 	OnTablePlayerStateUpdated(fn func(string, string, *TablePlayerState))                        // 桌次玩家狀態監聽器
 	OnTablePlayerReserved(fn func(competitionID, tableID string, playerState *TablePlayerState)) // 桌次玩家確認座位監聽器
@@ -70,7 +70,7 @@ type tableEngine struct {
 	rg                        *syncsaga.ReadyGroup
 	tb                        *timebank.TimeBank
 	onTableUpdated            func(*Table)
-	onTableErrorUpdated       func(*Table, error)
+	onTableErrorUpdated       func(*Table, string)
 	onTableStateUpdated       func(string, *Table)
 	onTablePlayerStateUpdated func(string, string, *TablePlayerState)
 	onTablePlayerReserved     func(competitionID, tableID string, playerState *TablePlayerState)
@@ -108,7 +108,7 @@ func (te *tableEngine) OnTableUpdated(fn func(*Table)) {
 	te.onTableUpdated = fn
 }
 
-func (te *tableEngine) OnTableErrorUpdated(fn func(*Table, error)) {
+func (te *tableEngine) OnTableErrorUpdated(fn func(*Table, string)) {
 	te.onTableErrorUpdated = fn
 }
 
@@ -369,7 +369,7 @@ func (te *tableEngine) PlayersBatchReserve(joinPlayers []JoinPlayer) error {
 			if te.table.State.GameCount <= 0 {
 				// 拆併桌起新桌，時間到了自動開打
 				if err := te.StartTableGame(); err != nil {
-					te.onTableErrorUpdated(te.table, err)
+					te.emitErrorEvent("StartTableGame", "", err)
 				}
 			}
 		}

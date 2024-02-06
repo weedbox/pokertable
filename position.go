@@ -140,15 +140,28 @@ func GetPlayerPositionMap(rule string, players []*TablePlayerState, gamePlayerIn
 
 func newPositions(playerCount int) [][]string {
 	switch playerCount {
+	case 10:
+		return [][]string{
+			{Position_Dealer},
+			{Position_SB},
+			{Position_BB},
+			{Position_UG},
+			{Position_UG2},
+			{Position_UG3},
+			{Position_MP},
+			{Position_MP2},
+			{Position_HJ},
+			{Position_CO},
+		}
 	case 9:
 		return [][]string{
 			{Position_Dealer},
 			{Position_SB},
 			{Position_BB},
 			{Position_UG},
-			{Position_UG1},
 			{Position_UG2},
-			{Position_UG3},
+			{Position_MP},
+			{Position_MP2},
 			{Position_HJ},
 			{Position_CO},
 		}
@@ -158,8 +171,8 @@ func newPositions(playerCount int) [][]string {
 			{Position_SB},
 			{Position_BB},
 			{Position_UG},
-			{Position_UG1},
 			{Position_UG2},
+			{Position_MP},
 			{Position_HJ},
 			{Position_CO},
 		}
@@ -169,7 +182,7 @@ func newPositions(playerCount int) [][]string {
 			{Position_SB},
 			{Position_BB},
 			{Position_UG},
-			{Position_UG1},
+			{Position_MP},
 			{Position_HJ},
 			{Position_CO},
 		}
@@ -179,7 +192,7 @@ func newPositions(playerCount int) [][]string {
 			{Position_SB},
 			{Position_BB},
 			{Position_UG},
-			{Position_UG1},
+			{Position_HJ},
 			{Position_CO},
 		}
 	case 5:

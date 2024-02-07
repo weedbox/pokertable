@@ -3,6 +3,7 @@ package actor
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	pokertable "github.com/weedbox/pokertable"
@@ -144,11 +145,8 @@ func DebugPrintTableGameSettled(t pokertable.Table) {
 	}
 
 	fmt.Println("---------- Next BB Players ----------")
-	if len(t.State.NextBBOrderPlayerIndexes) > 0 {
-		for idx, playerIdx := range t.State.NextBBOrderPlayerIndexes {
-			player := t.State.PlayerStates[playerIdx]
-			fmt.Printf("[%d] %s\n", idx+1, player.PlayerID)
-		}
+	if len(t.State.NextBBOrderPlayerIDs) > 0 {
+		fmt.Println("Next BB Players:", strings.Join(t.State.NextBBOrderPlayerIDs, ","))
 	} else {
 		fmt.Println("No Next BB Players")
 	}

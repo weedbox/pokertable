@@ -161,13 +161,13 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
 			SB:     UnsetValue,
 			BB:     UnsetValue,
 		},
-		CurrentDealerSeat:        UnsetValue,
-		CurrentBBSeat:            UnsetValue,
-		SeatMap:                  NewDefaultSeatMap(tableSetting.Meta.TableMaxSeatCount),
-		PlayerStates:             make([]*TablePlayerState, 0),
-		GamePlayerIndexes:        make([]int, 0),
-		Status:                   TableStateStatus_TableCreated,
-		NextBBOrderPlayerIndexes: make([]int, 0),
+		CurrentDealerSeat:    UnsetValue,
+		CurrentBBSeat:        UnsetValue,
+		SeatMap:              NewDefaultSeatMap(tableSetting.Meta.TableMaxSeatCount),
+		PlayerStates:         make([]*TablePlayerState, 0),
+		GamePlayerIndexes:    make([]int, 0),
+		Status:               TableStateStatus_TableCreated,
+		NextBBOrderPlayerIDs: make([]string, 0),
 	}
 	table.State = &state
 	te.table = table

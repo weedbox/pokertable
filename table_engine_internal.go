@@ -170,22 +170,24 @@ func (te *tableEngine) openGame(oldTable *Table) (*Table, error) {
 	cloneTable.State.GameCount = cloneTable.State.GameCount + 1
 	cloneTable.State.CurrentDealerSeat = newDealerTableSeatIdx
 	if len(gamePlayerIndexes) == 2 {
-		bbPlayerIdx := gamePlayerIndexes[1]
-		cloneTable.State.CurrentBBSeat = cloneTable.State.PlayerStates[bbPlayerIdx].Seat
-		cloneTable.State.NextBBOrderPlayerIndexes = []int{gamePlayerIndexes[0], gamePlayerIndexes[1]}
+		dealerPlayer := cloneTable.State.PlayerStates[gamePlayerIndexes[0]]
+		bbPlayer := cloneTable.State.PlayerStates[gamePlayerIndexes[1]]
+		cloneTable.State.CurrentBBSeat = bbPlayer.Seat
+		cloneTable.State.NextBBOrderPlayerIDs = []string{dealerPlayer.PlayerID, bbPlayer.PlayerID}
 	} else if len(gamePlayerIndexes) > 2 {
-		bbPlayerIdx := gamePlayerIndexes[2]
-		cloneTable.State.CurrentBBSeat = cloneTable.State.PlayerStates[bbPlayerIdx].Seat
+		gameBBPlayerIdx := 2
+		bbPlayer := cloneTable.State.PlayerStates[gamePlayerIndexes[gameBBPlayerIdx]]
+		cloneTable.State.CurrentBBSeat = bbPlayer.Seat
 
-		// starts with SB GamePlayerIndex (sb next round will be bb)
-		for i := 1; i < len(gamePlayerIndexes)+1; i++ {
+		// starts with UG GamePlayerIndex (ug next round will be bb)
+		for i := gameBBPlayerIdx + 1; i < len(gamePlayerIndexes)+gameBBPlayerIdx+1; i++ {
 			gpIdx := i % len(gamePlayerIndexes)
-			playerIdx := gamePlayerIndexes[gpIdx]
-			cloneTable.State.NextBBOrderPlayerIndexes = append(cloneTable.State.NextBBOrderPlayerIndexes, playerIdx)
+			player := cloneTable.State.PlayerStates[gamePlayerIndexes[gpIdx]]
+			cloneTable.State.NextBBOrderPlayerIDs = append(cloneTable.State.NextBBOrderPlayerIDs, player.PlayerID)
 		}
 	} else {
 		cloneTable.State.CurrentBBSeat = UnsetValue
-		cloneTable.State.NextBBOrderPlayerIndexes = []int{}
+		cloneTable.State.NextBBOrderPlayerIDs = []string{}
 	}
 
 	return cloneTable, nil
@@ -258,6 +260,17 @@ func (te *tableEngine) settleGame() {
 		}
 	}
 
+	// 更新 NextBBOrderPlayerIDs (移除沒有籌碼的玩家)
+	newNextBBOrderPlayerIDs := make([]string, 0)
+	for _, playerID := range te.table.State.NextBBOrderPlayerIDs {
+		if playerIdx := te.table.FindPlayerIdx(playerID); playerIdx != -1 {
+			if te.table.State.PlayerStates[playerIdx].Bankroll > 0 {
+				newNextBBOrderPlayerIDs = append(newNextBBOrderPlayerIDs, playerID)
+			}
+		}
+	}
+	te.table.State.NextBBOrderPlayerIDs = newNextBBOrderPlayerIDs
+
 	// 更新 SeatChanges
 	te.table.State.SeatChanges = te.calcSeatChanges(te.table)
 
@@ -269,7 +282,7 @@ func (te *tableEngine) continueGame() error {
 	return te.delay(te.options.Interval, func() error {
 		// Reset table state
 		te.table.State.GamePlayerIndexes = []int{}
-		te.table.State.NextBBOrderPlayerIndexes = []int{}
+		te.table.State.NextBBOrderPlayerIDs = []string{}
 		te.table.State.GameState = nil
 		te.table.State.SeatChanges = nil
 		te.table.State.LastPlayerGameAction = nil

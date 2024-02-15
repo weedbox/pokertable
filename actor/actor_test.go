@@ -66,10 +66,10 @@ func TestActor_Basic(t *testing.T) {
 			return
 		}
 	}
-	tableEngineCallbacks.OnTableErrorUpdated = func(table *pokertable.Table, err string) {
+	tableEngineCallbacks.OnTableErrorUpdated = func(table *pokertable.Table, err error) {
 		t.Log("[Table] Error:", err)
 	}
-	table, err := manager.CreateTable(tableEngineOption, tableEngineCallbacks, tableSetting)
+	table, _, err := manager.CreateTable(tableEngineOption, tableEngineCallbacks, tableSetting)
 	assert.Nil(t, err, "create table failed")
 
 	// get table engine
@@ -78,12 +78,13 @@ func TestActor_Basic(t *testing.T) {
 
 	// Initializing bot
 	redeemChips := int64(30000)
+	seat := -1
 	players := []pokertable.JoinPlayer{
-		{PlayerID: "Jeffrey", RedeemChips: redeemChips},
-		{PlayerID: "Chuck", RedeemChips: redeemChips},
-		{PlayerID: "Fred", RedeemChips: redeemChips},
-		{PlayerID: "Loz", RedeemChips: redeemChips},
-		{PlayerID: "Kimi", RedeemChips: redeemChips},
+		{PlayerID: "Jeffrey", RedeemChips: redeemChips, Seat: seat},
+		{PlayerID: "Chuck", RedeemChips: redeemChips, Seat: seat},
+		{PlayerID: "Fred", RedeemChips: redeemChips, Seat: seat},
+		{PlayerID: "Loz", RedeemChips: redeemChips, Seat: seat},
+		{PlayerID: "Kimi", RedeemChips: redeemChips, Seat: seat},
 	}
 
 	// Preparing actors

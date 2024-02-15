@@ -17,6 +17,7 @@ var (
 	ErrTablePlayerNotFound          = errors.New("table: player not found")
 	ErrTablePlayerInvalidGameAction = errors.New("table: player invalid game action")
 	ErrTablePlayerInvalidAction     = errors.New("table: player invalid action")
+	ErrTablePlayerSeatUnavailable   = errors.New("table: player seat unavailable")
 	ErrTableOpenGameFailed          = errors.New("table: failed to open game")
 )
 
@@ -24,30 +25,29 @@ type TableEngineOpt func(*tableEngine)
 
 type TableEngine interface {
 	// Events
-	OnTableUpdated(fn func(*Table))                                                              // 桌次更新事件監聽器
-	OnTableErrorUpdated(fn func(*Table, string))                                                 // 錯誤更新事件監聽器
+	OnTableUpdated(fn func(table *Table))                                                        // 桌次更新事件監聽器
+	OnTableErrorUpdated(fn func(table *Table, err error))                                        // 錯誤更新事件監聽器
 	OnTableStateUpdated(fn func(string, *Table))                                                 // 桌次狀態監聽器
 	OnTablePlayerStateUpdated(fn func(string, string, *TablePlayerState))                        // 桌次玩家狀態監聽器
 	OnTablePlayerReserved(fn func(competitionID, tableID string, playerState *TablePlayerState)) // 桌次玩家確認座位監聽器
 	OnGamePlayerActionUpdated(fn func(TablePlayerGameAction))                                    // 遊戲玩家動作更新事件監聽器
 
 	// Table Actions
-	GetTable() *Table                                      // 取得桌次
-	GetGame() Game                                         // 取得遊戲引擎
-	CreateTable(tableSetting TableSetting) (*Table, error) // 建立桌
-	BalanceTable() error                                   // 等待拆併桌中
-	PauseTable() error                                     // 暫停桌
-	CloseTable() error                                     // 關閉桌
-	StartTableGame() error                                 // 開打遊戲
-	TableGameOpen() error                                  // 開下一輪遊戲
-	UpdateBlind(level int, ante, dealer, sb, bb int64)     // 更新當前盲注資訊
+	GetTable() *Table                                                                              // 取得桌次
+	GetGame() Game                                                                                 // 取得遊戲引擎
+	CreateTable(tableSetting TableSetting) (*Table, map[string]int, error)                         // 建立桌
+	PauseTable() error                                                                             // 暫停桌
+	CloseTable() error                                                                             // 關閉桌
+	StartTableGame() error                                                                         // 開打遊戲
+	TableGameOpen() error                                                                          // 開下一輪遊戲
+	UpdateBlind(level int, ante, dealer, sb, bb int64)                                             // 更新當前盲注資訊
+	BalanceTablePlayers(joinPlayers []JoinPlayer, leavePlayerIDs []string) (map[string]int, error) // 平衡桌上玩家數量
 
 	// Player Table Actions
-	PlayerReserve(joinPlayer JoinPlayer) error          // 玩家確認座位
-	PlayersBatchReserve(joinPlayers []JoinPlayer) error // 整桌玩家確認座位
-	PlayerJoin(playerID string) error                   // 玩家入桌
-	PlayerRedeemChips(joinPlayer JoinPlayer) error      // 增購籌碼
-	PlayersLeave(playerIDs []string) error              // 玩家們離桌
+	PlayerReserve(joinPlayer JoinPlayer) error     // 玩家確認座位
+	PlayerJoin(playerID string) error              // 玩家入桌
+	PlayerRedeemChips(joinPlayer JoinPlayer) error // 增購籌碼
+	PlayersLeave(playerIDs []string) error         // 玩家們離桌
 
 	// Player Game Actions
 	PlayerReady(playerID string) error                  // 玩家準備動作完成
@@ -70,7 +70,7 @@ type tableEngine struct {
 	rg                        *syncsaga.ReadyGroup
 	tb                        *timebank.TimeBank
 	onTableUpdated            func(*Table)
-	onTableErrorUpdated       func(*Table, string)
+	onTableErrorUpdated       func(*Table, error)
 	onTableStateUpdated       func(string, *Table)
 	onTablePlayerStateUpdated func(string, string, *TablePlayerState)
 	onTablePlayerReserved     func(competitionID, tableID string, playerState *TablePlayerState)
@@ -108,7 +108,7 @@ func (te *tableEngine) OnTableUpdated(fn func(*Table)) {
 	te.onTableUpdated = fn
 }
 
-func (te *tableEngine) OnTableErrorUpdated(fn func(*Table, string)) {
+func (te *tableEngine) OnTableErrorUpdated(fn func(*Table, error)) {
 	te.onTableErrorUpdated = fn
 }
 
@@ -136,10 +136,10 @@ func (te *tableEngine) GetGame() Game {
 	return te.game
 }
 
-func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
+func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, map[string]int, error) {
 	// validate tableSetting
 	if len(tableSetting.JoinPlayers) > tableSetting.Meta.TableMaxSeatCount {
-		return nil, ErrTableInvalidCreateSetting
+		return nil, nil, ErrTableInvalidCreateSetting
 	}
 
 	// create table instance
@@ -172,26 +172,25 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
 	table.State = &state
 	te.table = table
 
-	// handle auto join players
-	if len(tableSetting.JoinPlayers) > 0 {
-		te.PlayersBatchReserve(tableSetting.JoinPlayers)
-	}
-
 	te.emitEvent("CreateTable", "")
 	te.emitTableStateEvent(TableStateEvent_Created)
-	return te.table, nil
-}
 
-/*
-BalanceTable 等待拆併桌
-  - 適用時機: 該桌次需要拆併桌時
-*/
-func (te *tableEngine) BalanceTable() error {
-	te.table.State.Status = TableStateStatus_TableBalancing
+	// handle auto join players
+	if len(tableSetting.JoinPlayers) > 0 {
+		if err := te.batchAddPlayers(tableSetting.JoinPlayers); err != nil {
+			return nil, nil, err
+		}
 
-	te.emitEvent("BalanceTable", "")
-	te.emitTableStateEvent(TableStateEvent_StatusUpdated)
-	return nil
+		// status should be table-balancing when mtt auto create new table & join players
+		if table.Meta.Mode == CompetitionMode_MTT {
+			table.State.Status = TableStateStatus_TableBalancing
+			te.emitTableStateEvent(TableStateEvent_StatusUpdated)
+		}
+
+		te.emitEvent("CreateTable -> Auto Add Players", "")
+	}
+
+	return te.table, te.table.PlayerSeatMap(), nil
 }
 
 /*
@@ -274,6 +273,35 @@ func (te *tableEngine) UpdateBlind(level int, ante, dealer, sb, bb int64) {
 }
 
 /*
+BalanceTablePlayers 平衡桌上玩家數量
+  - 適用時機: 每手遊戲結束後平衡桌上玩家數量
+*/
+func (te *tableEngine) BalanceTablePlayers(joinPlayers []JoinPlayer, leavePlayerIDs []string) (map[string]int, error) {
+	te.lock.Lock()
+	defer te.lock.Unlock()
+
+	// remove players
+	if len(leavePlayerIDs) > 0 {
+		te.batchRemovePlayers(leavePlayerIDs)
+	}
+
+	// add players
+	joinPlayerIDs := make([]string, 0)
+	if len(joinPlayers) > 0 {
+		for _, joinPlayer := range joinPlayers {
+			joinPlayerIDs = append(joinPlayerIDs, joinPlayer.PlayerID)
+			if err := te.batchAddPlayers(joinPlayers); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	te.emitEvent("BalanceTablePlayers", fmt.Sprintf("joinPlayers: %s, leavePlayerIDs: %s", strings.Join(joinPlayerIDs, ","), strings.Join(leavePlayerIDs, ",")))
+
+	return te.table.PlayerSeatMap(), nil
+}
+
+/*
 PlayerReserve 玩家確認座位
   - 適用時機: 玩家帶籌碼報名或補碼
 */
@@ -281,12 +309,8 @@ func (te *tableEngine) PlayerReserve(joinPlayer JoinPlayer) error {
 	te.lock.Lock()
 	defer te.lock.Unlock()
 
-	playerID := joinPlayer.PlayerID
-	redeemChips := joinPlayer.RedeemChips
-	seat := joinPlayer.Seat
-
 	// find player index in PlayerStates
-	targetPlayerIdx := te.table.FindPlayerIdx(playerID)
+	targetPlayerIdx := te.table.FindPlayerIdx(joinPlayer.PlayerID)
 
 	if targetPlayerIdx == UnsetValue {
 		if len(te.table.State.PlayerStates) == te.table.Meta.TableMaxSeatCount {
@@ -294,112 +318,21 @@ func (te *tableEngine) PlayerReserve(joinPlayer JoinPlayer) error {
 		}
 
 		// BuyIn
-		player := TablePlayerState{
-			PlayerID:          playerID,
-			Seat:              UnsetValue,
-			Positions:         []string{Position_Unknown},
-			IsParticipated:    false,
-			IsBetweenDealerBB: false,
-			Bankroll:          redeemChips,
-			IsIn:              false,
-			GameStatistics:    TablePlayerGameStatistics{},
+		if err := te.batchAddPlayers([]JoinPlayer{joinPlayer}); err != nil {
+			return err
 		}
-		te.table.State.PlayerStates = append(te.table.State.PlayerStates, &player)
-
-		// update seat
-		newPlayerIdx := len(te.table.State.PlayerStates) - 1
-
-		// decide seat
-		seatIdx := RandomSeat(te.table.State.SeatMap)
-		if seat != UnsetValue && te.table.State.SeatMap[seat] == UnsetValue {
-			seatIdx = seat
-		}
-		te.table.State.SeatMap[seatIdx] = newPlayerIdx
-
-		playerState := te.table.State.PlayerStates[newPlayerIdx]
-		playerState.Seat = seatIdx
-		playerState.IsBetweenDealerBB = IsBetweenDealerBB(seatIdx, te.table.State.CurrentDealerSeat, te.table.State.CurrentBBSeat, te.table.Meta.TableMaxSeatCount, te.table.Meta.Rule)
-
-		te.emitTablePlayerStateEvent(playerState)
-		te.emitTablePlayerReservedEvent(playerState)
 	} else {
 		// ReBuy
 		// 補碼要檢查玩家是否介於 Dealer-BB 之間
 		playerState := te.table.State.PlayerStates[targetPlayerIdx]
 		playerState.IsBetweenDealerBB = IsBetweenDealerBB(playerState.Seat, te.table.State.CurrentDealerSeat, te.table.State.CurrentBBSeat, te.table.Meta.TableMaxSeatCount, te.table.Meta.Rule)
-		playerState.Bankroll += redeemChips
+		playerState.Bankroll += joinPlayer.RedeemChips
 
 		te.emitTablePlayerStateEvent(playerState)
 		te.emitTablePlayerReservedEvent(playerState)
 	}
 
 	te.emitEvent("PlayerReserve", joinPlayer.PlayerID)
-
-	return nil
-}
-
-/*
-PlayersBatchReserve 多位玩家確認座位
-  - 適用時機: 拆併桌整桌玩家確認座位、開桌時有預設玩家
-*/
-func (te *tableEngine) PlayersBatchReserve(joinPlayers []JoinPlayer) error {
-	// Preparing ready group for waiting all players' join
-	te.rg.Stop()
-	te.rg.SetTimeoutInterval(15)
-	te.rg.OnTimeout(func(rg *syncsaga.ReadyGroup) {
-		// Auto Ready By Default
-		states := rg.GetParticipantStates()
-		for playerIdx, isReady := range states {
-			if !isReady {
-				// fmt.Printf("[DEBUG#tableEngine#PlayersBatchReserve] table [%s] %s is auto ready\n", te.table.ID, te.table.State.PlayerStates[playerIdx].PlayerID)
-				rg.Ready(playerIdx)
-			}
-		}
-	})
-	te.rg.OnCompleted(func(rg *syncsaga.ReadyGroup) {
-		// fmt.Printf("[DEBUG#tableEngine#PlayersBatchReserve] OnCompleted. Status:%s\n", te.table.State.Status)
-		if te.table.State.Status == TableStateStatus_TableBalancing {
-			for i := 0; i < len(te.table.State.PlayerStates); i++ {
-				// 如果時間到了還沒有入座則自動入座
-				if !te.table.State.PlayerStates[i].IsIn {
-					te.table.State.PlayerStates[i].IsIn = true
-				}
-			}
-
-			if te.table.State.GameCount <= 0 {
-				// 拆併桌起新桌，時間到了自動開打
-				if err := te.StartTableGame(); err != nil {
-					te.emitErrorEvent("StartTableGame", "", err)
-				}
-			}
-		}
-	})
-
-	// reserve player
-	if te.table.State.GameCount <= 0 {
-		te.table.State.Status = TableStateStatus_TableBalancing
-	}
-	copyTable := *te.table
-	for _, joinPlayer := range joinPlayers {
-		if err := te.PlayerReserve(joinPlayer); err != nil {
-			te.table = &copyTable
-			te.rg.Stop()
-			te.rg.ResetParticipants()
-			return err
-		}
-	}
-
-	te.rg.ResetParticipants()
-	for playerIdx := range te.table.State.PlayerStates {
-		if !te.table.State.PlayerStates[playerIdx].IsIn {
-			// 新加入的玩家才要放到 ready group 做處理
-			te.rg.Add(int64(playerIdx), false)
-		}
-	}
-
-	te.rg.Start()
-
-	te.emitEvent("PlayersBatchReserve", "")
 
 	return nil
 }
@@ -425,7 +358,6 @@ func (te *tableEngine) PlayerJoin(playerID string) error {
 	te.table.State.PlayerStates[playerIdx].IsIn = true
 
 	if te.table.State.Status == TableStateStatus_TableBalancing {
-		// fmt.Printf("[DEBUG#tableEngine#PlayerJoin] table [%s] %s is ready", te.table.ID, te.table.State.PlayerStates[playerIdx].PlayerID)
 		te.rg.Ready(int64(playerIdx))
 	}
 
@@ -462,18 +394,13 @@ PlayerLeave 玩家們離開桌次
   - CT 退桌 (玩家有籌碼)
   - CT 放棄補碼 (玩家沒有籌碼)
   - CT/MTT 斷線且補碼中時(視為淘汰離開)
-  - CASH 離開 (準備結算)
   - CT/MTT 停止買入後被淘汰
 */
 func (te *tableEngine) PlayersLeave(playerIDs []string) error {
 	te.lock.Lock()
 	defer te.lock.Unlock()
 
-	newPlayerStates, newSeatMap, newGamePlayerIndexes := te.calcLeavePlayers(te.table.State.Status, playerIDs, te.table.State.PlayerStates, te.table.Meta.TableMaxSeatCount)
-	te.table.State.PlayerStates = newPlayerStates
-	te.table.State.SeatMap = newSeatMap
-	te.table.State.GamePlayerIndexes = newGamePlayerIndexes
-
+	te.batchRemovePlayers(playerIDs)
 	te.emitEvent("PlayersLeave", strings.Join(playerIDs, ","))
 	te.emitTableStateEvent(TableStateEvent_PlayersLeave)
 

@@ -7,6 +7,7 @@ import (
 
 	"github.com/thoas/go-funk"
 	"github.com/weedbox/pokerface"
+	"github.com/weedbox/syncsaga"
 )
 
 func (te *tableEngine) validateGameMove(gamePlayerIdx int) error {
@@ -271,9 +272,6 @@ func (te *tableEngine) settleGame() {
 	}
 	te.table.State.NextBBOrderPlayerIDs = newNextBBOrderPlayerIDs
 
-	// 更新 SeatChanges
-	te.table.State.SeatChanges = te.calcSeatChanges(te.table)
-
 	te.emitEvent("SettleTableGameResult", "")
 	te.emitTableStateEvent(TableStateEvent_GameSettled)
 }
@@ -284,7 +282,6 @@ func (te *tableEngine) continueGame() error {
 		te.table.State.GamePlayerIndexes = []int{}
 		te.table.State.NextBBOrderPlayerIDs = []string{}
 		te.table.State.GameState = nil
-		te.table.State.SeatChanges = nil
 		te.table.State.LastPlayerGameAction = nil
 		for i := 0; i < len(te.table.State.PlayerStates); i++ {
 			playerState := te.table.State.PlayerStates[i]
@@ -316,69 +313,6 @@ func (te *tableEngine) continueGame() error {
 func (te *tableEngine) onGameClosed() error {
 	te.settleGame()
 	return te.continueGame()
-}
-
-func (te *tableEngine) calcSeatChanges(oldTable *Table) *TableGameSeatChanges {
-	te.lock.Lock()
-	defer te.lock.Unlock()
-
-	cloneTable, err := oldTable.Clone()
-	if err != nil {
-		te.emitErrorEvent("calculate seat changes clone old table", "", err)
-		return nil
-	}
-
-	// Preparing seat changes
-	sc := &TableGameSeatChanges{}
-
-	// find no chips players
-	leavePlayerIDs := make([]string, 0)
-	alivePlayerIndexes := make([]int, 0)
-	for playerIdx, player := range oldTable.State.PlayerStates {
-		if player.Bankroll <= 0 {
-			leavePlayerIDs = append(leavePlayerIDs, player.PlayerID)
-		} else {
-			alivePlayerIndexes = append(alivePlayerIndexes, playerIdx)
-		}
-	}
-
-	// delete no chips players
-	newPlayerStates, newSeatMap, newGamePlayerIndexes := te.calcLeavePlayers(cloneTable.State.Status, leavePlayerIDs, cloneTable.State.PlayerStates, cloneTable.Meta.TableMaxSeatCount)
-	cloneTable.State.PlayerStates = newPlayerStates
-	cloneTable.State.SeatMap = newSeatMap
-	cloneTable.State.GamePlayerIndexes = newGamePlayerIndexes
-
-	if len(cloneTable.State.PlayerStates) < 2 {
-		sc.NewDealer = cloneTable.State.PlayerStates[0].Seat
-		sc.NewSB = UnsetValue
-		sc.NewBB = UnsetValue
-	} else if len(alivePlayerIndexes) == 1 {
-		sc.NewDealer = cloneTable.State.PlayerStates[alivePlayerIndexes[0]].Seat
-		sc.NewSB = UnsetValue
-		sc.NewBB = UnsetValue
-	} else {
-		// try open next game
-		newTable, err := te.openGame(cloneTable)
-		if err != nil {
-			te.emitErrorEvent("calculate seat changes when try open game", "", err)
-			return nil
-		}
-
-		// Update dealer, sb and bb
-		newSBSeat := UnsetValue
-		for _, player := range newTable.State.PlayerStates {
-			if funk.Contains(player.Positions, Position_SB) {
-				newSBSeat = player.Seat
-				break
-			}
-		}
-
-		sc.NewDealer = newTable.State.CurrentDealerSeat
-		sc.NewSB = newSBSeat
-		sc.NewBB = newTable.State.CurrentBBSeat
-	}
-
-	return sc
 }
 
 func (te *tableEngine) calcLeavePlayers(status TableStateStatus, leavePlayerIDs []string, currentPlayers []*TablePlayerState, tableMaxSeatCount int) ([]*TablePlayerState, []int, []int) {
@@ -460,4 +394,111 @@ func (te *tableEngine) createPlayerGameAction(playerID string, playerIdx int, ac
 	}
 
 	return pga
+}
+
+func (te *tableEngine) batchAddPlayers(players []JoinPlayer) error {
+	// decide seats
+	availableSeats, err := RandomSeats(te.table.State.SeatMap, len(players))
+	if err != nil {
+		return err
+	}
+
+	// update table state
+	newSeatMap := make([]int, len(te.table.State.SeatMap))
+	copy(newSeatMap, te.table.State.SeatMap)
+	newPlayers := make([]*TablePlayerState, 0)
+	joinPlayerIDs := make([]string, 0)
+	for idx, player := range players {
+		reservedSeat := player.Seat
+		joinPlayerIDs = append(joinPlayerIDs, player.PlayerID)
+
+		// add new player
+		var seat int
+		if reservedSeat == UnsetValue {
+			seat = availableSeats[idx]
+		} else {
+			if te.table.State.SeatMap[reservedSeat] == UnsetValue {
+				seat = reservedSeat
+			} else {
+				return ErrTablePlayerSeatUnavailable
+			}
+		}
+
+		// update state
+		player := &TablePlayerState{
+			PlayerID:          player.PlayerID,
+			Seat:              seat,
+			Positions:         []string{Position_Unknown},
+			IsParticipated:    false,
+			IsBetweenDealerBB: IsBetweenDealerBB(seat, te.table.State.CurrentDealerSeat, te.table.State.CurrentBBSeat, te.table.Meta.TableMaxSeatCount, te.table.Meta.Rule),
+			Bankroll:          player.RedeemChips,
+			IsIn:              false,
+			GameStatistics:    TablePlayerGameStatistics{},
+		}
+		newPlayers = append(newPlayers, player)
+
+		newPlayerIdx := len(te.table.State.PlayerStates) + len(newPlayers) - 1
+		newSeatMap[seat] = newPlayerIdx
+	}
+
+	te.table.State.SeatMap = newSeatMap
+	te.table.State.PlayerStates = append(te.table.State.PlayerStates, newPlayers...)
+
+	// 如果時間到了還沒有入座則自動入座
+	te.playersAutoIn(joinPlayerIDs)
+
+	// emit events
+	for _, player := range newPlayers {
+		te.emitTablePlayerStateEvent(player)
+		te.emitTablePlayerReservedEvent(player)
+	}
+
+	return nil
+}
+
+func (te *tableEngine) playersAutoIn(playerIDs []string) {
+	// Preparing ready group for waiting all players' join
+	te.rg.Stop()
+	te.rg.SetTimeoutInterval(15)
+	te.rg.OnTimeout(func(rg *syncsaga.ReadyGroup) {
+		// Auto Ready By Default
+		states := rg.GetParticipantStates()
+		for playerIdx, isReady := range states {
+			if !isReady {
+				rg.Ready(playerIdx)
+			}
+		}
+	})
+	te.rg.OnCompleted(func(rg *syncsaga.ReadyGroup) {
+		for playerIdx, player := range te.table.State.PlayerStates {
+			// 如果時間到了還沒有入座則自動入座
+			if !player.IsIn {
+				te.table.State.PlayerStates[playerIdx].IsIn = true
+			}
+		}
+
+		if te.table.State.GameCount <= 0 {
+			// 拆併桌起新桌，時間到了自動開打
+			if err := te.StartTableGame(); err != nil {
+				te.emitErrorEvent("StartTableGame", "", err)
+			}
+		}
+	})
+
+	te.rg.ResetParticipants()
+	for playerIdx := range te.table.State.PlayerStates {
+		if !te.table.State.PlayerStates[playerIdx].IsIn {
+			// 新加入的玩家才要放到 ready group 做處理
+			te.rg.Add(int64(playerIdx), false)
+		}
+	}
+
+	te.rg.Start()
+}
+
+func (te *tableEngine) batchRemovePlayers(playerIDs []string) {
+	newPlayerStates, newSeatMap, newGamePlayerIndexes := te.calcLeavePlayers(te.table.State.Status, playerIDs, te.table.State.PlayerStates, te.table.Meta.TableMaxSeatCount)
+	te.table.State.PlayerStates = newPlayerStates
+	te.table.State.SeatMap = newSeatMap
+	te.table.State.GamePlayerIndexes = newGamePlayerIndexes
 }

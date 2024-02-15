@@ -22,6 +22,7 @@ func TestTableGame_Preflop_Walk(t *testing.T) {
 		return pokertable.JoinPlayer{
 			PlayerID:    playerID,
 			RedeemChips: redeemChips,
+			Seat:        -1,
 		}
 	}).([]pokertable.JoinPlayer)
 
@@ -91,10 +92,10 @@ func TestTableGame_Preflop_Walk(t *testing.T) {
 			}
 		}
 	}
-	tableEngineCallbacks.OnTableErrorUpdated = func(table *pokertable.Table, err string) {
+	tableEngineCallbacks.OnTableErrorUpdated = func(table *pokertable.Table, err error) {
 		t.Log("[Table] Error:", err)
 	}
-	table, err := manager.CreateTable(tableEngineOption, tableEngineCallbacks, NewDefaultTableSetting())
+	table, _, err := manager.CreateTable(tableEngineOption, tableEngineCallbacks, NewDefaultTableSetting())
 	assert.Nil(t, err, "create table failed")
 
 	// get table engine

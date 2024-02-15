@@ -2,7 +2,7 @@ package pokertable
 
 type TableEngineCallbacks struct {
 	OnTableUpdated            func(t *Table)
-	OnTableErrorUpdated       func(t *Table, err string)
+	OnTableErrorUpdated       func(t *Table, err error)
 	OnTableStateUpdated       func(string, *Table)
 	OnTablePlayerStateUpdated func(string, string, *TablePlayerState)
 	OnTablePlayerReserved     func(string, string, *TablePlayerState)
@@ -12,7 +12,7 @@ type TableEngineCallbacks struct {
 func NewTableEngineCallbacks() *TableEngineCallbacks {
 	return &TableEngineCallbacks{
 		OnTableUpdated:            func(*Table) {},
-		OnTableErrorUpdated:       func(*Table, string) {},
+		OnTableErrorUpdated:       func(*Table, error) {},
 		OnTableStateUpdated:       func(string, *Table) {},
 		OnTablePlayerStateUpdated: func(string, string, *TablePlayerState) {},
 		OnTablePlayerReserved:     func(string, string, *TablePlayerState) {},

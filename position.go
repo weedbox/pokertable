@@ -13,15 +13,24 @@ func NewDefaultSeatMap(seatCount int) []int {
 	return seatMap
 }
 
-func RandomSeat(seatMap []int) int {
+func RandomSeats(seatMap []int, count int) ([]int, error) {
 	emptySeats := make([]int, 0)
 	for seatIdx, playerIdx := range seatMap {
 		if playerIdx == UnsetValue {
 			emptySeats = append(emptySeats, seatIdx)
 		}
 	}
-	randomSeatIdx := emptySeats[randomInt(0, len(emptySeats)-1)]
-	return randomSeatIdx
+
+	if len(emptySeats) < count {
+		return nil, ErrTableNoEmptySeats
+	}
+
+	rand.Seed(time.Now().UnixNano())
+	rand.Shuffle(len(emptySeats), func(i, j int) {
+		emptySeats[i], emptySeats[j] = emptySeats[j], emptySeats[i]
+	})
+
+	return emptySeats[:count], nil
 }
 
 func IsBetweenDealerBB(seatIdx, currDealerTableSeatIdx, currBBTableSeatIdx, maxPlayerCount int, rule string) bool {
@@ -241,9 +250,4 @@ func rotateIntArray(source []int, startIndex int) []int {
 		startIndex = startIndex % len(source)
 	}
 	return append(source[startIndex:], source[:startIndex]...)
-}
-
-func randomInt(min int, max int) int {
-	rand.Seed(time.Now().UnixNano())
-	return rand.Intn(max-min+1) + min
 }

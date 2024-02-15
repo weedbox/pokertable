@@ -12,19 +12,18 @@ var (
 type Manager interface {
 	Reset()
 
-	// TableEngine Actions
+	// Table Actions
 	GetTableEngine(tableID string) (TableEngine, error)
-	CreateTable(options *TableEngineOptions, callbacks *TableEngineCallbacks, setting TableSetting) (*Table, error)
-	BalanceTable(tableID string) error
+	CreateTable(options *TableEngineOptions, callbacks *TableEngineCallbacks, setting TableSetting) (*Table, map[string]int, error)
 	PauseTable(tableID string) error
 	CloseTable(tableID string) error
 	StartTableGame(tableID string) error
 	TableGameOpen(tableID string) error
 	UpdateBlind(tableID string, level int, ante, dealer, sb, bb int64) error
+	BalanceTablePlayers(tableID string, joinPlayers []JoinPlayer, leavePlayerIDs []string) (map[string]int, error)
 
 	// Player Table Actions
 	PlayerReserve(tableID string, joinPlayer JoinPlayer) error
-	PlayersBatchReserve(tableID string, joinPlayers []JoinPlayer) error
 	PlayerJoin(tableID, playerID string) error
 	PlayerRedeemChips(tableID string, joinPlayer JoinPlayer) error
 	PlayersLeave(tableID string, playerIDs []string) error
@@ -68,7 +67,7 @@ func (m *manager) GetTableEngine(tableID string) (TableEngine, error) {
 	return tableEngine.(TableEngine), nil
 }
 
-func (m *manager) CreateTable(options *TableEngineOptions, callbacks *TableEngineCallbacks, setting TableSetting) (*Table, error) {
+func (m *manager) CreateTable(options *TableEngineOptions, callbacks *TableEngineCallbacks, setting TableSetting) (*Table, map[string]int, error) {
 	var engineOptions *TableEngineOptions
 	if options != nil {
 		engineOptions = options
@@ -92,22 +91,13 @@ func (m *manager) CreateTable(options *TableEngineOptions, callbacks *TableEngin
 	tableEngine.OnTablePlayerStateUpdated(engineCallbacks.OnTablePlayerStateUpdated)
 	tableEngine.OnTablePlayerReserved(engineCallbacks.OnTablePlayerReserved)
 	tableEngine.OnGamePlayerActionUpdated(engineCallbacks.OnGamePlayerActionUpdated)
-	table, err := tableEngine.CreateTable(setting)
+	table, playerSeatMap, err := tableEngine.CreateTable(setting)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	m.tableEngines.Store(table.ID, tableEngine)
-	return table, nil
-}
-
-func (m *manager) BalanceTable(tableID string) error {
-	tableEngine, err := m.GetTableEngine(tableID)
-	if err != nil {
-		return ErrManagerTableNotFound
-	}
-
-	return tableEngine.BalanceTable()
+	return table, playerSeatMap, nil
 }
 
 func (m *manager) PauseTable(tableID string) error {
@@ -161,6 +151,15 @@ func (m *manager) UpdateBlind(tableID string, level int, ante, dealer, sb, bb in
 	return nil
 }
 
+func (m *manager) BalanceTablePlayers(tableID string, joinPlayers []JoinPlayer, leavePlayerIDs []string) (map[string]int, error) {
+	tableEngine, err := m.GetTableEngine(tableID)
+	if err != nil {
+		return nil, ErrManagerTableNotFound
+	}
+
+	return tableEngine.BalanceTablePlayers(joinPlayers, leavePlayerIDs)
+}
+
 func (m *manager) PlayerReserve(tableID string, joinPlayer JoinPlayer) error {
 	tableEngine, err := m.GetTableEngine(tableID)
 	if err != nil {
@@ -168,15 +167,6 @@ func (m *manager) PlayerReserve(tableID string, joinPlayer JoinPlayer) error {
 	}
 
 	return tableEngine.PlayerReserve(joinPlayer)
-}
-
-func (m *manager) PlayersBatchReserve(tableID string, joinPlayers []JoinPlayer) error {
-	tableEngine, err := m.GetTableEngine(tableID)
-	if err != nil {
-		return ErrManagerTableNotFound
-	}
-
-	return tableEngine.PlayersBatchReserve(joinPlayers)
 }
 
 func (m *manager) PlayerJoin(tableID, playerID string) error {

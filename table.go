@@ -54,7 +54,6 @@ type TableState struct {
 	GameCount            int                    `json:"game_count"`               // 執行牌局遊戲次數 (遊戲跑幾輪)
 	GamePlayerIndexes    []int                  `json:"game_player_indexes"`      // 本手正在玩的 PlayerIndex 陣列 (陣列 index 為從 Dealer 位置開始的 PlayerIndex)，GameEngine 用
 	GameState            *pokerface.GameState   `json:"game_state"`               // 本手狀態
-	SeatChanges          *TableGameSeatChanges  `json:"seat_changes"`             // 新的一手座位狀況
 	LastPlayerGameAction *TablePlayerGameAction `json:"last_player_game_action"`  // 最新一筆玩家牌局動作
 	NextBBOrderPlayerIDs []string               `json:"next_bb_order_player_ids"` // 下一手 BB 座位玩家 ID 陣列
 }
@@ -203,6 +202,14 @@ func (t Table) FindPlayerIdx(playerID string) int {
 		}
 	}
 	return UnsetValue
+}
+
+func (t Table) PlayerSeatMap() map[string]int {
+	playerSeatMap := make(map[string]int)
+	for _, player := range t.State.PlayerStates {
+		playerSeatMap[player.PlayerID] = player.Seat
+	}
+	return playerSeatMap
 }
 
 /*

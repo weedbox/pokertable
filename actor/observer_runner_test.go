@@ -40,10 +40,10 @@ func TestActor_ObserverRunner_PlayerAct(t *testing.T) {
 			a.GetTable().UpdateTableState(table)
 		}
 	}
-	tableEngineCallbacks.OnTableErrorUpdated = func(table *pokertable.Table, err string) {
+	tableEngineCallbacks.OnTableErrorUpdated = func(table *pokertable.Table, err error) {
 		t.Log("[Table] Error:", err)
 	}
-	table, err := manager.CreateTable(tableEngineOption, tableEngineCallbacks, tableSetting)
+	table, _, err := manager.CreateTable(tableEngineOption, tableEngineCallbacks, tableSetting)
 	assert.Nil(t, err, "create table failed")
 
 	// get table engine
@@ -76,11 +76,11 @@ func TestActor_ObserverRunner_PlayerAct(t *testing.T) {
 				return
 			}
 
-			if gs.Status.LastAction.Type == "big_blind" {
-				//json, _ := table.GetJSON()
-				//t.Log(json)
+			// if gs.Status.LastAction.Type == "big_blind" {
+			// 	json, _ := table.GetJSON()
+			// 	t.Log(json)
 
-			}
+			// }
 
 			//t.Log(gs.Status.LastAction.Type, gs.Status.LastAction.Source, gs.Status.LastAction.Value)
 		}
@@ -93,10 +93,11 @@ func TestActor_ObserverRunner_PlayerAct(t *testing.T) {
 
 	// Initializing bot
 	redeemChips := int64(3000)
+	seat := -1
 	players := []pokertable.JoinPlayer{
-		{PlayerID: "Jeffrey", RedeemChips: redeemChips},
-		{PlayerID: "Chuck", RedeemChips: redeemChips},
-		{PlayerID: "Fred", RedeemChips: redeemChips},
+		{PlayerID: "Jeffrey", RedeemChips: redeemChips, Seat: seat},
+		{PlayerID: "Chuck", RedeemChips: redeemChips, Seat: seat},
+		{PlayerID: "Fred", RedeemChips: redeemChips, Seat: seat},
 	}
 
 	// Preparing players

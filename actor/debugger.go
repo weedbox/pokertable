@@ -135,15 +135,6 @@ func DebugPrintTableGameSettled(t pokertable.Table) {
 		fmt.Printf("%s: seat: %d[%+v], bankroll: %d\n", player.PlayerID, player.Seat, player.Positions, player.Bankroll)
 	}
 
-	fmt.Println("---------- Seat Changes ----------")
-	if t.State.SeatChanges != nil {
-		fmt.Println("New Dealer:", t.State.SeatChanges.NewDealer)
-		fmt.Println("New SB:", t.State.SeatChanges.NewSB)
-		fmt.Println("New BB:", t.State.SeatChanges.NewBB)
-	} else {
-		fmt.Println("Seat Changes is nil")
-	}
-
 	fmt.Println("---------- Next BB Players ----------")
 	if len(t.State.NextBBOrderPlayerIDs) > 0 {
 		fmt.Println("Next BB Players:", strings.Join(t.State.NextBBOrderPlayerIDs, ","))

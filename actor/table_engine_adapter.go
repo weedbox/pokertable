@@ -9,10 +9,9 @@ import (
 )
 
 type tableEngineAdapter struct {
-	actor        Actor
-	engine       pokertable.TableEngine
-	tableSetting pokertable.TableSetting
-	table        *pokertable.Table
+	actor  Actor
+	engine pokertable.TableEngine
+	table  *pokertable.Table
 }
 
 func NewTableEngineAdapter(te pokertable.TableEngine, table *pokertable.Table) *tableEngineAdapter {

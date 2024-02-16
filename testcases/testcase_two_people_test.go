@@ -102,7 +102,7 @@ func TestTableGame_Two_People(t *testing.T) {
 	tableEngineCallbacks.OnTableErrorUpdated = func(table *pokertable.Table, err error) {
 		t.Log("[Table] Error:", err)
 	}
-	table, _, err := manager.CreateTable(tableEngineOption, tableEngineCallbacks, NewDefaultTableSetting())
+	table, err := manager.CreateTable(tableEngineOption, tableEngineCallbacks, NewDefaultTableSetting())
 	assert.Nil(t, err, "create table failed")
 
 	// get table engine

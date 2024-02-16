@@ -33,15 +33,15 @@ type TableEngine interface {
 	OnGamePlayerActionUpdated(fn func(TablePlayerGameAction))                                    // 遊戲玩家動作更新事件監聽器
 
 	// Table Actions
-	GetTable() *Table                                                                              // 取得桌次
-	GetGame() Game                                                                                 // 取得遊戲引擎
-	CreateTable(tableSetting TableSetting) (*Table, map[string]int, error)                         // 建立桌
-	PauseTable() error                                                                             // 暫停桌
-	CloseTable() error                                                                             // 關閉桌
-	StartTableGame() error                                                                         // 開打遊戲
-	TableGameOpen() error                                                                          // 開下一輪遊戲
-	UpdateBlind(level int, ante, dealer, sb, bb int64)                                             // 更新當前盲注資訊
-	BalanceTablePlayers(joinPlayers []JoinPlayer, leavePlayerIDs []string) (map[string]int, error) // 平衡桌上玩家數量
+	GetTable() *Table                                                                             // 取得桌次
+	GetGame() Game                                                                                // 取得遊戲引擎
+	CreateTable(tableSetting TableSetting) (*Table, error)                                        // 建立桌
+	PauseTable() error                                                                            // 暫停桌
+	CloseTable() error                                                                            // 關閉桌
+	StartTableGame() error                                                                        // 開打遊戲
+	TableGameOpen() error                                                                         // 開下一輪遊戲
+	UpdateBlind(level int, ante, dealer, sb, bb int64)                                            // 更新當前盲注資訊
+	UpdateTablePlayers(joinPlayers []JoinPlayer, leavePlayerIDs []string) (map[string]int, error) // 更新桌上玩家數量
 
 	// Player Table Actions
 	PlayerReserve(joinPlayer JoinPlayer) error     // 玩家確認座位
@@ -136,10 +136,10 @@ func (te *tableEngine) GetGame() Game {
 	return te.game
 }
 
-func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, map[string]int, error) {
+func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
 	// validate tableSetting
 	if len(tableSetting.JoinPlayers) > tableSetting.Meta.TableMaxSeatCount {
-		return nil, nil, ErrTableInvalidCreateSetting
+		return nil, ErrTableInvalidCreateSetting
 	}
 
 	// create table instance
@@ -178,7 +178,7 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, map[strin
 	// handle auto join players
 	if len(tableSetting.JoinPlayers) > 0 {
 		if err := te.batchAddPlayers(tableSetting.JoinPlayers); err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
 		// status should be table-balancing when mtt auto create new table & join players
@@ -190,7 +190,7 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, map[strin
 		te.emitEvent("CreateTable -> Auto Add Players", "")
 	}
 
-	return te.table, te.table.PlayerSeatMap(), nil
+	return te.table, nil
 }
 
 /*
@@ -273,10 +273,10 @@ func (te *tableEngine) UpdateBlind(level int, ante, dealer, sb, bb int64) {
 }
 
 /*
-BalanceTablePlayers 平衡桌上玩家數量
-  - 適用時機: 每手遊戲結束後平衡桌上玩家數量
+UpdateTablePlayers 更新桌上玩家數量
+  - 適用時機: 每手遊戲結束後
 */
-func (te *tableEngine) BalanceTablePlayers(joinPlayers []JoinPlayer, leavePlayerIDs []string) (map[string]int, error) {
+func (te *tableEngine) UpdateTablePlayers(joinPlayers []JoinPlayer, leavePlayerIDs []string) (map[string]int, error) {
 	te.lock.Lock()
 	defer te.lock.Unlock()
 
@@ -296,7 +296,7 @@ func (te *tableEngine) BalanceTablePlayers(joinPlayers []JoinPlayer, leavePlayer
 		}
 	}
 
-	te.emitEvent("BalanceTablePlayers", fmt.Sprintf("joinPlayers: %s, leavePlayerIDs: %s", strings.Join(joinPlayerIDs, ","), strings.Join(leavePlayerIDs, ",")))
+	te.emitEvent("UpdateTablePlayers", fmt.Sprintf("joinPlayers: %s, leavePlayerIDs: %s", strings.Join(joinPlayerIDs, ","), strings.Join(leavePlayerIDs, ",")))
 
 	return te.table.PlayerSeatMap(), nil
 }

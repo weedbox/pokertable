@@ -56,7 +56,7 @@ func TestActor_BotRunner_Humanize(t *testing.T) {
 	tableEngineCallbacks.OnTableErrorUpdated = func(table *pokertable.Table, err error) {
 		t.Log("[Table] Error:", err)
 	}
-	table, _, err := manager.CreateTable(tableEngineOption, tableEngineCallbacks, tableSetting)
+	table, err := manager.CreateTable(tableEngineOption, tableEngineCallbacks, tableSetting)
 	assert.Nil(t, err, "create table failed")
 
 	// get table engine

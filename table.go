@@ -22,6 +22,7 @@ const (
 	TableStateStatus_TableGameOpened  TableStateStatus = "table_game_opened"  // 桌次內遊戲已開局
 	TableStateStatus_TableGamePlaying TableStateStatus = "table_game_playing" // 桌次內遊戲開打中
 	TableStateStatus_TableGameSettled TableStateStatus = "table_game_settled" // 桌次內遊戲已結算
+	TableStateStatus_TableGameStandby TableStateStatus = "table_game_standby" // 桌次內遊戲準備中
 )
 
 type Table struct {
@@ -56,12 +57,6 @@ type TableState struct {
 	GameState            *pokerface.GameState   `json:"game_state"`               // 本手狀態
 	LastPlayerGameAction *TablePlayerGameAction `json:"last_player_game_action"`  // 最新一筆玩家牌局動作
 	NextBBOrderPlayerIDs []string               `json:"next_bb_order_player_ids"` // 下一手 BB 座位玩家 ID 陣列
-}
-
-type TableGameSeatChanges struct {
-	NewDealer int `json:"new_dealer"` // 下一手 Dealer 座位編號
-	NewSB     int `json:"new_sb"`     // 下一手 SB 座位編號
-	NewBB     int `json:"new_bb"`     // 下一手 BB 座位編號
 }
 
 type TablePlayerGameAction struct {

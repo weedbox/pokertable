@@ -277,32 +277,33 @@ func (te *tableEngine) settleGame() {
 }
 
 func (te *tableEngine) continueGame() error {
-	return te.delay(te.options.Interval, func() error {
-		// Reset table state
-		te.table.State.GamePlayerIndexes = []int{}
-		te.table.State.NextBBOrderPlayerIDs = []string{}
-		te.table.State.GameState = nil
-		te.table.State.LastPlayerGameAction = nil
-		for i := 0; i < len(te.table.State.PlayerStates); i++ {
-			playerState := te.table.State.PlayerStates[i]
-			playerState.Positions = make([]string, 0)
-			playerState.GameStatistics.ActionTimes = 0
-			playerState.GameStatistics.RaiseTimes = 0
-			playerState.GameStatistics.CallTimes = 0
-			playerState.GameStatistics.CheckTimes = 0
-			playerState.GameStatistics.IsFold = false
-			playerState.GameStatistics.FoldRound = ""
-		}
+	// Reset table state
+	te.table.State.Status = TableStateStatus_TableGameStandby
+	te.table.State.GamePlayerIndexes = make([]int, 0)
+	te.table.State.NextBBOrderPlayerIDs = make([]string, 0)
+	te.table.State.GameState = nil
+	te.table.State.LastPlayerGameAction = nil
+	for i := 0; i < len(te.table.State.PlayerStates); i++ {
+		playerState := te.table.State.PlayerStates[i]
+		playerState.Positions = make([]string, 0)
+		playerState.GameStatistics.ActionTimes = 0
+		playerState.GameStatistics.RaiseTimes = 0
+		playerState.GameStatistics.CallTimes = 0
+		playerState.GameStatistics.CheckTimes = 0
+		playerState.GameStatistics.IsFold = false
+		playerState.GameStatistics.FoldRound = ""
+	}
 
-		// 檢查是否暫停
+	return te.delay(te.options.Interval, func() error {
+		// 桌次接續動作: pause or open
 		if te.table.ShouldPause() {
 			// 暫停處理
 			te.table.State.Status = TableStateStatus_TablePausing
 			te.emitEvent("ContinueGame -> Pause", "")
 			te.emitTableStateEvent(TableStateEvent_StatusUpdated)
 		} else {
-			// 自動開下一手條件: status = TableStateStatus_TableGameSettled 且有籌碼玩家 >= 最小開打人數
-			if te.table.State.Status == TableStateStatus_TableGameSettled && len(te.table.AlivePlayers()) >= te.table.Meta.TableMinPlayerCount {
+			// 自動開下一手條件: status = TableStateStatus_TableGameStandby 且有籌碼玩家 >= 最小開打人數
+			if te.table.State.Status == TableStateStatus_TableGameStandby && len(te.table.AlivePlayers()) >= te.table.Meta.TableMinPlayerCount {
 				return te.TableGameOpen()
 			}
 		}

@@ -290,9 +290,10 @@ func (te *tableEngine) UpdateTablePlayers(joinPlayers []JoinPlayer, leavePlayerI
 	if len(joinPlayers) > 0 {
 		for _, joinPlayer := range joinPlayers {
 			joinPlayerIDs = append(joinPlayerIDs, joinPlayer.PlayerID)
-			if err := te.batchAddPlayers(joinPlayers); err != nil {
-				return nil, err
-			}
+		}
+
+		if err := te.batchAddPlayers(joinPlayers); err != nil {
+			return nil, err
 		}
 	}
 

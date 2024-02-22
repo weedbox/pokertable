@@ -295,6 +295,11 @@ func (te *tableEngine) continueGame() error {
 	}
 
 	return te.delay(te.options.Interval, func() error {
+		// 如果在 Interval 這期間，該桌已關閉，則不繼續動作
+		if te.table.State.Status == TableStateStatus_TableClosed {
+			return nil
+		}
+
 		// 桌次接續動作: pause or open
 		if te.table.ShouldPause() {
 			// 暫停處理

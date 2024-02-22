@@ -394,8 +394,7 @@ PlayerLeave 玩家們離開桌次
   - 適用時機:
   - CT 退桌 (玩家有籌碼)
   - CT 放棄補碼 (玩家沒有籌碼)
-  - CT/MTT 斷線且補碼中時(視為淘汰離開)
-  - CT/MTT 停止買入後被淘汰
+  - CT 停止買入後被淘汰
 */
 func (te *tableEngine) PlayersLeave(playerIDs []string) error {
 	te.lock.Lock()

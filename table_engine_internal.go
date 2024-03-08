@@ -67,16 +67,21 @@ func (te *tableEngine) updateGameState(gs *pokerface.GameState) {
 }
 
 func (te *tableEngine) openGame(oldTable *Table) (*Table, error) {
-	// Step 1: Clone Table for calculation
+	// Step 1: Check TableState
+	if !oldTable.State.BlindState.IsSet() {
+		return oldTable, ErrTableOpenGameFailed
+	}
+
+	// Step 2: Clone Table for calculation
 	cloneTable, err := oldTable.Clone()
 	if err != nil {
 		return oldTable, err
 	}
 
-	// Step 2: 更新狀態
+	// Step 3: 更新狀態
 	cloneTable.State.Status = TableStateStatus_TableGameOpened
 
-	// Step 3: 檢查參賽資格
+	// Step 4: 檢查參賽資格
 	for i := 0; i < len(cloneTable.State.PlayerStates); i++ {
 		playerState := cloneTable.State.PlayerStates[i]
 
@@ -96,7 +101,7 @@ func (te *tableEngine) openGame(oldTable *Table) (*Table, error) {
 		playerState.IsParticipated = playerState.Bankroll > 0
 	}
 
-	// Step 4: 處理可參賽玩家剩餘一人時，桌上有其他玩家情形
+	// Step 5: 處理可參賽玩家剩餘一人時，桌上有其他玩家情形
 	if len(cloneTable.ParticipatedPlayers()) < cloneTable.Meta.TableMinPlayerCount {
 		for i := 0; i < len(cloneTable.State.PlayerStates); i++ {
 			playerState := cloneTable.State.PlayerStates[i]
@@ -111,11 +116,11 @@ func (te *tableEngine) openGame(oldTable *Table) (*Table, error) {
 		}
 	}
 
-	// Step 5: 計算新 Dealer Seat & PlayerIndex
+	// Step 6: 計算新 Dealer Seat & PlayerIndex
 	newDealerPlayerIdx := FindDealerPlayerIndex(cloneTable.State.GameCount, cloneTable.State.CurrentDealerSeat, cloneTable.Meta.TableMinPlayerCount, cloneTable.Meta.TableMaxSeatCount, cloneTable.State.PlayerStates, cloneTable.State.SeatMap)
 	newDealerTableSeatIdx := cloneTable.State.PlayerStates[newDealerPlayerIdx].Seat
 
-	// Step 6: 處理玩家參賽狀態，確認玩家在 BB-Dealer 的參賽權
+	// Step 7: 處理玩家參賽狀態，確認玩家在 BB-Dealer 的參賽權
 	for i := 0; i < len(cloneTable.State.PlayerStates); i++ {
 		playerState := cloneTable.State.PlayerStates[i]
 
@@ -148,7 +153,7 @@ func (te *tableEngine) openGame(oldTable *Table) (*Table, error) {
 		}
 	}
 
-	// Step 7: 計算 & 更新本手參與玩家的 PlayerIndex 陣列
+	// Step 8: 計算 & 更新本手參與玩家的 PlayerIndex 陣列
 	gamePlayerIndexes := FindGamePlayerIndexes(newDealerTableSeatIdx, cloneTable.State.SeatMap, cloneTable.State.PlayerStates)
 	if len(gamePlayerIndexes) < cloneTable.Meta.TableMinPlayerCount {
 		fmt.Printf("[DEBUG#MTT#openGame] Competition (%s), Table (%s), TableMinPlayerCount: %d, GamePlayerIndexes: %+v\n", cloneTable.Meta.CompetitionID, cloneTable.ID, cloneTable.Meta.TableMinPlayerCount, gamePlayerIndexes)
@@ -158,7 +163,7 @@ func (te *tableEngine) openGame(oldTable *Table) (*Table, error) {
 	}
 	cloneTable.State.GamePlayerIndexes = gamePlayerIndexes
 
-	// Step 8: 計算 & 更新本手參與玩家位置資訊
+	// Step 9: 計算 & 更新本手參與玩家位置資訊
 	positionMap := GetPlayerPositionMap(cloneTable.Meta.Rule, cloneTable.State.PlayerStates, cloneTable.State.GamePlayerIndexes)
 	for playerIdx := 0; playerIdx < len(cloneTable.State.PlayerStates); playerIdx++ {
 		positions, exist := positionMap[playerIdx]
@@ -167,7 +172,7 @@ func (te *tableEngine) openGame(oldTable *Table) (*Table, error) {
 		}
 	}
 
-	// Step 9: 更新桌次狀態 (GameCount, 當前 Dealer & BB 位置, 下一手 BB 座位玩家索引值陣列)
+	// Step 10: 更新桌次狀態 (GameCount, 當前 Dealer & BB 位置, 下一手 BB 座位玩家索引值陣列)
 	cloneTable.State.GameCount = cloneTable.State.GameCount + 1
 	cloneTable.State.CurrentDealerSeat = newDealerTableSeatIdx
 	if len(gamePlayerIndexes) == 2 {
@@ -413,10 +418,8 @@ func (te *tableEngine) batchAddPlayers(players []JoinPlayer) error {
 	newSeatMap := make([]int, len(te.table.State.SeatMap))
 	copy(newSeatMap, te.table.State.SeatMap)
 	newPlayers := make([]*TablePlayerState, 0)
-	joinPlayerIDs := make([]string, 0)
 	for idx, player := range players {
 		reservedSeat := player.Seat
-		joinPlayerIDs = append(joinPlayerIDs, player.PlayerID)
 
 		// add new player
 		var seat int
@@ -451,7 +454,7 @@ func (te *tableEngine) batchAddPlayers(players []JoinPlayer) error {
 	te.table.State.PlayerStates = append(te.table.State.PlayerStates, newPlayers...)
 
 	// 如果時間到了還沒有入座則自動入座
-	te.playersAutoIn(joinPlayerIDs)
+	te.playersAutoIn()
 
 	// emit events
 	for _, player := range newPlayers {
@@ -462,7 +465,7 @@ func (te *tableEngine) batchAddPlayers(players []JoinPlayer) error {
 	return nil
 }
 
-func (te *tableEngine) playersAutoIn(playerIDs []string) {
+func (te *tableEngine) playersAutoIn() {
 	// Preparing ready group for waiting all players' join
 	te.rg.Stop()
 	te.rg.SetTimeoutInterval(15)

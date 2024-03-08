@@ -222,5 +222,5 @@ func (bs TableBlindState) IsBreaking() bool {
 }
 
 func (bs TableBlindState) IsSet() bool {
-	return bs.Level != 0 && bs.Ante == UnsetValue && bs.Dealer == UnsetValue && bs.SB == UnsetValue && bs.BB == UnsetValue
+	return bs.Level != 0 && bs.Ante != UnsetValue && bs.Dealer != UnsetValue && bs.SB != UnsetValue && bs.BB != UnsetValue
 }

@@ -185,12 +185,27 @@ func (te *tableEngine) openGame(oldTable *Table) (*Table, error) {
 		bbPlayer := cloneTable.State.PlayerStates[gamePlayerIndexes[gameBBPlayerIdx]]
 		cloneTable.State.CurrentBBSeat = bbPlayer.Seat
 
+		targetNextBBOrderPlayerIDs := make(map[string]bool, 0)
+		for _, p := range cloneTable.State.PlayerStates {
+			targetNextBBOrderPlayerIDs[p.PlayerID] = false
+		}
+
 		// starts with UG GamePlayerIndex (ug next round will be bb)
+		nextBBOrderPlayerIDs := make([]string, 0)
 		for i := gameBBPlayerIdx + 1; i < len(gamePlayerIndexes)+gameBBPlayerIdx+1; i++ {
 			gpIdx := i % len(gamePlayerIndexes)
 			player := cloneTable.State.PlayerStates[gamePlayerIndexes[gpIdx]]
-			cloneTable.State.NextBBOrderPlayerIDs = append(cloneTable.State.NextBBOrderPlayerIDs, player.PlayerID)
+			nextBBOrderPlayerIDs = append(nextBBOrderPlayerIDs, player.PlayerID)
 		}
+
+		// 如果有籌碼但沒有參與的玩家，加入 NextBBOrderPlayerIDs 的後面位置
+		for playerID, picked := range targetNextBBOrderPlayerIDs {
+			if !picked {
+				nextBBOrderPlayerIDs = append(nextBBOrderPlayerIDs, playerID)
+			}
+		}
+
+		cloneTable.State.NextBBOrderPlayerIDs = nextBBOrderPlayerIDs
 	} else {
 		cloneTable.State.CurrentBBSeat = UnsetValue
 		cloneTable.State.NextBBOrderPlayerIDs = []string{}

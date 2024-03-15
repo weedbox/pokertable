@@ -196,6 +196,7 @@ func (te *tableEngine) openGame(oldTable *Table) (*Table, error) {
 			gpIdx := i % len(gamePlayerIndexes)
 			player := cloneTable.State.PlayerStates[gamePlayerIndexes[gpIdx]]
 			nextBBOrderPlayerIDs = append(nextBBOrderPlayerIDs, player.PlayerID)
+			targetNextBBOrderPlayerIDs[player.PlayerID] = true
 		}
 
 		// 如果有籌碼但沒有參與的玩家，加入 NextBBOrderPlayerIDs 的後面位置

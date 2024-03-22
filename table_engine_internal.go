@@ -172,44 +172,18 @@ func (te *tableEngine) openGame(oldTable *Table) (*Table, error) {
 		}
 	}
 
-	// Step 10: 更新桌次狀態 (GameCount, 當前 Dealer & BB 位置, 下一手 BB 座位玩家索引值陣列)
+	// Step 10: 更新桌次狀態 (GameCount & 當前 Dealer & BB 位置)
 	cloneTable.State.GameCount = cloneTable.State.GameCount + 1
 	cloneTable.State.CurrentDealerSeat = newDealerTableSeatIdx
 	if len(gamePlayerIndexes) == 2 {
-		dealerPlayer := cloneTable.State.PlayerStates[gamePlayerIndexes[0]]
 		bbPlayer := cloneTable.State.PlayerStates[gamePlayerIndexes[1]]
 		cloneTable.State.CurrentBBSeat = bbPlayer.Seat
-		cloneTable.State.NextBBOrderPlayerIDs = []string{dealerPlayer.PlayerID, bbPlayer.PlayerID}
 	} else if len(gamePlayerIndexes) > 2 {
 		gameBBPlayerIdx := 2
 		bbPlayer := cloneTable.State.PlayerStates[gamePlayerIndexes[gameBBPlayerIdx]]
 		cloneTable.State.CurrentBBSeat = bbPlayer.Seat
-
-		targetNextBBOrderPlayerIDs := make(map[string]bool, 0)
-		for _, p := range cloneTable.State.PlayerStates {
-			targetNextBBOrderPlayerIDs[p.PlayerID] = false
-		}
-
-		// starts with UG GamePlayerIndex (ug next round will be bb)
-		nextBBOrderPlayerIDs := make([]string, 0)
-		for i := gameBBPlayerIdx + 1; i < len(gamePlayerIndexes)+gameBBPlayerIdx+1; i++ {
-			gpIdx := i % len(gamePlayerIndexes)
-			player := cloneTable.State.PlayerStates[gamePlayerIndexes[gpIdx]]
-			nextBBOrderPlayerIDs = append(nextBBOrderPlayerIDs, player.PlayerID)
-			targetNextBBOrderPlayerIDs[player.PlayerID] = true
-		}
-
-		// 如果有籌碼但沒有參與的玩家，加入 NextBBOrderPlayerIDs 的後面位置
-		for playerID, picked := range targetNextBBOrderPlayerIDs {
-			if !picked {
-				nextBBOrderPlayerIDs = append(nextBBOrderPlayerIDs, playerID)
-			}
-		}
-
-		cloneTable.State.NextBBOrderPlayerIDs = nextBBOrderPlayerIDs
 	} else {
 		cloneTable.State.CurrentBBSeat = UnsetValue
-		cloneTable.State.NextBBOrderPlayerIDs = []string{}
 	}
 
 	return cloneTable, nil
@@ -283,15 +257,7 @@ func (te *tableEngine) settleGame() {
 	}
 
 	// 更新 NextBBOrderPlayerIDs (移除沒有籌碼的玩家)
-	newNextBBOrderPlayerIDs := make([]string, 0)
-	for _, playerID := range te.table.State.NextBBOrderPlayerIDs {
-		if playerIdx := te.table.FindPlayerIdx(playerID); playerIdx != -1 {
-			if te.table.State.PlayerStates[playerIdx].Bankroll > 0 {
-				newNextBBOrderPlayerIDs = append(newNextBBOrderPlayerIDs, playerID)
-			}
-		}
-	}
-	te.table.State.NextBBOrderPlayerIDs = newNextBBOrderPlayerIDs
+	te.table.State.NextBBOrderPlayerIDs = te.refreshNextBBOrderPlayerIDs(te.table.State.PlayerStates, te.table.State.GamePlayerIndexes)
 
 	te.emitEvent("SettleTableGameResult", "")
 	te.emitTableStateEvent(TableStateEvent_GameSettled)
@@ -526,4 +492,51 @@ func (te *tableEngine) batchRemovePlayers(playerIDs []string) {
 	te.table.State.PlayerStates = newPlayerStates
 	te.table.State.SeatMap = newSeatMap
 	te.table.State.GamePlayerIndexes = newGamePlayerIndexes
+}
+
+func (te *tableEngine) refreshNextBBOrderPlayerIDs(players []*TablePlayerState, gamePlayerIndexes []int) []string {
+	nextBBOrderPlayerIDs := make([]string, 0)
+
+	targetNextBBOrderPlayerIDs := make(map[string]bool, 0)
+	for _, p := range players {
+		// 只挑有籌碼的玩家進入 NextBBOrderPlayerIDs 清單
+		if p.Bankroll > 0 {
+			targetNextBBOrderPlayerIDs[p.PlayerID] = false
+		}
+	}
+
+	if len(gamePlayerIndexes) == 2 {
+		if dealerPlayer := players[gamePlayerIndexes[0]]; dealerPlayer.Bankroll > 0 {
+			nextBBOrderPlayerIDs = append(nextBBOrderPlayerIDs, dealerPlayer.PlayerID)
+			targetNextBBOrderPlayerIDs[dealerPlayer.PlayerID] = true
+		}
+
+		if bbPlayer := players[gamePlayerIndexes[1]]; bbPlayer.Bankroll > 0 {
+			nextBBOrderPlayerIDs = append(nextBBOrderPlayerIDs, bbPlayer.PlayerID)
+			targetNextBBOrderPlayerIDs[bbPlayer.PlayerID] = true
+		}
+	} else if len(gamePlayerIndexes) > 2 {
+		gameBBPlayerIdx := 2
+
+		// starts with UG GamePlayerIndex (ug next round will be bb)
+		for i := gameBBPlayerIdx + 1; i < len(gamePlayerIndexes)+gameBBPlayerIdx+1; i++ {
+			gpIdx := i % len(gamePlayerIndexes)
+			player := players[gamePlayerIndexes[gpIdx]]
+
+			// 只挑有籌碼的玩家進入 NextBBOrderPlayerIDs 清單
+			if player.Bankroll > 0 {
+				nextBBOrderPlayerIDs = append(nextBBOrderPlayerIDs, player.PlayerID)
+				targetNextBBOrderPlayerIDs[player.PlayerID] = true
+			}
+		}
+	}
+
+	// 如果有籌碼但沒有參與的玩家，加入 NextBBOrderPlayerIDs 的後面位置
+	for playerID, picked := range targetNextBBOrderPlayerIDs {
+		if !picked {
+			nextBBOrderPlayerIDs = append(nextBBOrderPlayerIDs, playerID)
+		}
+	}
+
+	return nextBBOrderPlayerIDs
 }

@@ -57,6 +57,7 @@ type TableState struct {
 	GameState            *pokerface.GameState   `json:"game_state"`               // 本手狀態
 	LastPlayerGameAction *TablePlayerGameAction `json:"last_player_game_action"`  // 最新一筆玩家牌局動作
 	NextBBOrderPlayerIDs []string               `json:"next_bb_order_player_ids"` // 下一手 BB 座位玩家 ID 陣列
+	// GameStatistics       *TableGameStatistics   `json:"game_statistics"`          // 每手遊戲統計
 }
 
 type TablePlayerGameAction struct {
@@ -87,15 +88,6 @@ type TablePlayerState struct {
 	Bankroll          int64                     `json:"bankroll"`             // 玩家身上籌碼
 	IsIn              bool                      `json:"is_in"`                // 玩家是否入座
 	GameStatistics    TablePlayerGameStatistics `json:"game_statistics"`      // 玩家每手遊戲統計
-}
-
-type TablePlayerGameStatistics struct {
-	ActionTimes int    `json:"action_times"` // 下注動作總次數
-	RaiseTimes  int    `json:"raise_times"`  // 加注總次數
-	CallTimes   int    `json:"call_times"`   // 跟注總次數
-	CheckTimes  int    `json:"check_times"`  // 過牌總次數
-	IsFold      bool   `json:"is_fold"`      // 是否蓋牌
-	FoldRound   string `json:"fold_round"`   // 蓋牌回合
 }
 
 type TableBlindState struct {

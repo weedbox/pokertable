@@ -46,6 +46,10 @@ func (te *tableEngine) delay(interval int, fn func() error) error {
 func (te *tableEngine) updateGameState(gs *pokerface.GameState) {
 	te.table.State.GameState = gs
 
+	if te.table.State.Status == TableStateStatus_TableGamePlaying {
+		te.batchUpdatePlayerGameStatistics(gs)
+	}
+
 	event, ok := pokerface.GameEventBySymbol[gs.Status.CurrentEvent]
 	if !ok {
 		te.emitErrorEvent("handle updateGameState", "", ErrGameUnknownEvent)
@@ -212,6 +216,9 @@ func (te *tableEngine) openGame(oldTable *Table) (*Table, error) {
 		cloneTable.State.NextBBOrderPlayerIDs = []string{}
 	}
 
+	// Step 11: 更新遊戲統計
+	// TODO: implement it
+
 	return cloneTable, nil
 }
 
@@ -313,6 +320,7 @@ func (te *tableEngine) continueGame() error {
 		playerState.GameStatistics.CheckTimes = 0
 		playerState.GameStatistics.IsFold = false
 		playerState.GameStatistics.FoldRound = ""
+		playerState.GameStatistics.IsVPIP = false
 	}
 
 	return te.delay(te.options.Interval, func() error {

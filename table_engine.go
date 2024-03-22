@@ -461,6 +461,8 @@ func (te *tableEngine) PlayerBet(playerID string, chips int64) error {
 		if te.game.GetGameState().Status.CurrentRaiser == gamePlayerIdx {
 			playerState.GameStatistics.RaiseTimes++
 		}
+
+		te.updatePlayerVPIP(playerIdx, WagerAction_Bet, gs)
 	}
 	return err
 }
@@ -483,6 +485,9 @@ func (te *tableEngine) PlayerRaise(playerID string, chipLevel int64) error {
 		playerState := te.table.State.PlayerStates[playerIdx]
 		playerState.GameStatistics.ActionTimes++
 		playerState.GameStatistics.RaiseTimes++
+
+		te.updatePlayerVPIP(playerIdx, WagerAction_Bet, gs)
+		te.updatePlayerPFRTimes(playerIdx, gs)
 	}
 	return err
 }
@@ -510,6 +515,8 @@ func (te *tableEngine) PlayerCall(playerID string) error {
 		playerState := te.table.State.PlayerStates[playerIdx]
 		playerState.GameStatistics.ActionTimes++
 		playerState.GameStatistics.CallTimes++
+
+		te.updatePlayerVPIP(playerIdx, WagerAction_Bet, gs)
 	}
 	return err
 }
@@ -538,7 +545,10 @@ func (te *tableEngine) PlayerAllin(playerID string) error {
 		playerState.GameStatistics.ActionTimes++
 		if te.game.GetGameState().Status.CurrentRaiser == gamePlayerIdx {
 			playerState.GameStatistics.RaiseTimes++
+			te.updatePlayerPFRTimes(playerIdx, gs)
 		}
+
+		te.updatePlayerVPIP(playerIdx, WagerAction_Bet, gs)
 	}
 	return err
 }

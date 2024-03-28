@@ -462,7 +462,13 @@ func (te *tableEngine) PlayerBet(playerID string, chips int64) error {
 			playerState.GameStatistics.RaiseTimes++
 		}
 
-		te.updatePlayerVPIP(playerIdx, WagerAction_Bet, gs)
+		if playerState.GameStatistics.IsVPIPChance {
+			playerState.GameStatistics.IsVPIP = true
+		}
+
+		if playerState.GameStatistics.IsCBetChance {
+			playerState.GameStatistics.IsCBet = true
+		}
 	}
 	return err
 }
@@ -476,18 +482,41 @@ func (te *tableEngine) PlayerRaise(playerID string, chipLevel int64) error {
 		return err
 	}
 
+	playerIdx := te.table.FindPlayerIndexFromGamePlayerIndex(gamePlayerIdx)
+	if playerIdx == UnsetValue {
+		return ErrGamePlayerNotFound
+	}
+
 	gs, err := te.game.Raise(gamePlayerIdx, chipLevel)
 	if err == nil {
-		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
+		playerState := te.table.State.PlayerStates[playerIdx]
 		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, WagerAction_Raise, chipLevel, gs.GetPlayer(gamePlayerIdx))
 		te.emitGamePlayerActionEvent(*te.table.State.LastPlayerGameAction)
 
-		playerState := te.table.State.PlayerStates[playerIdx]
 		playerState.GameStatistics.ActionTimes++
 		playerState.GameStatistics.RaiseTimes++
 
-		te.updatePlayerVPIP(playerIdx, WagerAction_Bet, gs)
-		te.updatePlayerPFRTimes(playerIdx, gs)
+		if playerState.GameStatistics.IsVPIPChance {
+			playerState.GameStatistics.IsVPIP = true
+		}
+
+		if playerState.GameStatistics.IsPFRChance {
+			playerState.GameStatistics.IsPFR = true
+		}
+
+		if playerState.GameStatistics.IsATSChance {
+			playerState.GameStatistics.IsATS = true
+		}
+
+		te.refreshThreeBet(playerState, playerIdx)
+
+		if playerState.GameStatistics.IsCheckRaiseChance {
+			playerState.GameStatistics.IsCheckRaise = true
+		}
+
+		if playerState.GameStatistics.IsCBetChance {
+			playerState.GameStatistics.IsCBet = true
+		}
 	}
 	return err
 }
@@ -516,7 +545,9 @@ func (te *tableEngine) PlayerCall(playerID string) error {
 		playerState.GameStatistics.ActionTimes++
 		playerState.GameStatistics.CallTimes++
 
-		te.updatePlayerVPIP(playerIdx, WagerAction_Bet, gs)
+		if playerState.GameStatistics.IsVPIPChance {
+			playerState.GameStatistics.IsVPIP = true
+		}
 	}
 	return err
 }
@@ -528,6 +559,11 @@ func (te *tableEngine) PlayerAllin(playerID string) error {
 	gamePlayerIdx := te.table.FindGamePlayerIdx(playerID)
 	if err := te.validateGameMove(gamePlayerIdx); err != nil {
 		return err
+	}
+
+	playerIdx := te.table.FindPlayerIndexFromGamePlayerIndex(gamePlayerIdx)
+	if playerIdx == UnsetValue {
+		return ErrGamePlayerNotFound
 	}
 
 	wager := int64(0)
@@ -545,10 +581,28 @@ func (te *tableEngine) PlayerAllin(playerID string) error {
 		playerState.GameStatistics.ActionTimes++
 		if te.game.GetGameState().Status.CurrentRaiser == gamePlayerIdx {
 			playerState.GameStatistics.RaiseTimes++
-			te.updatePlayerPFRTimes(playerIdx, gs)
+			if playerState.GameStatistics.IsPFRChance {
+				playerState.GameStatistics.IsPFR = true
+			}
+
+			if playerState.GameStatistics.IsATSChance {
+				playerState.GameStatistics.IsATS = true
+			}
+
+			te.refreshThreeBet(playerState, playerIdx)
+
+			if playerState.GameStatistics.IsCheckRaiseChance {
+				playerState.GameStatistics.IsCheckRaise = true
+			}
 		}
 
-		te.updatePlayerVPIP(playerIdx, WagerAction_Bet, gs)
+		if playerState.GameStatistics.IsVPIPChance {
+			playerState.GameStatistics.IsVPIP = true
+		}
+
+		if playerState.GameStatistics.IsCBetChance {
+			playerState.GameStatistics.IsCBet = true
+		}
 	}
 	return err
 }
@@ -584,9 +638,13 @@ func (te *tableEngine) PlayerFold(playerID string) error {
 		return err
 	}
 
+	playerIdx := te.table.FindPlayerIndexFromGamePlayerIndex(gamePlayerIdx)
+	if playerIdx == UnsetValue {
+		return ErrGamePlayerNotFound
+	}
+
 	gs, err := te.game.Fold(gamePlayerIdx)
 	if err == nil {
-		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
 		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, WagerAction_Fold, 0, gs.GetPlayer(gamePlayerIdx))
 		te.emitGamePlayerActionEvent(*te.table.State.LastPlayerGameAction)
 
@@ -594,6 +652,14 @@ func (te *tableEngine) PlayerFold(playerID string) error {
 		playerState.GameStatistics.ActionTimes++
 		playerState.GameStatistics.IsFold = true
 		playerState.GameStatistics.FoldRound = te.game.GetGameState().Status.Round
+
+		if playerState.GameStatistics.IsFt3BChance {
+			playerState.GameStatistics.IsFt3B = true
+		}
+
+		if playerState.GameStatistics.IsFt3BChance {
+			playerState.GameStatistics.IsFtCB = true
+		}
 	}
 	return err
 }

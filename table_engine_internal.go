@@ -7,6 +7,7 @@ import (
 
 	"github.com/thoas/go-funk"
 	"github.com/weedbox/pokerface"
+	"github.com/weedbox/pokerface/settlement"
 	"github.com/weedbox/syncsaga"
 )
 
@@ -47,7 +48,7 @@ func (te *tableEngine) updateGameState(gs *pokerface.GameState) {
 	te.table.State.GameState = gs
 
 	if te.table.State.Status == TableStateStatus_TableGamePlaying {
-		te.batchUpdatePlayerGameStatistics(gs)
+		te.updateCurrentPlayerGameStatistics(gs)
 	}
 
 	event, ok := pokerface.GameEventBySymbol[gs.Status.CurrentEvent]
@@ -190,9 +191,6 @@ func (te *tableEngine) openGame(oldTable *Table) (*Table, error) {
 		cloneTable.State.CurrentBBSeat = UnsetValue
 	}
 
-	// Step 11: 更新遊戲統計
-	// TODO: implement it
-
 	return cloneTable, nil
 }
 
@@ -253,6 +251,35 @@ func (te *tableEngine) startGame() error {
 func (te *tableEngine) settleGame() {
 	te.table.State.Status = TableStateStatus_TableGameSettled
 
+	// 計算攤牌勝率用
+	notFoldCount := 0
+	for _, result := range te.table.State.GameState.Result.Players {
+		p := te.table.State.GameState.GetPlayer(result.Idx)
+		if p != nil && !p.Fold {
+			notFoldCount++
+		}
+	}
+
+	// 計算贏家
+	rank := settlement.NewRank()
+	for _, player := range te.table.State.GameState.Players {
+		if !player.Fold {
+			rank.AddContributor(player.Combination.Power, player.Idx)
+		}
+	}
+	rank.Calculate()
+	winnerGamePlayerIndexes := rank.GetWinners()
+	winnerPlayerIndexes := make(map[int]bool)
+	for _, winnerGamePlayerIndex := range winnerGamePlayerIndexes {
+		playerIdx := te.table.FindPlayerIndexFromGamePlayerIndex(winnerGamePlayerIndex)
+		if playerIdx == UnsetValue {
+			fmt.Printf("[DEBUG#settleGame] can't find player index from game player index (%d)", winnerGamePlayerIndex)
+			continue
+		}
+
+		winnerPlayerIndexes[playerIdx] = true
+	}
+
 	// 把玩家輸贏籌碼更新到 Bankroll
 	for _, player := range te.table.State.GameState.Result.Players {
 		playerIdx := te.table.State.GamePlayerIndexes[player.Idx]
@@ -260,6 +287,17 @@ func (te *tableEngine) settleGame() {
 		playerState.Bankroll = player.Final
 		if playerState.Bankroll == 0 {
 			playerState.IsParticipated = false
+		}
+
+		// 更新玩家攤牌勝率
+		p := te.table.State.GameState.GetPlayer(player.Idx)
+		if p != nil && !p.Fold && notFoldCount > 1 {
+			playerState.GameStatistics.ShowdownWinningChance = true
+			if _, exist := winnerPlayerIndexes[playerIdx]; exist {
+				playerState.GameStatistics.IsShowdownWinning = true
+			}
+		} else {
+			playerState.GameStatistics.ShowdownWinningChance = false
 		}
 	}
 
@@ -280,13 +318,7 @@ func (te *tableEngine) continueGame() error {
 	for i := 0; i < len(te.table.State.PlayerStates); i++ {
 		playerState := te.table.State.PlayerStates[i]
 		playerState.Positions = make([]string, 0)
-		playerState.GameStatistics.ActionTimes = 0
-		playerState.GameStatistics.RaiseTimes = 0
-		playerState.GameStatistics.CallTimes = 0
-		playerState.GameStatistics.CheckTimes = 0
-		playerState.GameStatistics.IsFold = false
-		playerState.GameStatistics.FoldRound = ""
-		playerState.GameStatistics.IsVPIP = false
+		playerState.GameStatistics = NewPlayerGameStatistics()
 	}
 
 	return te.delay(te.options.Interval, func() error {
@@ -432,7 +464,7 @@ func (te *tableEngine) batchAddPlayers(players []JoinPlayer) error {
 			IsBetweenDealerBB: IsBetweenDealerBB(seat, te.table.State.CurrentDealerSeat, te.table.State.CurrentBBSeat, te.table.Meta.TableMaxSeatCount, te.table.Meta.Rule),
 			Bankroll:          player.RedeemChips,
 			IsIn:              false,
-			GameStatistics:    TablePlayerGameStatistics{},
+			GameStatistics:    NewPlayerGameStatistics(),
 		}
 		newPlayers = append(newPlayers, player)
 

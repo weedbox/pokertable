@@ -199,6 +199,22 @@ func (t Table) PlayerSeatMap() map[string]int {
 	return playerSeatMap
 }
 
+func (t Table) FindPlayerIndexFromGamePlayerIndex(gamePlayerIdx int) int {
+	// game player index is out of range
+	if gamePlayerIdx < 0 || gamePlayerIdx >= len(t.State.PlayerStates) {
+		return UnsetValue
+	}
+
+	playerIdx := t.State.GamePlayerIndexes[gamePlayerIdx]
+
+	// player index is out of range
+	if playerIdx >= len(t.State.PlayerStates) {
+		return UnsetValue
+	}
+
+	return playerIdx
+}
+
 /*
 ShouldPause 計算本桌是否已達到暫停
   - 暫停條件 1: 中場休息

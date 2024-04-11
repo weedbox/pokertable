@@ -35,6 +35,8 @@ github.com/weedbox/pokerface v0.1.4 h1:Cd29v342Ven8mt2UkIOZd+Yp7L8qmpanjKhjLsJX9
 github.com/weedbox/pokerface v0.1.4/go.mod h1:crCafi1KcY6+jRb6sVkB8mF1fSuVri8tYOSEIdDDcr4=
 github.com/weedbox/pokerface v0.1.5 h1:BgF6ZT2sEwn57EPjLSUt14l4x8fx5yiZfFhICY+Mn90=
 github.com/weedbox/pokerface v0.1.5/go.mod h1:crCafi1KcY6+jRb6sVkB8mF1fSuVri8tYOSEIdDDcr4=
+github.com/weedbox/pokerface v0.1.6 h1:CY9V7kkGscca+ylKhs0VYJfHN4qpM8unFW8juuFJFzA=
+github.com/weedbox/pokerface v0.1.6/go.mod h1:crCafi1KcY6+jRb6sVkB8mF1fSuVri8tYOSEIdDDcr4=
 github.com/weedbox/syncsaga v0.0.0-20230821071725-a634f0872340 h1:ZHzlfkN/XnOIADtOxGUPbyislvjx0KjtTwCVuKEF1hw=
 github.com/weedbox/syncsaga v0.0.0-20230821071725-a634f0872340/go.mod h1:1k6tuqJhfosy4htz/8WTL17Hn4W1BJD4R+Lp/08EOPI=
 github.com/weedbox/timebank v0.0.0-20230713013837-bd7a6f808e3e h1:3v7juh57KHXyYVjfsE6gYn6tzgLBTQcDgg1A7fqNGC0=

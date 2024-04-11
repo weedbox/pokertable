@@ -57,7 +57,6 @@ type TableState struct {
 	GameState            *pokerface.GameState   `json:"game_state"`               // 本手狀態
 	LastPlayerGameAction *TablePlayerGameAction `json:"last_player_game_action"`  // 最新一筆玩家牌局動作
 	NextBBOrderPlayerIDs []string               `json:"next_bb_order_player_ids"` // 下一手 BB 座位玩家 ID 陣列
-	// GameStatistics       *TableGameStatistics   `json:"game_statistics"`          // 每手遊戲統計
 }
 
 type TablePlayerGameAction struct {

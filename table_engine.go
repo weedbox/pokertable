@@ -416,9 +416,13 @@ func (te *tableEngine) PlayerReady(playerID string) error {
 		return err
 	}
 
+	playerIdx := te.table.FindPlayerIndexFromGamePlayerIndex(gamePlayerIdx)
+	if playerIdx == UnsetValue {
+		return ErrGamePlayerNotFound
+	}
+
 	gs, err := te.game.Ready(gamePlayerIdx)
 	if err == nil {
-		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
 		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, "ready", 0, gs.GetPlayer(gamePlayerIdx))
 	}
 	return err
@@ -433,9 +437,13 @@ func (te *tableEngine) PlayerPay(playerID string, chips int64) error {
 		return err
 	}
 
+	playerIdx := te.table.FindPlayerIndexFromGamePlayerIndex(gamePlayerIdx)
+	if playerIdx == UnsetValue {
+		return ErrGamePlayerNotFound
+	}
+
 	gs, err := te.game.Pay(gamePlayerIdx, chips)
 	if err == nil {
-		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
 		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, "pay", chips, gs.GetPlayer(gamePlayerIdx))
 	}
 	return err
@@ -450,9 +458,13 @@ func (te *tableEngine) PlayerBet(playerID string, chips int64) error {
 		return err
 	}
 
+	playerIdx := te.table.FindPlayerIndexFromGamePlayerIndex(gamePlayerIdx)
+	if playerIdx == UnsetValue {
+		return ErrGamePlayerNotFound
+	}
+
 	gs, err := te.game.Bet(gamePlayerIdx, chips)
 	if err == nil {
-		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
 		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, WagerAction_Bet, chips, gs.GetPlayer(gamePlayerIdx))
 		te.emitGamePlayerActionEvent(*te.table.State.LastPlayerGameAction)
 
@@ -530,6 +542,11 @@ func (te *tableEngine) PlayerCall(playerID string) error {
 		return err
 	}
 
+	playerIdx := te.table.FindPlayerIndexFromGamePlayerIndex(gamePlayerIdx)
+	if playerIdx == UnsetValue {
+		return ErrGamePlayerNotFound
+	}
+
 	wager := int64(0)
 	if te.table.State.GameState != nil && gamePlayerIdx < len(te.table.State.GameState.Players) {
 		wager = te.table.State.GameState.Status.CurrentWager - te.table.State.GameState.GetPlayer(gamePlayerIdx).Wager
@@ -537,7 +554,6 @@ func (te *tableEngine) PlayerCall(playerID string) error {
 
 	gs, err := te.game.Call(gamePlayerIdx)
 	if err == nil {
-		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
 		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, WagerAction_Call, wager, gs.GetPlayer(gamePlayerIdx))
 		te.emitGamePlayerActionEvent(*te.table.State.LastPlayerGameAction)
 
@@ -573,7 +589,6 @@ func (te *tableEngine) PlayerAllin(playerID string) error {
 
 	gs, err := te.game.Allin(gamePlayerIdx)
 	if err == nil {
-		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
 		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, WagerAction_AllIn, wager, gs.GetPlayer(gamePlayerIdx))
 		te.emitGamePlayerActionEvent(*te.table.State.LastPlayerGameAction)
 
@@ -616,9 +631,13 @@ func (te *tableEngine) PlayerCheck(playerID string) error {
 		return err
 	}
 
+	playerIdx := te.table.FindPlayerIndexFromGamePlayerIndex(gamePlayerIdx)
+	if playerIdx == UnsetValue {
+		return ErrGamePlayerNotFound
+	}
+
 	gs, err := te.game.Check(gamePlayerIdx)
 	if err == nil {
-		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
 		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, WagerAction_Check, 0, gs.GetPlayer(gamePlayerIdx))
 		te.emitGamePlayerActionEvent(*te.table.State.LastPlayerGameAction)
 
@@ -673,9 +692,13 @@ func (te *tableEngine) PlayerPass(playerID string) error {
 		return err
 	}
 
+	playerIdx := te.table.FindPlayerIndexFromGamePlayerIndex(gamePlayerIdx)
+	if playerIdx == UnsetValue {
+		return ErrGamePlayerNotFound
+	}
+
 	gs, err := te.game.Pass(gamePlayerIdx)
 	if err == nil {
-		playerIdx := te.table.State.GamePlayerIndexes[gamePlayerIdx]
 		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, "pass", 0, gs.GetPlayer(gamePlayerIdx))
 		te.emitGamePlayerActionEvent(*te.table.State.LastPlayerGameAction)
 	}

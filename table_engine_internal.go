@@ -501,15 +501,20 @@ func (te *tableEngine) playersAutoIn() {
 		}
 	})
 	te.rg.OnCompleted(func(rg *syncsaga.ReadyGroup) {
+		isInCount := 0
 		for playerIdx, player := range te.table.State.PlayerStates {
 			// 如果時間到了還沒有入座則自動入座
 			if !player.IsIn {
 				te.table.State.PlayerStates[playerIdx].IsIn = true
 			}
+
+			if te.table.State.PlayerStates[playerIdx].IsIn {
+				isInCount++
+			}
 		}
 
-		if te.table.State.GameCount <= 0 {
-			// 拆併桌起新桌，時間到了自動開打
+		if te.table.State.GameCount <= 0 && isInCount >= 2 {
+			// 起新桌後，等所有玩家 is_in 且大於開打人數，則開始遊戲
 			if err := te.StartTableGame(); err != nil {
 				te.emitErrorEvent("StartTableGame", "", err)
 			}

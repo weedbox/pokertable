@@ -10,7 +10,9 @@ var (
 )
 
 type Manager interface {
+	// Other Actions
 	Reset()
+	ReleaseTable(tableID string) error
 
 	// Table Actions
 	GetTableEngine(tableID string) (TableEngine, error)
@@ -51,12 +53,12 @@ func NewManager() Manager {
 }
 
 func (m *manager) Reset() {
-	m.tableEngines.Range(func(key, value interface{}) bool {
-		_ = value.(TableEngine).CloseTable()
-		return true
-	})
-
 	m.tableEngines = sync.Map{}
+}
+
+func (m *manager) ReleaseTable(tableID string) error {
+	m.tableEngines.Delete(tableID)
+	return nil
 }
 
 func (m *manager) GetTableEngine(tableID string) (TableEngine, error) {

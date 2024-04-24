@@ -513,10 +513,22 @@ func (te *tableEngine) playersAutoIn() {
 			}
 		}
 
-		if te.table.State.GameCount <= 0 && isInCount >= 2 {
-			// 起新桌後，等所有玩家 is_in 且大於開打人數，則開始遊戲
-			if err := te.StartTableGame(); err != nil {
-				te.emitErrorEvent("StartTableGame", "", err)
+		gameStartingStatuses := []TableStateStatus{
+			TableStateStatus_TableGameOpened,
+			TableStateStatus_TableGamePlaying,
+			TableStateStatus_TableGameSettled,
+			TableStateStatus_TableGameStandby,
+		}
+		// 等所有玩家 is_in 且大於開打人數，且未開始 game，則開始遊戲
+		if isInCount >= 2 && !funk.Contains(te.table.State.Status, gameStartingStatuses) {
+			if te.table.State.GameCount == 0 {
+				if err := te.StartTableGame(); err != nil {
+					te.emitErrorEvent("StartTableGame", "", err)
+				}
+			} else if te.table.State.GameCount > 0 {
+				if err := te.TableGameOpen(); err != nil {
+					te.emitErrorEvent("TableGameOpen", "", err)
+				}
 			}
 		}
 	})

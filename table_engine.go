@@ -225,6 +225,11 @@ func (te *tableEngine) StartTableGame() error {
 }
 
 func (te *tableEngine) TableGameOpen() error {
+	if te.table.State.GameState != nil {
+		fmt.Printf("[DEBUG#TableGameOpen] Table (%s) game (%s) with game count (%d) is already opened.\n", te.table.ID, te.table.State.GameState.GameID, te.table.State.GameCount)
+		return nil
+	}
+
 	// 開局
 	newTable, err := te.openGame(te.table)
 

@@ -72,7 +72,7 @@ func NewGame(backend GameBackend, opts *pokerface.GameOptions) *game {
 		backend:            backend,
 		opts:               opts,
 		rg:                 rg,
-		incomingStates:     make(chan *pokerface.GameState, 1024),
+		incomingStates:     make(chan *pokerface.GameState, 1),
 		onGameStateUpdated: func(gs *pokerface.GameState) {},
 		onGameErrorUpdated: func(gs *pokerface.GameState, err error) {},
 	}

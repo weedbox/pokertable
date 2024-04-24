@@ -28,7 +28,7 @@ func TestActor_Basic(t *testing.T) {
 			TableMaxSeatCount:   9,
 			TableMinPlayerCount: 2,
 			MinChipUnit:         10,
-			ActionTime:          10,
+			ActionTime:          12,
 		},
 	}
 	tableEngineOption := pokertable.NewTableEngineOptions()
@@ -111,6 +111,7 @@ func TestActor_Basic(t *testing.T) {
 	// Add players to table
 	for _, p := range players {
 		assert.Nil(t, tableEngine.PlayerReserve(p), fmt.Sprintf("%s reserve error", p.PlayerID))
+		assert.Nil(t, tableEngine.PlayerJoin(p.PlayerID), fmt.Sprintf("%s join error", p.PlayerID))
 	}
 
 	// Start game

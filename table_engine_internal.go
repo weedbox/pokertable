@@ -327,6 +327,11 @@ func (te *tableEngine) continueGame() error {
 			return nil
 		}
 
+		// 如果在 Interval 這期間，該桌已釋放，則不繼續動作
+		if te.isReleased {
+			return nil
+		}
+
 		// 桌次接續動作: pause or open
 		if te.table.ShouldPause() {
 			// 暫停處理

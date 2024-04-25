@@ -32,6 +32,9 @@ type TableEngine interface {
 	OnTablePlayerReserved(fn func(competitionID, tableID string, playerState *TablePlayerState)) // 桌次玩家確認座位監聽器
 	OnGamePlayerActionUpdated(fn func(TablePlayerGameAction))                                    // 遊戲玩家動作更新事件監聽器
 
+	// Other Actions
+	ReleaseTable() error // 結束釋放桌次
+
 	// Table Actions
 	GetTable() *Table                                                                             // 取得桌次
 	GetGame() Game                                                                                // 取得遊戲引擎
@@ -75,6 +78,7 @@ type tableEngine struct {
 	onTablePlayerStateUpdated func(string, string, *TablePlayerState)
 	onTablePlayerReserved     func(competitionID, tableID string, playerState *TablePlayerState)
 	onGamePlayerActionUpdated func(TablePlayerGameAction)
+	isReleased                bool
 }
 
 func NewTableEngine(options *TableEngineOptions, opts ...TableEngineOpt) TableEngine {
@@ -89,6 +93,7 @@ func NewTableEngine(options *TableEngineOptions, opts ...TableEngineOpt) TableEn
 		onTablePlayerStateUpdated: callbacks.OnTablePlayerStateUpdated,
 		onTablePlayerReserved:     callbacks.OnTablePlayerReserved,
 		onGamePlayerActionUpdated: callbacks.OnGamePlayerActionUpdated,
+		isReleased:                false,
 	}
 
 	for _, opt := range opts {
@@ -126,6 +131,11 @@ func (te *tableEngine) OnTablePlayerReserved(fn func(competitionID, tableID stri
 
 func (te *tableEngine) OnGamePlayerActionUpdated(fn func(TablePlayerGameAction)) {
 	te.onGamePlayerActionUpdated = fn
+}
+
+func (te *tableEngine) ReleaseTable() error {
+	te.isReleased = true
+	return nil
 }
 
 func (te *tableEngine) GetTable() *Table {
@@ -209,6 +219,7 @@ CloseTable 關閉桌次
 */
 func (te *tableEngine) CloseTable() error {
 	te.table.State.Status = TableStateStatus_TableClosed
+	te.ReleaseTable()
 
 	te.emitEvent("CloseTable", "")
 	te.emitTableStateEvent(TableStateEvent_StatusUpdated)

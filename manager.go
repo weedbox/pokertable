@@ -57,6 +57,15 @@ func (m *manager) Reset() {
 }
 
 func (m *manager) ReleaseTable(tableID string) error {
+	tableEngine, err := m.GetTableEngine(tableID)
+	if err != nil {
+		return ErrManagerTableNotFound
+	}
+
+	if err := tableEngine.ReleaseTable(); err != nil {
+		return err
+	}
+
 	m.tableEngines.Delete(tableID)
 	return nil
 }

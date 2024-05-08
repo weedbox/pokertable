@@ -214,6 +214,16 @@ func (t Table) FindPlayerIndexFromGamePlayerIndex(gamePlayerIdx int) int {
 	return playerIdx
 }
 
+func (t Table) IsGameRunning() bool {
+	gameStartingStatuses := []TableStateStatus{
+		TableStateStatus_TableGameOpened,
+		TableStateStatus_TableGamePlaying,
+		TableStateStatus_TableGameSettled,
+		TableStateStatus_TableGameStandby,
+	}
+	return funk.Contains(gameStartingStatuses, t.State.Status)
+}
+
 /*
 ShouldPause 計算本桌是否已達到暫停
   - 暫停條件 1: 中場休息

@@ -236,6 +236,9 @@ func (te *tableEngine) StartTableGame() error {
 }
 
 func (te *tableEngine) TableGameOpen() error {
+	te.lock.Lock()
+	defer te.lock.Unlock()
+
 	if te.table.State.GameState != nil {
 		fmt.Printf("[DEBUG#TableGameOpen] Table (%s) game (%s) with game count (%d) is already opened.\n", te.table.ID, te.table.State.GameState.GameID, te.table.State.GameCount)
 		return nil
@@ -252,6 +255,12 @@ func (te *tableEngine) TableGameOpen() error {
 
 			for i := 0; i < retry; i++ {
 				time.Sleep(time.Second * 3)
+
+				// 已經開始新的一手遊戲，不做任何事
+				if te.table.IsGameRunning() {
+					return nil
+				}
+
 				newTable, err = te.openGame(te.table)
 				if err != nil {
 					if err == ErrTableOpenGameFailed {

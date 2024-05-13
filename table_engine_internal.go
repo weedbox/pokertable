@@ -339,14 +339,28 @@ func (te *tableEngine) continueGame() error {
 			te.emitEvent("ContinueGame -> Pause", "")
 			te.emitTableStateEvent(TableStateEvent_StatusUpdated)
 		} else {
-			// 自動開下一手條件: status = TableStateStatus_TableGameStandby 且有籌碼玩家 >= 最小開打人數
-			if te.table.State.Status == TableStateStatus_TableGameStandby && len(te.table.AlivePlayers()) >= te.table.Meta.TableMinPlayerCount {
+			if te.shouldAutoGameOpen() {
 				fmt.Println("[DEBUG#continueGame] delay -> TableGameOpen")
 				return te.TableGameOpen()
 			}
+			fmt.Printf("[DEBUG#continueGame] delay -> not auto opened, end: %s, now: %s\n", time.Unix(te.table.State.StartAt, 0).Add(time.Second*time.Duration(te.table.Meta.MaxDuration)), time.Now())
 		}
 		return nil
 	})
+}
+
+func (te *tableEngine) shouldAutoGameOpen() bool {
+	if te.table.Meta.Mode == "ct" || te.table.Meta.Mode == "cash" {
+		// 自動開下一手條件: status = TableStateStatus_TableGameStandby 且有籌碼玩家 >= 最小開打人數且桌次結束時間到了
+		tableEndAt := time.Unix(te.table.State.StartAt, 0).Add(time.Second * time.Duration(te.table.Meta.MaxDuration)).Unix()
+		return te.table.State.Status == TableStateStatus_TableGameStandby &&
+			len(te.table.AlivePlayers()) >= te.table.Meta.TableMinPlayerCount &&
+			tableEndAt >= time.Now().Unix()
+	}
+
+	// 自動開下一手條件: status = TableStateStatus_TableGameStandby 且有籌碼玩家 >= 最小開打人數
+	return te.table.State.Status == TableStateStatus_TableGameStandby &&
+		len(te.table.AlivePlayers()) >= te.table.Meta.TableMinPlayerCount
 }
 
 func (te *tableEngine) onGameClosed() error {
@@ -508,6 +522,7 @@ func (te *tableEngine) playersAutoIn() {
 	})
 	te.rg.OnCompleted(func(rg *syncsaga.ReadyGroup) {
 		isInCount := 0
+		alivePlayers := 0
 		for playerIdx, player := range te.table.State.PlayerStates {
 			// 如果時間到了還沒有入座則自動入座
 			if !player.IsIn {
@@ -517,15 +532,26 @@ func (te *tableEngine) playersAutoIn() {
 			if te.table.State.PlayerStates[playerIdx].IsIn {
 				isInCount++
 			}
+
+			if te.table.State.PlayerStates[playerIdx].Bankroll > 0 {
+				alivePlayers++
+			}
 		}
 
 		// 等所有玩家 is_in 且大於開打人數，且未開始 game，則開始遊戲
-		if isInCount >= 2 && !te.table.IsGameRunning() {
+		gameStartingStatuses := []TableStateStatus{
+			TableStateStatus_TableGameOpened,
+			TableStateStatus_TableGamePlaying,
+			TableStateStatus_TableGameSettled,
+			TableStateStatus_TableGameStandby,
+		}
+		isGameRunning := funk.Contains(gameStartingStatuses, te.table.State.Status)
+		if isInCount >= 2 && !isGameRunning {
 			if te.table.State.GameCount == 0 {
 				if err := te.StartTableGame(); err != nil {
 					te.emitErrorEvent("StartTableGame", "", err)
 				}
-			} else if te.table.State.GameCount > 0 && te.table.State.BlindState.Level > 0 {
+			} else if te.table.State.GameCount > 0 && te.table.State.BlindState.Level > 0 && alivePlayers >= 2 {
 				// 中場休息時，不會開下一手，等到中場休息結束後，外部才會呼叫開下一手
 				fmt.Println("[DEBUG#playersAutoIn] OnCompleted -> TableGameOpen")
 				if err := te.TableGameOpen(); err != nil {

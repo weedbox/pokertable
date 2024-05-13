@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/thoas/go-funk"
 	"github.com/weedbox/syncsaga"
 	"github.com/weedbox/timebank"
 )
@@ -257,7 +258,13 @@ func (te *tableEngine) TableGameOpen() error {
 				time.Sleep(time.Second * 3)
 
 				// 已經開始新的一手遊戲，不做任何事
-				if te.table.IsGameRunning() {
+				gameStartingStatuses := []TableStateStatus{
+					TableStateStatus_TableGameOpened,
+					TableStateStatus_TableGamePlaying,
+					TableStateStatus_TableGameSettled,
+				}
+				isGameRunning := funk.Contains(gameStartingStatuses, te.table.State.Status)
+				if isGameRunning {
 					return nil
 				}
 

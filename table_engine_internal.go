@@ -343,7 +343,9 @@ func (te *tableEngine) continueGame() error {
 				fmt.Println("[DEBUG#continueGame] delay -> TableGameOpen")
 				return te.TableGameOpen()
 			}
+
 			fmt.Printf("[DEBUG#continueGame] delay -> not auto opened, end: %s, now: %s\n", time.Unix(te.table.State.StartAt, 0).Add(time.Second*time.Duration(te.table.Meta.MaxDuration)), time.Now())
+			te.onAutoGameOpenEnd(te.table.Meta.CompetitionID, te.table.ID)
 		}
 		return nil
 	})

@@ -1,22 +1,24 @@
 package pokertable
 
 type TableEngineCallbacks struct {
-	OnTableUpdated            func(t *Table)
-	OnTableErrorUpdated       func(t *Table, err error)
-	OnTableStateUpdated       func(string, *Table)
-	OnTablePlayerStateUpdated func(string, string, *TablePlayerState)
-	OnTablePlayerReserved     func(string, string, *TablePlayerState)
-	OnGamePlayerActionUpdated func(TablePlayerGameAction)
+	OnTableUpdated            func(table *Table)
+	OnTableErrorUpdated       func(table *Table, err error)
+	OnTableStateUpdated       func(event string, table *Table)
+	OnTablePlayerStateUpdated func(competitionID, tableID string, playerState *TablePlayerState)
+	OnTablePlayerReserved     func(competitionID, tableID string, playerState *TablePlayerState)
+	OnGamePlayerActionUpdated func(gameAction TablePlayerGameAction)
+	OnAutoGameOpenEnd         func(competitionID, tableID string)
 }
 
 func NewTableEngineCallbacks() *TableEngineCallbacks {
 	return &TableEngineCallbacks{
-		OnTableUpdated:            func(*Table) {},
-		OnTableErrorUpdated:       func(*Table, error) {},
-		OnTableStateUpdated:       func(string, *Table) {},
-		OnTablePlayerStateUpdated: func(string, string, *TablePlayerState) {},
-		OnTablePlayerReserved:     func(string, string, *TablePlayerState) {},
-		OnGamePlayerActionUpdated: func(TablePlayerGameAction) {},
+		OnTableUpdated:            func(table *Table) {},
+		OnTableErrorUpdated:       func(table *Table, err error) {},
+		OnTableStateUpdated:       func(event string, table *Table) {},
+		OnTablePlayerStateUpdated: func(competitionID, tableID string, playerState *TablePlayerState) {},
+		OnTablePlayerReserved:     func(competitionID, tableID string, playerState *TablePlayerState) {},
+		OnGamePlayerActionUpdated: func(gameAction TablePlayerGameAction) {},
+		OnAutoGameOpenEnd:         func(competitionID, tableID string) {},
 	}
 }
 

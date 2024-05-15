@@ -26,12 +26,13 @@ type TableEngineOpt func(*tableEngine)
 
 type TableEngine interface {
 	// Events
-	OnTableUpdated(fn func(table *Table))                                                        // 桌次更新事件監聽器
-	OnTableErrorUpdated(fn func(table *Table, err error))                                        // 錯誤更新事件監聽器
-	OnTableStateUpdated(fn func(string, *Table))                                                 // 桌次狀態監聽器
-	OnTablePlayerStateUpdated(fn func(string, string, *TablePlayerState))                        // 桌次玩家狀態監聽器
-	OnTablePlayerReserved(fn func(competitionID, tableID string, playerState *TablePlayerState)) // 桌次玩家確認座位監聽器
-	OnGamePlayerActionUpdated(fn func(TablePlayerGameAction))                                    // 遊戲玩家動作更新事件監聽器
+	OnTableUpdated(fn func(table *Table))                                                            // 桌次更新事件監聽器
+	OnTableErrorUpdated(fn func(table *Table, err error))                                            // 錯誤更新事件監聽器
+	OnTableStateUpdated(fn func(event string, table *Table))                                         // 桌次狀態監聽器
+	OnTablePlayerStateUpdated(fn func(competitionID, tableID string, playerState *TablePlayerState)) // 桌次玩家狀態監聽器
+	OnTablePlayerReserved(fn func(competitionID, tableID string, playerState *TablePlayerState))     // 桌次玩家確認座位監聽器
+	OnGamePlayerActionUpdated(fn func(gameAction TablePlayerGameAction))                             // 遊戲玩家動作更新事件監聽器
+	OnAutoGameOpenEnd(fn func(competitionID, tableID string))                                        // 自動開桌結束事件監聽器
 
 	// Other Actions
 	ReleaseTable() error // 結束釋放桌次
@@ -73,12 +74,13 @@ type tableEngine struct {
 	gameBackend               GameBackend
 	rg                        *syncsaga.ReadyGroup
 	tb                        *timebank.TimeBank
-	onTableUpdated            func(*Table)
-	onTableErrorUpdated       func(*Table, error)
-	onTableStateUpdated       func(string, *Table)
-	onTablePlayerStateUpdated func(string, string, *TablePlayerState)
+	onTableUpdated            func(table *Table)
+	onTableErrorUpdated       func(table *Table, err error)
+	onTableStateUpdated       func(event string, table *Table)
+	onTablePlayerStateUpdated func(competitionID, tableID string, playerState *TablePlayerState)
 	onTablePlayerReserved     func(competitionID, tableID string, playerState *TablePlayerState)
-	onGamePlayerActionUpdated func(TablePlayerGameAction)
+	onGamePlayerActionUpdated func(gameAction TablePlayerGameAction)
+	onAutoGameOpenEnd         func(competitionID, tableID string)
 	isReleased                bool
 }
 
@@ -94,6 +96,7 @@ func NewTableEngine(options *TableEngineOptions, opts ...TableEngineOpt) TableEn
 		onTablePlayerStateUpdated: callbacks.OnTablePlayerStateUpdated,
 		onTablePlayerReserved:     callbacks.OnTablePlayerReserved,
 		onGamePlayerActionUpdated: callbacks.OnGamePlayerActionUpdated,
+		onAutoGameOpenEnd:         callbacks.OnAutoGameOpenEnd,
 		isReleased:                false,
 	}
 
@@ -132,6 +135,10 @@ func (te *tableEngine) OnTablePlayerReserved(fn func(competitionID, tableID stri
 
 func (te *tableEngine) OnGamePlayerActionUpdated(fn func(TablePlayerGameAction)) {
 	te.onGamePlayerActionUpdated = fn
+}
+
+func (te *tableEngine) OnAutoGameOpenEnd(fn func(competitionID, tableID string)) {
+	te.onAutoGameOpenEnd = fn
 }
 
 func (te *tableEngine) ReleaseTable() error {

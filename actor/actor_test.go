@@ -27,7 +27,7 @@ func TestActor_Basic(t *testing.T) {
 			MaxDuration:         10,
 			TableMaxSeatCount:   9,
 			TableMinPlayerCount: 2,
-			MinChipUnit:         10,
+			MinChipUnit:         3,
 			ActionTime:          12,
 		},
 	}
@@ -69,6 +69,11 @@ func TestActor_Basic(t *testing.T) {
 	tableEngineCallbacks.OnTableErrorUpdated = func(table *pokertable.Table, err error) {
 		t.Log("[Table] Error:", err)
 	}
+	tableEngineCallbacks.OnAutoGameOpenEnd = func(competitionID, tableID string) {
+		t.Log("table is not auto opened")
+		wg.Done()
+	}
+
 	table, err := manager.CreateTable(tableEngineOption, tableEngineCallbacks, tableSetting)
 	assert.Nil(t, err, "create table failed")
 

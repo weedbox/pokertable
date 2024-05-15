@@ -24,7 +24,7 @@ func TestActor_Basic(t *testing.T) {
 			CompetitionID:       uuid.New().String(),
 			Rule:                pokertable.CompetitionRule_Default,
 			Mode:                pokertable.CompetitionMode_CT,
-			MaxDuration:         10,
+			MaxDuration:         15,
 			TableMaxSeatCount:   9,
 			TableMinPlayerCount: 2,
 			MinChipUnit:         3,

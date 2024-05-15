@@ -332,6 +332,19 @@ func (te *tableEngine) continueGame() error {
 			return nil
 		}
 
+		// 桌次時間到了則不自動開下一手 (CT/Cash)
+		autoGameOpenEnd := false
+		if te.table.Meta.Mode == "ct" || te.table.Meta.Mode == "cash" {
+			tableEndAt := time.Unix(te.table.State.StartAt, 0).Add(time.Second * time.Duration(te.table.Meta.MaxDuration)).Unix()
+			autoGameOpenEnd = time.Now().Unix() > tableEndAt
+		}
+
+		if autoGameOpenEnd {
+			fmt.Printf("[DEBUG#continueGame] delay -> not auto opened %s table (%s), end: %s, now: %s\n", te.table.Meta.Mode, te.table.ID, time.Unix(te.table.State.StartAt, 0).Add(time.Second*time.Duration(te.table.Meta.MaxDuration)), time.Now())
+			te.onAutoGameOpenEnd(te.table.Meta.CompetitionID, te.table.ID)
+			return nil
+		}
+
 		// 桌次接續動作: pause or open
 		if te.table.ShouldPause() {
 			// 暫停處理
@@ -344,22 +357,15 @@ func (te *tableEngine) continueGame() error {
 				return te.TableGameOpen()
 			}
 
-			fmt.Printf("[DEBUG#continueGame] delay -> not auto opened, end: %s, now: %s\n", time.Unix(te.table.State.StartAt, 0).Add(time.Second*time.Duration(te.table.Meta.MaxDuration)), time.Now())
-			te.onAutoGameOpenEnd(te.table.Meta.CompetitionID, te.table.ID)
+			// Unhandled Situation
+			str, _ := te.table.GetJSON()
+			fmt.Printf("[DEBUG#continueGame] delay -> unhandled issue. Table: %s\n", str)
 		}
 		return nil
 	})
 }
 
 func (te *tableEngine) shouldAutoGameOpen() bool {
-	if te.table.Meta.Mode == "ct" || te.table.Meta.Mode == "cash" {
-		// 自動開下一手條件: status = TableStateStatus_TableGameStandby 且有籌碼玩家 >= 最小開打人數且桌次結束時間到了
-		tableEndAt := time.Unix(te.table.State.StartAt, 0).Add(time.Second * time.Duration(te.table.Meta.MaxDuration)).Unix()
-		return te.table.State.Status == TableStateStatus_TableGameStandby &&
-			len(te.table.AlivePlayers()) >= te.table.Meta.TableMinPlayerCount &&
-			tableEndAt >= time.Now().Unix()
-	}
-
 	// 自動開下一手條件: status = TableStateStatus_TableGameStandby 且有籌碼玩家 >= 最小開打人數
 	return te.table.State.Status == TableStateStatus_TableGameStandby &&
 		len(te.table.AlivePlayers()) >= te.table.Meta.TableMinPlayerCount

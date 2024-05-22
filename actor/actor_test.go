@@ -24,11 +24,11 @@ func TestActor_Basic(t *testing.T) {
 			CompetitionID:       uuid.New().String(),
 			Rule:                pokertable.CompetitionRule_Default,
 			Mode:                pokertable.CompetitionMode_CT,
-			MaxDuration:         15,
+			MaxDuration:         10,
 			TableMaxSeatCount:   9,
 			TableMinPlayerCount: 2,
 			MinChipUnit:         3,
-			ActionTime:          12,
+			ActionTime:          10,
 		},
 	}
 	tableEngineOption := pokertable.NewTableEngineOptions()
@@ -70,7 +70,7 @@ func TestActor_Basic(t *testing.T) {
 		t.Log("[Table] Error:", err)
 	}
 	tableEngineCallbacks.OnAutoGameOpenEnd = func(competitionID, tableID string) {
-		t.Log("table is not auto opened")
+		t.Log("AutoGameOpenEnd")
 		wg.Done()
 	}
 

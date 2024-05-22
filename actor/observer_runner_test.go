@@ -27,7 +27,7 @@ func TestActor_ObserverRunner_PlayerAct(t *testing.T) {
 			MaxDuration:         10,
 			TableMaxSeatCount:   9,
 			TableMinPlayerCount: 2,
-			MinChipUnit:         10,
+			MinChipUnit:         9,
 			ActionTime:          10,
 		},
 	}
@@ -42,6 +42,10 @@ func TestActor_ObserverRunner_PlayerAct(t *testing.T) {
 	}
 	tableEngineCallbacks.OnTableErrorUpdated = func(table *pokertable.Table, err error) {
 		t.Log("[Table] Error:", err)
+	}
+	tableEngineCallbacks.OnAutoGameOpenEnd = func(competitionID, tableID string) {
+		t.Log("AutoGameOpenEnd")
+		wg.Done()
 	}
 	table, err := manager.CreateTable(tableEngineOption, tableEngineCallbacks, tableSetting)
 	assert.Nil(t, err, "create table failed")
@@ -123,6 +127,7 @@ func TestActor_ObserverRunner_PlayerAct(t *testing.T) {
 	// Add player to table
 	for _, p := range players {
 		assert.Nil(t, tableEngine.PlayerReserve(p), fmt.Sprintf("%s reserve error", p.PlayerID))
+		assert.Nil(t, tableEngine.PlayerJoin(p.PlayerID), fmt.Sprintf("%s join error", p.PlayerID))
 	}
 
 	// Start game

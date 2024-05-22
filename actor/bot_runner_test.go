@@ -28,7 +28,7 @@ func TestActor_BotRunner_Humanize(t *testing.T) {
 			TableMaxSeatCount:   9,
 			TableMinPlayerCount: 2,
 			MinChipUnit:         10,
-			ActionTime:          1,
+			ActionTime:          2,
 		},
 	}
 	tableEngineOption := pokertable.NewTableEngineOptions()
@@ -55,6 +55,10 @@ func TestActor_BotRunner_Humanize(t *testing.T) {
 	}
 	tableEngineCallbacks.OnTableErrorUpdated = func(table *pokertable.Table, err error) {
 		t.Log("[Table] Error:", err)
+	}
+	tableEngineCallbacks.OnAutoGameOpenEnd = func(competitionID, tableID string) {
+		t.Log("AutoGameOpenEnd")
+		wg.Done()
 	}
 	table, err := manager.CreateTable(tableEngineOption, tableEngineCallbacks, tableSetting)
 	assert.Nil(t, err, "create table failed")
@@ -97,7 +101,7 @@ func TestActor_BotRunner_Humanize(t *testing.T) {
 	// Add players to table
 	for _, p := range players {
 		assert.Nil(t, tableEngine.PlayerReserve(p), fmt.Sprintf("%s reserve error", p.PlayerID))
-		// assert.Nil(t, tableEngine.PlayerJoin(p.PlayerID), fmt.Sprintf("%s join error", p.PlayerID))
+		assert.Nil(t, tableEngine.PlayerJoin(p.PlayerID), fmt.Sprintf("%s join error", p.PlayerID))
 	}
 
 	// Start game

@@ -45,6 +45,13 @@ func (te *tableEngine) delay(interval int, fn func() error) error {
 }
 
 func (te *tableEngine) updateGameState(gs *pokerface.GameState) {
+	if te.table.State.GameState != nil {
+		if te.table.State.GameState.GameID != gs.GameID {
+			fmt.Printf("[DEBUG-LOG#updateGameState] [X] Possible Error for Inconsistent GameID. Current: %s, Incoming: %s\n", te.table.State.GameState.GameID, gs.GameID)
+		} else {
+			fmt.Printf("[DEBUG-LOG#updateGameState] [O] Consistent GameID. Current: %s, Incoming: %s\n", te.table.State.GameState.GameID, gs.GameID)
+		}
+	}
 	te.table.State.GameState = gs
 
 	if te.table.State.Status == TableStateStatus_TableGamePlaying {
@@ -161,7 +168,7 @@ func (te *tableEngine) openGame(oldTable *Table) (*Table, error) {
 	// Step 8: 計算 & 更新本手參與玩家的 PlayerIndex 陣列
 	gamePlayerIndexes := FindGamePlayerIndexes(newDealerTableSeatIdx, cloneTable.State.SeatMap, cloneTable.State.PlayerStates)
 	if len(gamePlayerIndexes) < cloneTable.Meta.TableMinPlayerCount {
-		fmt.Printf("[DEBUG#MTT#openGame] Competition (%s), Table (%s), TableMinPlayerCount: %d, GamePlayerIndexes: %+v\n", cloneTable.Meta.CompetitionID, cloneTable.ID, cloneTable.Meta.TableMinPlayerCount, gamePlayerIndexes)
+		fmt.Printf("[DEBUGMTT#openGame] Competition (%s), Table (%s), TableMinPlayerCount: %d, GamePlayerIndexes: %+v\n", cloneTable.Meta.CompetitionID, cloneTable.ID, cloneTable.Meta.TableMinPlayerCount, gamePlayerIndexes)
 		json, _ := cloneTable.GetJSON()
 		fmt.Println(json)
 		return oldTable, ErrTableOpenGameFailed
@@ -273,7 +280,7 @@ func (te *tableEngine) settleGame() {
 	for _, winnerGamePlayerIndex := range winnerGamePlayerIndexes {
 		playerIdx := te.table.FindPlayerIndexFromGamePlayerIndex(winnerGamePlayerIndex)
 		if playerIdx == UnsetValue {
-			fmt.Printf("[DEBUG#settleGame] can't find player index from game player index (%d)", winnerGamePlayerIndex)
+			fmt.Printf("[DEBUGsettleGame] can't find player index from game player index (%d)", winnerGamePlayerIndex)
 			continue
 		}
 

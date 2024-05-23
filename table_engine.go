@@ -235,6 +235,11 @@ func (te *tableEngine) CloseTable() error {
 }
 
 func (te *tableEngine) StartTableGame() error {
+	if te.table.State.StartAt != UnsetValue {
+		fmt.Println("[DEBUG#StartTableGame] Table game is already started.")
+		return nil
+	}
+
 	// 更新開始時間
 	te.table.State.StartAt = time.Now().Unix()
 	te.emitEvent("StartTableGame", "")
@@ -464,13 +469,7 @@ func (te *tableEngine) PlayerReady(playerID string) error {
 	if err == nil {
 		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, "ready", 0, gs.GetPlayer(gamePlayerIdx))
 	}
-	if te.table.State.GameState != nil {
-		if te.table.State.GameState.GameID != gs.GameID {
-			fmt.Printf("[DEBUG-LOG#PlayerReady] [X] Possible Error for Inconsistent GameID. Current: %s, Incoming: %s\n", te.table.State.GameState.GameID, gs.GameID)
-		} else {
-			fmt.Printf("[DEBUG-LOG#PlayerReady] [O] Consistent GameID. Current: %s, Incoming: %s\n", te.table.State.GameState.GameID, gs.GameID)
-		}
-	}
+
 	return err
 }
 
@@ -492,13 +491,7 @@ func (te *tableEngine) PlayerPay(playerID string, chips int64) error {
 	if err == nil {
 		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, "pay", chips, gs.GetPlayer(gamePlayerIdx))
 	}
-	if te.table.State.GameState != nil {
-		if te.table.State.GameState.GameID != gs.GameID {
-			fmt.Printf("[DEBUG-LOG#PlayerPay] [X] Possible Error for Inconsistent GameID. Current: %s, Incoming: %s\n", te.table.State.GameState.GameID, gs.GameID)
-		} else {
-			fmt.Printf("[DEBUG-LOG#PlayerPay] [O] Consistent GameID. Current: %s, Incoming: %s\n", te.table.State.GameState.GameID, gs.GameID)
-		}
-	}
+
 	return err
 }
 
@@ -535,13 +528,7 @@ func (te *tableEngine) PlayerBet(playerID string, chips int64) error {
 			playerState.GameStatistics.IsCBet = true
 		}
 	}
-	if te.table.State.GameState != nil {
-		if te.table.State.GameState.GameID != gs.GameID {
-			fmt.Printf("[DEBUG-LOG#PlayerBet] [X] Possible Error for Inconsistent GameID. Current: %s, Incoming: %s\n", te.table.State.GameState.GameID, gs.GameID)
-		} else {
-			fmt.Printf("[DEBUG-LOG#PlayerBet] [O] Consistent GameID. Current: %s, Incoming: %s\n", te.table.State.GameState.GameID, gs.GameID)
-		}
-	}
+
 	return err
 }
 
@@ -590,13 +577,7 @@ func (te *tableEngine) PlayerRaise(playerID string, chipLevel int64) error {
 			playerState.GameStatistics.IsCBet = true
 		}
 	}
-	if te.table.State.GameState != nil {
-		if te.table.State.GameState.GameID != gs.GameID {
-			fmt.Printf("[DEBUG-LOG#PlayerRaise] [X] Possible Error for Inconsistent GameID. Current: %s, Incoming: %s\n", te.table.State.GameState.GameID, gs.GameID)
-		} else {
-			fmt.Printf("[DEBUG-LOG#PlayerRaise] [O] Consistent GameID. Current: %s, Incoming: %s\n", te.table.State.GameState.GameID, gs.GameID)
-		}
-	}
+
 	return err
 }
 
@@ -632,13 +613,7 @@ func (te *tableEngine) PlayerCall(playerID string) error {
 			playerState.GameStatistics.IsVPIP = true
 		}
 	}
-	if te.table.State.GameState != nil {
-		if te.table.State.GameState.GameID != gs.GameID {
-			fmt.Printf("[DEBUG-LOG#PlayerCall] [X] Possible Error for Inconsistent GameID. Current: %s, Incoming: %s\n", te.table.State.GameState.GameID, gs.GameID)
-		} else {
-			fmt.Printf("[DEBUG-LOG#PlayerCall] [O] Consistent GameID. Current: %s, Incoming: %s\n", te.table.State.GameState.GameID, gs.GameID)
-		}
-	}
+
 	return err
 }
 
@@ -693,13 +668,7 @@ func (te *tableEngine) PlayerAllin(playerID string) error {
 			playerState.GameStatistics.IsCBet = true
 		}
 	}
-	if te.table.State.GameState != nil {
-		if te.table.State.GameState.GameID != gs.GameID {
-			fmt.Printf("[DEBUG-LOG#PlayerAllin] [X] Possible Error for Inconsistent GameID. Current: %s, Incoming: %s\n", te.table.State.GameState.GameID, gs.GameID)
-		} else {
-			fmt.Printf("[DEBUG-LOG#PlayerAllin] [O] Consistent GameID. Current: %s, Incoming: %s\n", te.table.State.GameState.GameID, gs.GameID)
-		}
-	}
+
 	return err
 }
 
@@ -726,13 +695,7 @@ func (te *tableEngine) PlayerCheck(playerID string) error {
 		playerState.GameStatistics.ActionTimes++
 		playerState.GameStatistics.CheckTimes++
 	}
-	if te.table.State.GameState != nil {
-		if te.table.State.GameState.GameID != gs.GameID {
-			fmt.Printf("[DEBUG-LOG#PlayerCheck] [X] Possible Error for Inconsistent GameID. Current: %s, Incoming: %s\n", te.table.State.GameState.GameID, gs.GameID)
-		} else {
-			fmt.Printf("[DEBUG-LOG#PlayerCheck] [O] Consistent GameID. Current: %s, Incoming: %s\n", te.table.State.GameState.GameID, gs.GameID)
-		}
-	}
+
 	return err
 }
 
@@ -768,13 +731,7 @@ func (te *tableEngine) PlayerFold(playerID string) error {
 			playerState.GameStatistics.IsFtCB = true
 		}
 	}
-	if te.table.State.GameState != nil {
-		if te.table.State.GameState.GameID != gs.GameID {
-			fmt.Printf("[DEBUG-LOG#PlayerFold] [X] Possible Error for Inconsistent GameID. Current: %s, Incoming: %s\n", te.table.State.GameState.GameID, gs.GameID)
-		} else {
-			fmt.Printf("[DEBUG-LOG#PlayerFold] [O] Consistent GameID. Current: %s, Incoming: %s\n", te.table.State.GameState.GameID, gs.GameID)
-		}
-	}
+
 	return err
 }
 
@@ -797,12 +754,6 @@ func (te *tableEngine) PlayerPass(playerID string) error {
 		te.table.State.LastPlayerGameAction = te.createPlayerGameAction(playerID, playerIdx, "pass", 0, gs.GetPlayer(gamePlayerIdx))
 		te.emitGamePlayerActionEvent(*te.table.State.LastPlayerGameAction)
 	}
-	if te.table.State.GameState != nil {
-		if te.table.State.GameState.GameID != gs.GameID {
-			fmt.Printf("[DEBUG-LOG#PlayerPass] [X] Possible Error for Inconsistent GameID. Current: %s, Incoming: %s\n", te.table.State.GameState.GameID, gs.GameID)
-		} else {
-			fmt.Printf("[DEBUG-LOG#PlayerPass] [O] Consistent GameID. Current: %s, Incoming: %s\n", te.table.State.GameState.GameID, gs.GameID)
-		}
-	}
+
 	return err
 }

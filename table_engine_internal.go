@@ -45,13 +45,6 @@ func (te *tableEngine) delay(interval int, fn func() error) error {
 }
 
 func (te *tableEngine) updateGameState(gs *pokerface.GameState) {
-	if te.table.State.GameState != nil {
-		if te.table.State.GameState.GameID != gs.GameID {
-			fmt.Printf("[DEBUG-LOG#updateGameState] [X] Possible Error for Inconsistent GameID. Current: %s, Incoming: %s\n", te.table.State.GameState.GameID, gs.GameID)
-		} else {
-			fmt.Printf("[DEBUG-LOG#updateGameState] [O] Consistent GameID. Current: %s, Incoming: %s\n", te.table.State.GameState.GameID, gs.GameID)
-		}
-	}
 	te.table.State.GameState = gs
 
 	if te.table.State.Status == TableStateStatus_TableGamePlaying {
@@ -292,9 +285,6 @@ func (te *tableEngine) settleGame() {
 		playerIdx := te.table.State.GamePlayerIndexes[player.Idx]
 		playerState := te.table.State.PlayerStates[playerIdx]
 		playerState.Bankroll = player.Final
-		if playerState.Bankroll == 0 {
-			playerState.IsParticipated = false
-		}
 
 		// 更新玩家攤牌勝率
 		p := te.table.State.GameState.GetPlayer(player.Idx)
@@ -326,6 +316,9 @@ func (te *tableEngine) continueGame() error {
 		playerState := te.table.State.PlayerStates[i]
 		playerState.Positions = make([]string, 0)
 		playerState.GameStatistics = NewPlayerGameStatistics()
+		if playerState.Bankroll == 0 {
+			playerState.IsParticipated = false
+		}
 	}
 
 	return te.delay(te.options.Interval, func() error {

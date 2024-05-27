@@ -19,13 +19,13 @@ func (te *tableEngine) emitEvent(eventName string, playerID string) {
 	te.table.UpdateSerial++
 
 	// emit event
-	fmt.Printf("->[Table %s][#%d][%d][%s] emit Event: %s\n", te.table.ID, te.table.UpdateSerial, te.table.State.GameCount, playerID, eventName)
+	fmt.Printf("->[c: %s][t: %s][#%d][%d][%s] emit Event: %s\n", te.table.Meta.CompetitionID, te.table.ID, te.table.UpdateSerial, te.table.State.GameCount, playerID, eventName)
 	te.onTableUpdated(te.table)
 }
 
 // TODO: replace err(error) with errMsg(string)
 func (te *tableEngine) emitErrorEvent(eventName string, playerID string, err error) {
-	fmt.Printf("->[Table %s][#%d][%d][%s] emit ERROR Event: %s, Error: %v\n", te.table.ID, te.table.UpdateSerial, te.table.State.GameCount, playerID, eventName, err)
+	fmt.Printf("->[c: %s][t: %s][#%d][%d][%s] emit ERROR Event: %s, Error: %v\n", te.table.Meta.CompetitionID, te.table.ID, te.table.UpdateSerial, te.table.State.GameCount, playerID, eventName, err)
 	te.onTableErrorUpdated(te.table, err)
 }
 

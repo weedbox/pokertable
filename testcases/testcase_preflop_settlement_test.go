@@ -22,7 +22,7 @@ func TestTableGame_Preflop_Settlement(t *testing.T) {
 		return pokertable.JoinPlayer{
 			PlayerID:    playerID,
 			RedeemChips: redeemChips,
-			Seat:        -1,
+			Seat:        pokertable.UnsetValue,
 		}
 	}).([]pokertable.JoinPlayer)
 
@@ -109,7 +109,6 @@ func TestTableGame_Preflop_Settlement(t *testing.T) {
 	}
 
 	// start game
-	tableEngine.UpdateBlind(1, 0, 0, 10, 20)
 	assert.Nil(t, tableEngine.StartTableGame(), "start table game failed")
 
 	wg.Wait()

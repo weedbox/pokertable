@@ -27,8 +27,15 @@ func TestActor_Basic(t *testing.T) {
 			MaxDuration:         10,
 			TableMaxSeatCount:   9,
 			TableMinPlayerCount: 2,
-			MinChipUnit:         3,
+			MinChipUnit:         2,
 			ActionTime:          10,
+		},
+		Blind: pokertable.TableBlindState{
+			Level:  1,
+			Ante:   0,
+			Dealer: 0,
+			SB:     10,
+			BB:     20,
 		},
 	}
 	tableEngineOption := pokertable.NewTableEngineOptions()
@@ -120,7 +127,6 @@ func TestActor_Basic(t *testing.T) {
 	}
 
 	// Start game
-	tableEngine.UpdateBlind(1, 0, 0, 10, 20)
 	err = tableEngine.StartTableGame()
 	assert.Nil(t, err)
 

@@ -170,15 +170,9 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
 
 	// configure state
 	state := TableState{
-		GameCount: 0,
-		StartAt:   UnsetValue,
-		BlindState: &TableBlindState{
-			Level:  0,
-			Ante:   UnsetValue,
-			Dealer: UnsetValue,
-			SB:     UnsetValue,
-			BB:     UnsetValue,
-		},
+		GameCount:            0,
+		StartAt:              UnsetValue,
+		BlindState:           &tableSetting.Blind,
 		CurrentDealerSeat:    UnsetValue,
 		CurrentBBSeat:        UnsetValue,
 		SeatMap:              NewDefaultSeatMap(tableSetting.Meta.TableMaxSeatCount),
@@ -260,9 +254,9 @@ func (te *tableEngine) TableGameOpen() error {
 	// 開局
 	newTable, err := te.openGame(te.table)
 
-	retry := 7
+	retry := 10
 	if err != nil {
-		// 20 秒內嘗試重新開局，每三秒一次，共七次
+		// 30 秒內嘗試重新開局
 		if err == ErrTableOpenGameFailed {
 			reopened := false
 

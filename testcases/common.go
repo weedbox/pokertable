@@ -27,6 +27,13 @@ func NewDefaultTableSetting(joinPlayers ...pokertable.JoinPlayer) pokertable.Tab
 			MinChipUnit:         10,
 			ActionTime:          10,
 		},
+		Blind: pokertable.TableBlindState{
+			Level:  1,
+			Ante:   0,
+			Dealer: 0,
+			SB:     10,
+			BB:     20,
+		},
 		JoinPlayers: joinPlayers,
 	}
 }

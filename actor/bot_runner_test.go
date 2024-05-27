@@ -30,6 +30,13 @@ func TestActor_BotRunner_Humanize(t *testing.T) {
 			MinChipUnit:         10,
 			ActionTime:          2,
 		},
+		Blind: pokertable.TableBlindState{
+			Level:  1,
+			Ante:   0,
+			Dealer: 0,
+			SB:     10,
+			BB:     20,
+		},
 	}
 	tableEngineOption := pokertable.NewTableEngineOptions()
 	tableEngineOption.Interval = 1
@@ -105,7 +112,6 @@ func TestActor_BotRunner_Humanize(t *testing.T) {
 	}
 
 	// Start game
-	tableEngine.UpdateBlind(1, 0, 0, 10, 20)
 	err = tableEngine.StartTableGame()
 	assert.Nil(t, err)
 

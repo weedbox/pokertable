@@ -1,9 +1,10 @@
 package pokertable
 
 type TableSetting struct {
-	TableID     string       `json:"table_id"`
-	Meta        TableMeta    `json:"table_meta"`
-	JoinPlayers []JoinPlayer `json:"join_players"`
+	TableID     string          `json:"table_id"`
+	Meta        TableMeta       `json:"table_meta"`
+	JoinPlayers []JoinPlayer    `json:"join_players"`
+	Blind       TableBlindState `json:"blind"`
 }
 
 type JoinPlayer struct {

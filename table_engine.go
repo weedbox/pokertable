@@ -169,6 +169,10 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
 	table.Meta = tableSetting.Meta
 
 	// configure state
+	status := TableStateStatus_TableCreated
+	if tableSetting.Blind.Level == -1 {
+		status = TableStateStatus_TablePausing
+	}
 	state := TableState{
 		GameCount:            0,
 		StartAt:              UnsetValue,
@@ -178,7 +182,7 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
 		SeatMap:              NewDefaultSeatMap(tableSetting.Meta.TableMaxSeatCount),
 		PlayerStates:         make([]*TablePlayerState, 0),
 		GamePlayerIndexes:    make([]int, 0),
-		Status:               TableStateStatus_TableCreated,
+		Status:               status,
 		NextBBOrderPlayerIDs: make([]string, 0),
 	}
 	table.State = &state
@@ -193,8 +197,8 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
 			return nil, err
 		}
 
-		// status should be table-balancing when mtt auto create new table & join players
-		if table.Meta.Mode == CompetitionMode_MTT {
+		// status should be table-balancing when mtt auto create new table & join players (except for 中場休息)
+		if table.Meta.Mode == CompetitionMode_MTT && table.State.Status != TableStateStatus_TablePausing {
 			table.State.Status = TableStateStatus_TableBalancing
 			te.emitTableStateEvent(TableStateEvent_StatusUpdated)
 		}

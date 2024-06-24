@@ -554,27 +554,15 @@ func (te *tableEngine) playersAutoIn() {
 			TableStateStatus_TableGameStandby,
 		}
 		isGameRunning := funk.Contains(gameStartingStatuses, te.table.State.Status)
-		if isInCount >= 2 && !isGameRunning {
+		// 非中場休息，有活著的玩家，且未開始遊戲
+		if isInCount >= 2 && alivePlayers >= 2 && !isGameRunning && te.table.State.BlindState.Level > 0 {
 			if te.table.State.GameCount == 0 {
-				if te.table.State.BlindState.Level > 0 {
-					// 非中場休息，且尚未開第一手，則開開始 & 第一手
-					if err := te.StartTableGame(); err != nil {
-						te.emitErrorEvent("StartTableGame", "", err)
-					}
+				// 尚未開第一手，StartTableGame
+				if err := te.StartTableGame(); err != nil {
+					te.emitErrorEvent("StartTableGame", "", err)
 				}
-
-				if te.table.State.BlindState.Level == -1 || te.table.State.Status == TableStateStatus_TablePausing {
-					// 中場休息時，不會開下一手，等到中場休息結束後，外部才會呼叫開下一手
-					if te.table.State.StartAt != UnsetValue {
-						return
-					}
-
-					// 更新開始時間
-					te.table.State.StartAt = time.Now().Unix()
-					te.emitEvent("StartTableGame", "")
-				}
-			} else if te.table.State.GameCount > 0 && te.table.State.BlindState.Level > 0 && alivePlayers >= 2 {
-				// 中場休息時，不會開下一手，等到中場休息結束後，外部才會呼叫開下一手
+			} else if te.table.State.GameCount > 0 {
+				// 回復遊戲，TableGameOpen
 				fmt.Println("[DEBUG#playersAutoIn] OnCompleted -> TableGameOpen")
 				if err := te.TableGameOpen(); err != nil {
 					te.emitErrorEvent("TableGameOpen", "", err)

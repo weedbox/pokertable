@@ -400,7 +400,8 @@ func (te *tableEngine) PlayerJoin(playerID string) error {
 
 	te.table.State.PlayerStates[playerIdx].IsIn = true
 
-	if te.table.State.Status == TableStateStatus_TableBalancing {
+	// 非中場休息拆新桌或中場休息拆新桌時，玩家要進入 ready group
+	if (te.table.State.Status == TableStateStatus_TableBalancing || te.table.State.Status == TableStateStatus_TablePausing) && te.table.State.GameCount == 0 {
 		te.rg.Ready(int64(playerIdx))
 	}
 

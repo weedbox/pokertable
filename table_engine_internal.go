@@ -518,7 +518,7 @@ func (te *tableEngine) batchAddPlayers(players []JoinPlayer) error {
 func (te *tableEngine) playersAutoIn() {
 	// Preparing ready group for waiting all players' join
 	te.rg.Stop()
-	te.rg.SetTimeoutInterval(15)
+	te.rg.SetTimeoutInterval(17)
 	te.rg.OnTimeout(func(rg *syncsaga.ReadyGroup) {
 		// Auto Ready By Default
 		states := rg.GetParticipantStates()

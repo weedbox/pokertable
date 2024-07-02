@@ -321,48 +321,57 @@ func (te *tableEngine) continueGame() error {
 		}
 	}
 
-	return te.delay(te.options.Interval, func() error {
-		// 如果在 Interval 這期間，該桌已關閉，則不繼續動作
-		if te.table.State.Status == TableStateStatus_TableClosed {
-			return nil
-		}
+	var nextMoveInterval int
+	var nextMoveHandler func() error
 
-		// 如果在 Interval 這期間，該桌已釋放，則不繼續動作
-		if te.isReleased {
-			return nil
-		}
+	// 桌次時間到了則不自動開下一手 (CT/Cash)
+	ctMTTAutoGameOpenEnd := false
+	if te.table.Meta.Mode == CompetitionMode_CT || te.table.Meta.Mode == CompetitionMode_Cash {
+		tableEndAt := time.Unix(te.table.State.StartAt, 0).Add(time.Second * time.Duration(te.table.Meta.MaxDuration)).Unix()
+		ctMTTAutoGameOpenEnd = time.Now().Unix() > tableEndAt
+	}
 
-		// 桌次時間到了則不自動開下一手 (CT/Cash)
-		autoGameOpenEnd := false
-		if te.table.Meta.Mode == "ct" || te.table.Meta.Mode == "cash" {
-			tableEndAt := time.Unix(te.table.State.StartAt, 0).Add(time.Second * time.Duration(te.table.Meta.MaxDuration)).Unix()
-			autoGameOpenEnd = time.Now().Unix() > tableEndAt
-		}
-
-		if autoGameOpenEnd {
+	if ctMTTAutoGameOpenEnd {
+		nextMoveInterval = 1
+		nextMoveHandler = func() error {
 			fmt.Printf("[DEBUG#continueGame] delay -> not auto opened %s table (%s), end: %s, now: %s\n", te.table.Meta.Mode, te.table.ID, time.Unix(te.table.State.StartAt, 0).Add(time.Second*time.Duration(te.table.Meta.MaxDuration)), time.Now())
 			te.onAutoGameOpenEnd(te.table.Meta.CompetitionID, te.table.ID)
 			return nil
 		}
-
-		// 桌次接續動作: pause or open
-		if te.table.ShouldPause() {
-			// 暫停處理
-			te.table.State.Status = TableStateStatus_TablePausing
-			te.emitEvent("ContinueGame -> Pause", "")
-			te.emitTableStateEvent(TableStateEvent_StatusUpdated)
-		} else {
-			if te.shouldAutoGameOpen() {
-				fmt.Println("[DEBUG#continueGame] delay -> TableGameOpen")
-				return te.TableGameOpen()
+	} else {
+		nextMoveInterval = te.options.Interval
+		nextMoveHandler = func() error {
+			// 如果在 Interval 這期間，該桌已關閉，則不繼續動作
+			if te.table.State.Status == TableStateStatus_TableClosed {
+				return nil
 			}
 
-			// Unhandled Situation
-			str, _ := te.table.GetJSON()
-			fmt.Printf("[DEBUG#continueGame] delay -> unhandled issue. Table: %s\n", str)
+			// 如果在 Interval 這期間，該桌已釋放，則不繼續動作
+			if te.isReleased {
+				return nil
+			}
+
+			// 桌次接續動作: pause or open
+			if te.table.ShouldPause() {
+				// 暫停處理
+				te.table.State.Status = TableStateStatus_TablePausing
+				te.emitEvent("ContinueGame -> Pause", "")
+				te.emitTableStateEvent(TableStateEvent_StatusUpdated)
+			} else {
+				if te.shouldAutoGameOpen() {
+					fmt.Println("[DEBUG#continueGame] delay -> TableGameOpen")
+					return te.TableGameOpen()
+				}
+
+				// Unhandled Situation
+				str, _ := te.table.GetJSON()
+				fmt.Printf("[DEBUG#continueGame] delay -> unhandled issue. Table: %s\n", str)
+			}
+			return nil
 		}
-		return nil
-	})
+	}
+
+	return te.delay(nextMoveInterval, nextMoveHandler)
 }
 
 func (te *tableEngine) shouldAutoGameOpen() bool {

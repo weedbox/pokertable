@@ -557,9 +557,11 @@ func (te *tableEngine) playersAutoIn() {
 		// 非中場休息，有活著的玩家，且未開始遊戲
 		if isInCount >= 2 && alivePlayers >= 2 && !isGameRunning && te.table.State.BlindState.Level > 0 {
 			if te.table.State.GameCount == 0 {
-				// 尚未開第一手，StartTableGame
-				if err := te.StartTableGame(); err != nil {
-					te.emitErrorEvent("StartTableGame", "", err)
+				// 尚未開第一手，StartTableGame (MTT Only, CT 是由 competition 決定開始)
+				if te.table.Meta.Mode == CompetitionMode_MTT {
+					if err := te.StartTableGame(); err != nil {
+						te.emitErrorEvent("StartTableGame", "", err)
+					}
 				}
 			} else if te.table.State.GameCount > 0 {
 				// 回復遊戲，TableGameOpen

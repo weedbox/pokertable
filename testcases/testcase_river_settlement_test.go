@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/thoas/go-funk"
@@ -114,16 +115,22 @@ func TestTableGame_River_Settlement(t *testing.T) {
 	tableEngine, err = manager.GetTableEngine(table.ID)
 	assert.Nil(t, err, "get table engine failed")
 
-	// players reserve
+	// players buy in
 	for _, joinPlayer := range players {
 		assert.Nil(t, tableEngine.PlayerReserve(joinPlayer), fmt.Sprintf("%s reserve error", joinPlayer.PlayerID))
-		if joinPlayer.PlayerID != notPlayingPlayerID {
-			assert.Nil(t, tableEngine.PlayerJoin(joinPlayer.PlayerID), fmt.Sprintf("%s join error", joinPlayer.PlayerID))
-		}
+
+		go func(player pokertable.JoinPlayer) {
+			if player.PlayerID != notPlayingPlayerID {
+				time.Sleep(time.Microsecond * 10)
+				assert.Nil(t, tableEngine.PlayerJoin(player.PlayerID), fmt.Sprintf("%s join error", player.PlayerID))
+			}
+		}(joinPlayer)
 	}
 
-	// start game
-	assert.Nil(t, tableEngine.StartTableGame(), "start table game failed")
+	// Start game
+	time.Sleep(time.Microsecond * 100)
+	err = tableEngine.StartTableGame()
+	assert.Nil(t, err)
 
 	wg.Wait()
 }

@@ -68,6 +68,18 @@ func (te *tableEngine) updateGameState(gs *pokerface.GameState) {
 		if event == pokerface.GameEvent_RoundClosed {
 			te.table.State.LastPlayerGameAction = nil
 		}
+
+		if event == pokerface.GameEvent_ReadyRequested && gs.Status.Round == GameRound_Preflop && gs.Status.CurrentPlayer == 0 {
+			for gpIdx, p := range gs.Players {
+				if p.DidAction == WagerAction_AllIn {
+					if playerIdx := te.table.FindPlayerIndexFromGamePlayerIndex(gpIdx); playerIdx != UnsetValue {
+						player := te.table.State.PlayerStates[playerIdx]
+						te.table.State.LastPlayerGameAction = te.createPlayerGameAction(player.PlayerID, playerIdx, p.DidAction, player.Bankroll, p)
+						te.emitGamePlayerActionEvent(*te.table.State.LastPlayerGameAction)
+					}
+				}
+			}
+		}
 	}
 }
 

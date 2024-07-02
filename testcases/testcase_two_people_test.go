@@ -80,6 +80,12 @@ func TestTableGame_Two_People(t *testing.T) {
 				} else if funk.Contains(actions, "call") {
 					t.Logf(fmt.Sprintf("%s's move: call", playerID))
 					assert.Nil(t, tableEngine.PlayerCall(playerID), fmt.Sprintf("%s call error", playerID))
+				} else if funk.Contains(actions, "allin") {
+					t.Logf(fmt.Sprintf("%s's move: allin", playerID))
+					assert.Nil(t, tableEngine.PlayerAllin(playerID), fmt.Sprintf("%s allin error", playerID))
+				} else if funk.Contains(actions, "fold") {
+					t.Logf(fmt.Sprintf("%s's move: fold", playerID))
+					assert.Nil(t, tableEngine.PlayerFold(playerID), fmt.Sprintf("%s fold error", playerID))
 				}
 			}
 		case pokertable.TableStateStatus_TableGameSettled:

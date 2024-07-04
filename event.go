@@ -49,6 +49,6 @@ func (te *tableEngine) emitTablePlayerReservedEvent(player *TablePlayerState) {
 
 func (te *tableEngine) emitGamePlayerActionEvent(gameAction TablePlayerGameAction) {
 	// emit event
-	// fmt.Printf("->emit player game action Event: %s\n", player.PlayerID)
+	// fmt.Printf("->emit player game action Event: %s %s %d\n", gameAction.PlayerID, gameAction.Action, gameAction.Chips)
 	te.onGamePlayerActionUpdated(gameAction)
 }

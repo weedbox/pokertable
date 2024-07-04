@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/thoas/go-funk"
@@ -79,6 +80,12 @@ func TestTableGame_Two_People(t *testing.T) {
 				} else if funk.Contains(actions, "call") {
 					t.Logf(fmt.Sprintf("%s's move: call", playerID))
 					assert.Nil(t, tableEngine.PlayerCall(playerID), fmt.Sprintf("%s call error", playerID))
+				} else if funk.Contains(actions, "allin") {
+					t.Logf(fmt.Sprintf("%s's move: allin", playerID))
+					assert.Nil(t, tableEngine.PlayerAllin(playerID), fmt.Sprintf("%s allin error", playerID))
+				} else if funk.Contains(actions, "fold") {
+					t.Logf(fmt.Sprintf("%s's move: fold", playerID))
+					assert.Nil(t, tableEngine.PlayerFold(playerID), fmt.Sprintf("%s fold error", playerID))
 				}
 			}
 		case pokertable.TableStateStatus_TableGameSettled:
@@ -112,11 +119,17 @@ func TestTableGame_Two_People(t *testing.T) {
 	// players buy in
 	for _, joinPlayer := range players {
 		assert.Nil(t, tableEngine.PlayerReserve(joinPlayer), fmt.Sprintf("%s reserve error", joinPlayer.PlayerID))
-		assert.Nil(t, tableEngine.PlayerJoin(joinPlayer.PlayerID), fmt.Sprintf("%s join error", joinPlayer.PlayerID))
+
+		go func(player pokertable.JoinPlayer) {
+			time.Sleep(time.Microsecond * 10)
+			assert.Nil(t, tableEngine.PlayerJoin(player.PlayerID), fmt.Sprintf("%s join error", player.PlayerID))
+		}(joinPlayer)
 	}
 
-	// start game
-	assert.Nil(t, tableEngine.StartTableGame(), "start table game failed")
+	// Start game
+	time.Sleep(time.Microsecond * 100)
+	err = tableEngine.StartTableGame()
+	assert.Nil(t, err)
 
 	wg.Wait()
 }

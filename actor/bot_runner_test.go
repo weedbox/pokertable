@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -108,10 +109,15 @@ func TestActor_BotRunner_Humanize(t *testing.T) {
 	// Add players to table
 	for _, p := range players {
 		assert.Nil(t, tableEngine.PlayerReserve(p), fmt.Sprintf("%s reserve error", p.PlayerID))
-		assert.Nil(t, tableEngine.PlayerJoin(p.PlayerID), fmt.Sprintf("%s join error", p.PlayerID))
+
+		go func(player pokertable.JoinPlayer) {
+			time.Sleep(time.Microsecond * 10)
+			assert.Nil(t, tableEngine.PlayerJoin(player.PlayerID), fmt.Sprintf("%s join error", player.PlayerID))
+		}(p)
 	}
 
 	// Start game
+	time.Sleep(time.Microsecond * 100)
 	err = tableEngine.StartTableGame()
 	assert.Nil(t, err)
 

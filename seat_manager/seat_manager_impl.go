@@ -4,7 +4,6 @@ import (
 	"sync"
 
 	"github.com/thoas/go-funk"
-	"github.com/weedbox/pokertable"
 )
 
 type seatManager struct {
@@ -40,7 +39,7 @@ func (sm *seatManager) RandomAssignSeats(playerIDs []string) error {
 		seatID := seatIDs[i]
 		seatPlayer := SeatPlayer{
 			ID:     playerIDs[i],
-			Active: sm.calcPlayerIsActive(seatID),
+			Active: false,
 		}
 		sm.seats[seatID] = &seatPlayer
 	}
@@ -90,7 +89,7 @@ func (sm *seatManager) AssignSeats(playerSeatIDs map[string]int) error {
 	for playerID, seatID := range playerSeatIDs {
 		seatPlayer := SeatPlayer{
 			ID:     playerID,
-			Active: sm.calcPlayerIsActive(seatID),
+			Active: false,
 		}
 		sm.seats[seatID] = &seatPlayer
 	}
@@ -171,7 +170,11 @@ func (sm *seatManager) RotatePositions() error {
 }
 
 func (sm *seatManager) IsPlayerBetweenDealerBB(playerID string) bool {
-	if sm.rule == pokertable.CompetitionRule_ShortDeck {
+	if !sm.isInitPositions {
+		return false
+	}
+
+	if sm.rule == Rule_ShortDeck {
 		return false
 	}
 

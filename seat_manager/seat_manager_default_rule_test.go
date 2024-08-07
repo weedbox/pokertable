@@ -6,12 +6,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/weedbox/pokertable"
 )
 
 func TestDefaultRule_InitSeatManager(t *testing.T) {
 	maxSeat := 9
-	rule := pokertable.CompetitionRule_Default
+	rule := Rule_Default
 
 	sm := NewSeatManager(maxSeat, rule)
 
@@ -26,7 +25,7 @@ func TestDefaultRule_InitSeatManager(t *testing.T) {
 
 func TestDefaultRule_BatchRandomAssignSeats(t *testing.T) {
 	maxSeat := 9
-	rule := pokertable.CompetitionRule_Default
+	rule := Rule_Default
 	playerIDs := []string{"P1", "P2", "P3", "P4", "P5"}
 
 	sm := NewSeatManager(maxSeat, rule)
@@ -39,14 +38,35 @@ func TestDefaultRule_BatchRandomAssignSeats(t *testing.T) {
 			assert.Contains(t, playerIDs, seatPlayer.ID)
 			assert.NotEqual(t, UnsetSeatID, seatID)
 			assert.Greater(t, seatID, UnsetSeatID)
-			assert.True(t, seatPlayer.Active)
+			assert.False(t, seatPlayer.Active)
+		}
+	}
+
+	// activate P1 & P3
+	playerActivateSeats := map[string]bool{
+		"P1": true,
+		"P3": true,
+	}
+	err = sm.UpdateSeatPlayerActiveStates(playerActivateSeats)
+	assert.NoError(t, err)
+
+	for _, seatPlayer := range sm.Seats() {
+		if seatPlayer != nil {
+			isActive, exist := playerActivateSeats[seatPlayer.ID]
+			if exist {
+				// P1 & P3 are active
+				assert.Equal(t, isActive, seatPlayer.Active)
+			} else {
+				// Other players are not active
+				assert.False(t, seatPlayer.Active)
+			}
 		}
 	}
 }
 
 func TestDefaultRule_ParallelRandomAssignSeats(t *testing.T) {
 	maxSeat := 9
-	rule := pokertable.CompetitionRule_Default
+	rule := Rule_Default
 	playerIDs := []string{"P1", "P2", "P3", "P4", "P5"}
 	var wg sync.WaitGroup
 
@@ -67,14 +87,35 @@ func TestDefaultRule_ParallelRandomAssignSeats(t *testing.T) {
 			assert.Contains(t, playerIDs, seatPlayer.ID)
 			assert.NotEqual(t, UnsetSeatID, seatID)
 			assert.Greater(t, seatID, UnsetSeatID)
-			assert.True(t, seatPlayer.Active)
+			assert.False(t, seatPlayer.Active)
+		}
+	}
+
+	// activate P1 & P3
+	playerActivateSeats := map[string]bool{
+		"P1": true,
+		"P3": true,
+	}
+	err := sm.UpdateSeatPlayerActiveStates(playerActivateSeats)
+	assert.NoError(t, err)
+
+	for _, seatPlayer := range sm.Seats() {
+		if seatPlayer != nil {
+			isActive, exist := playerActivateSeats[seatPlayer.ID]
+			if exist {
+				// P1 & P3 are active
+				assert.Equal(t, isActive, seatPlayer.Active)
+			} else {
+				// Other players are not active
+				assert.False(t, seatPlayer.Active)
+			}
 		}
 	}
 }
 
 func TestDefaultRule_SyncRandomAssignSeats(t *testing.T) {
 	maxSeat := 9
-	rule := pokertable.CompetitionRule_Default
+	rule := Rule_Default
 	playerIDs := []string{"P1", "P2", "P3", "P4", "P5"}
 
 	sm := NewSeatManager(maxSeat, rule)
@@ -89,14 +130,35 @@ func TestDefaultRule_SyncRandomAssignSeats(t *testing.T) {
 			assert.Contains(t, playerIDs, seatPlayer.ID)
 			assert.NotEqual(t, UnsetSeatID, seatID)
 			assert.Greater(t, seatID, UnsetSeatID)
-			assert.True(t, seatPlayer.Active)
+			assert.False(t, seatPlayer.Active)
+		}
+	}
+
+	// activate P1 & P3
+	playerActivateSeats := map[string]bool{
+		"P1": true,
+		"P3": true,
+	}
+	err := sm.UpdateSeatPlayerActiveStates(playerActivateSeats)
+	assert.NoError(t, err)
+
+	for _, seatPlayer := range sm.Seats() {
+		if seatPlayer != nil {
+			isActive, exist := playerActivateSeats[seatPlayer.ID]
+			if exist {
+				// P1 & P3 are active
+				assert.Equal(t, isActive, seatPlayer.Active)
+			} else {
+				// Other players are not active
+				assert.False(t, seatPlayer.Active)
+			}
 		}
 	}
 }
 
 func TestDefaultRule_RandomAssignSeats_ErrNotEnoughSeats(t *testing.T) {
 	maxSeat := 9
-	rule := pokertable.CompetitionRule_Default
+	rule := Rule_Default
 	playerIDs := []string{"P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10"}
 
 	sm := NewSeatManager(maxSeat, rule)
@@ -107,7 +169,7 @@ func TestDefaultRule_RandomAssignSeats_ErrNotEnoughSeats(t *testing.T) {
 
 func TestDefaultRule_AssignSeats_BeforeInitPositions(t *testing.T) {
 	maxSeat := 9
-	rule := pokertable.CompetitionRule_Default
+	rule := Rule_Default
 	playerSeatIDs := map[string]int{
 		"P1": 0,
 		"P2": 3,
@@ -124,14 +186,14 @@ func TestDefaultRule_AssignSeats_BeforeInitPositions(t *testing.T) {
 			expectedSeatID, exist := playerSeatIDs[seatPlayer.ID]
 			assert.True(t, exist)
 			assert.Equal(t, expectedSeatID, seatID)
-			assert.True(t, seatPlayer.Active)
+			assert.False(t, seatPlayer.Active)
 		}
 	}
 }
 
 func TestDefaultRule_AssignSeats_BeforeInitPositions_MultipleTimes(t *testing.T) {
 	maxSeat := 9
-	rule := pokertable.CompetitionRule_Default
+	rule := Rule_Default
 	playerSeatIDs := map[string]int{
 		"P1": 0,
 		"P2": 3,
@@ -151,7 +213,7 @@ func TestDefaultRule_AssignSeats_BeforeInitPositions_MultipleTimes(t *testing.T)
 			expectedSeatID, exist := playerSeatIDs[seatPlayer.ID]
 			assert.True(t, exist)
 			assert.Equal(t, expectedSeatID, seatID)
-			assert.True(t, seatPlayer.Active)
+			assert.False(t, seatPlayer.Active)
 		}
 	}
 
@@ -167,14 +229,35 @@ func TestDefaultRule_AssignSeats_BeforeInitPositions_MultipleTimes(t *testing.T)
 			assert.Equal(t, expectedSeatID, seatID)
 			assert.NotEqual(t, UnsetSeatID, seatID)
 			assert.Greater(t, seatID, UnsetSeatID)
-			assert.True(t, seatPlayer.Active)
+			assert.False(t, seatPlayer.Active)
+		}
+	}
+
+	// activate P1 & P3
+	playerActivateSeats := map[string]bool{
+		"P1": true,
+		"P3": true,
+	}
+	err = sm.UpdateSeatPlayerActiveStates(playerActivateSeats)
+	assert.NoError(t, err)
+
+	for _, seatPlayer := range sm.Seats() {
+		if seatPlayer != nil {
+			isActive, exist := playerActivateSeats[seatPlayer.ID]
+			if exist {
+				// P1 & P3 are active
+				assert.Equal(t, isActive, seatPlayer.Active)
+			} else {
+				// Other players are not active
+				assert.False(t, seatPlayer.Active)
+			}
 		}
 	}
 }
 
 func TestDefaultRule_AssignSeats_AfterInitPositions_MultipleTimes(t *testing.T) {
 	maxSeat := 9
-	rule := pokertable.CompetitionRule_Default
+	rule := Rule_Default
 	playerSeatIDs := map[string]int{
 		"P1": 0,
 		"P2": 3,
@@ -194,7 +277,29 @@ func TestDefaultRule_AssignSeats_AfterInitPositions_MultipleTimes(t *testing.T) 
 			expectedSeatID, exist := playerSeatIDs[seatPlayer.ID]
 			assert.True(t, exist)
 			assert.Equal(t, expectedSeatID, seatID)
-			assert.True(t, seatPlayer.Active)
+			assert.False(t, seatPlayer.Active)
+		}
+	}
+
+	// activate P1, P2 & P3
+	playerActivateSeats := map[string]bool{
+		"P1": true,
+		"P2": true,
+		"P3": true,
+	}
+	err = sm.UpdateSeatPlayerActiveStates(playerActivateSeats)
+	assert.NoError(t, err)
+
+	for _, seatPlayer := range sm.Seats() {
+		if seatPlayer != nil {
+			isActive, exist := playerActivateSeats[seatPlayer.ID]
+			if exist {
+				// P1, P2 & P3 are active
+				assert.Equal(t, isActive, seatPlayer.Active)
+			} else {
+				// Other players are not active
+				assert.False(t, seatPlayer.Active)
+			}
 		}
 	}
 
@@ -208,6 +313,16 @@ func TestDefaultRule_AssignSeats_AfterInitPositions_MultipleTimes(t *testing.T) 
 	assert.NoError(t, err)
 
 	DebugPrintSeats("add new players", sm)
+
+	isInPosition := true
+	// active states means player is not between dealer-bb & is_in position
+	playerActivateSeats = map[string]bool{
+		"P4": !sm.IsPlayerBetweenDealerBB("P4") && isInPosition,
+		"P5": !sm.IsPlayerBetweenDealerBB("P5") && isInPosition,
+		"P6": !sm.IsPlayerBetweenDealerBB("P6") && isInPosition,
+	}
+	err = sm.UpdateSeatPlayerActiveStates(playerActivateSeats)
+	assert.NoError(t, err)
 
 	allPlayerSeatIDs := playerSeatIDs
 	expectedPlayerActiveStates := map[string]bool{
@@ -232,7 +347,7 @@ func TestDefaultRule_AssignSeats_AfterInitPositions_MultipleTimes(t *testing.T) 
 
 func TestDefaultRule_AssignSeats_ErrNotEnoughSeats(t *testing.T) {
 	maxSeat := 9
-	rule := pokertable.CompetitionRule_Default
+	rule := Rule_Default
 	playerSeatIDs := map[string]int{
 		"P1":  0,
 		"P2":  1,
@@ -254,7 +369,7 @@ func TestDefaultRule_AssignSeats_ErrNotEnoughSeats(t *testing.T) {
 
 func TestDefaultRule_AssignSeats_ErrSeatAlreadyIsTaken(t *testing.T) {
 	maxSeat := 9
-	rule := pokertable.CompetitionRule_Default
+	rule := Rule_Default
 	playerSeatIDs := map[string]int{
 		"P1": 0,
 		"P2": 3,
@@ -274,7 +389,7 @@ func TestDefaultRule_AssignSeats_ErrSeatAlreadyIsTaken(t *testing.T) {
 
 func TestDefaultRule_AssignSeats_ErrDuplicateSeats(t *testing.T) {
 	maxSeat := 9
-	rule := pokertable.CompetitionRule_Default
+	rule := Rule_Default
 	playerSeatIDs := map[string]int{
 		"P1": 0,
 		"P2": 3,
@@ -289,7 +404,7 @@ func TestDefaultRule_AssignSeats_ErrDuplicateSeats(t *testing.T) {
 
 func TestDefaultRule_AssignSeats_ErrDuplicatePlayers2(t *testing.T) {
 	maxSeat := 9
-	rule := pokertable.CompetitionRule_Default
+	rule := Rule_Default
 	playerSeatIDs := map[string]int{
 		"P1": 0,
 		"P2": 3,
@@ -309,7 +424,7 @@ func TestDefaultRule_AssignSeats_ErrDuplicatePlayers2(t *testing.T) {
 
 func TestDefaultRule_GetSeat(t *testing.T) {
 	maxSeat := 9
-	rule := pokertable.CompetitionRule_Default
+	rule := Rule_Default
 	playerSeatIDs := map[string]int{
 		"P1": 0,
 		"P2": 3,
@@ -330,7 +445,7 @@ func TestDefaultRule_GetSeat(t *testing.T) {
 
 func TestDefaultRule_GetSeat_ErrPlayerNotFound(t *testing.T) {
 	maxSeat := 9
-	rule := pokertable.CompetitionRule_Default
+	rule := Rule_Default
 	playerSeatIDs := map[string]int{
 		"P1": 0,
 		"P2": 3,
@@ -349,7 +464,7 @@ func TestDefaultRule_GetSeat_ErrPlayerNotFound(t *testing.T) {
 
 func TestDefaultRule_CancelSeats(t *testing.T) {
 	maxSeat := 9
-	rule := pokertable.CompetitionRule_Default
+	rule := Rule_Default
 	playerIDs := []string{"P1", "P2", "P3", "P4", "P5"}
 
 	sm := NewSeatManager(maxSeat, rule)
@@ -364,7 +479,7 @@ func TestDefaultRule_CancelSeats(t *testing.T) {
 
 func TestDefaultRule_CancelSeats_ErrPlayerNotFound(t *testing.T) {
 	maxSeat := 9
-	rule := pokertable.CompetitionRule_Default
+	rule := Rule_Default
 	playerIDs := []string{"P1", "P2", "P3", "P4", "P5"}
 
 	sm := NewSeatManager(maxSeat, rule)
@@ -378,7 +493,7 @@ func TestDefaultRule_CancelSeats_ErrPlayerNotFound(t *testing.T) {
 
 func TestDefaultRule_UpdateSeatPlayerActiveStates(t *testing.T) {
 	maxSeat := 9
-	rule := pokertable.CompetitionRule_Default
+	rule := Rule_Default
 	playerIDs := []string{"P1", "P2", "P3", "P4", "P5"}
 
 	sm := NewSeatManager(maxSeat, rule)
@@ -406,7 +521,7 @@ func TestDefaultRule_UpdateSeatPlayerActiveStates(t *testing.T) {
 
 func TestDefaultRule_UpdateSeatPlayerActiveStates_ErrPlayerNotFound(t *testing.T) {
 	maxSeat := 9
-	rule := pokertable.CompetitionRule_Default
+	rule := Rule_Default
 	playerIDs := []string{"P1", "P2", "P3", "P4", "P5"}
 
 	sm := NewSeatManager(maxSeat, rule)
@@ -427,12 +542,33 @@ func TestDefaultRule_UpdateSeatPlayerActiveStates_ErrPlayerNotFound(t *testing.T
 
 func TestDefaultRule_RandomInitPositions_TwoPlayers(t *testing.T) {
 	maxSeat := 9
-	rule := pokertable.CompetitionRule_Default
+	rule := Rule_Default
 	playerIDs := []string{"P1", "P2"}
 
 	sm := NewSeatManager(maxSeat, rule)
 	err := sm.RandomAssignSeats(playerIDs)
 	assert.NoError(t, err)
+
+	// activate P1 & P2
+	playerActivateSeats := map[string]bool{
+		"P1": true,
+		"P2": true,
+	}
+	err = sm.UpdateSeatPlayerActiveStates(playerActivateSeats)
+	assert.NoError(t, err)
+
+	for _, seatPlayer := range sm.Seats() {
+		if seatPlayer != nil {
+			isActive, exist := playerActivateSeats[seatPlayer.ID]
+			if exist {
+				// P1 & P2 are active
+				assert.Equal(t, isActive, seatPlayer.Active)
+			} else {
+				// Other players are not active
+				assert.False(t, seatPlayer.Active)
+			}
+		}
+	}
 
 	err = sm.InitPositions(true)
 	assert.NoError(t, err)
@@ -447,24 +583,45 @@ func TestDefaultRule_RandomInitPositions_TwoPlayers(t *testing.T) {
 
 func TestDefaultRule_NotRandomInitPositions_TwoPlayers(t *testing.T) {
 	maxSeat := 9
-	rule := pokertable.CompetitionRule_Default
+	rule := Rule_Default
 	playerSeatIDs := map[string]int{
 		"P1": 0, // bb
 		"P2": 3, // dealer/sb
 	}
 	expectedSeatPositions := map[string]int{
-		pokertable.Position_Dealer: 3,
-		pokertable.Position_SB:     3,
-		pokertable.Position_BB:     0,
+		Position_Dealer: 3,
+		Position_SB:     3,
+		Position_BB:     0,
 	}
 	expectedPlayerPositions := map[string][]string{
-		"P1": {pokertable.Position_BB},
-		"P2": {pokertable.Position_Dealer, pokertable.Position_SB},
+		"P1": {Position_BB},
+		"P2": {Position_Dealer, Position_SB},
 	}
 
 	sm := NewSeatManager(maxSeat, rule)
 	err := sm.AssignSeats(playerSeatIDs)
 	assert.NoError(t, err)
+
+	// activate P1 & P2
+	playerActivateSeats := map[string]bool{
+		"P1": true,
+		"P2": true,
+	}
+	err = sm.UpdateSeatPlayerActiveStates(playerActivateSeats)
+	assert.NoError(t, err)
+
+	for _, seatPlayer := range sm.Seats() {
+		if seatPlayer != nil {
+			isActive, exist := playerActivateSeats[seatPlayer.ID]
+			if exist {
+				// P1 & P2 are active
+				assert.Equal(t, isActive, seatPlayer.Active)
+			} else {
+				// Other players are not active
+				assert.False(t, seatPlayer.Active)
+			}
+		}
+	}
 
 	err = sm.InitPositions(false)
 	assert.NoError(t, err)
@@ -473,14 +630,38 @@ func TestDefaultRule_NotRandomInitPositions_TwoPlayers(t *testing.T) {
 	verifySeatsAndPlayerPositions(t, expectedSeatPositions, expectedPlayerPositions, sm)
 }
 
-func TestDefaultRule_RandomInitPositionsInitPositions_MoreThanTwoPlayers(t *testing.T) {
+func TestDefaultRule_RandomInitPositions_MoreThanTwoPlayers(t *testing.T) {
 	maxSeat := 9
-	rule := pokertable.CompetitionRule_Default
+	rule := Rule_Default
 	playerIDs := []string{"P1", "P2", "P3", "P4", "P5"}
 
 	sm := NewSeatManager(maxSeat, rule)
 	err := sm.RandomAssignSeats(playerIDs)
 	assert.NoError(t, err)
+
+	// activate all players
+	playerActivateSeats := map[string]bool{
+		"P1": true,
+		"P2": true,
+		"P3": true,
+		"P4": true,
+		"P5": true,
+	}
+	err = sm.UpdateSeatPlayerActiveStates(playerActivateSeats)
+	assert.NoError(t, err)
+
+	for _, seatPlayer := range sm.Seats() {
+		if seatPlayer != nil {
+			isActive, exist := playerActivateSeats[seatPlayer.ID]
+			if exist {
+				// all players are active
+				assert.Equal(t, isActive, seatPlayer.Active)
+			} else {
+				// Other players are not active
+				assert.False(t, seatPlayer.Active)
+			}
+		}
+	}
 
 	err = sm.InitPositions(true)
 	assert.NoError(t, err)
@@ -494,9 +675,9 @@ func TestDefaultRule_RandomInitPositionsInitPositions_MoreThanTwoPlayers(t *test
 	assert.NotContains(t, []int{sm.CurrentDealerSeatID(), sm.CurrentSBSeatID()}, sm.CurrentBBSeatID())
 }
 
-func TestDefaultRule_NotRandomInitPositionsInitPositions_MoreThanTwoPlayers(t *testing.T) {
+func TestDefaultRule_NotRandomInitPositions_MoreThanTwoPlayers(t *testing.T) {
 	maxSeat := 9
-	rule := pokertable.CompetitionRule_Default
+	rule := Rule_Default
 	playerSeatIDs := map[string]int{
 		"P1": 0, // bb
 		"P2": 3, // ug
@@ -504,21 +685,44 @@ func TestDefaultRule_NotRandomInitPositionsInitPositions_MoreThanTwoPlayers(t *t
 		"P4": 7, // sb
 	}
 	expectedSeatPositions := map[string]int{
-		pokertable.Position_Dealer: 4,
-		pokertable.Position_SB:     7,
-		pokertable.Position_BB:     0,
-		pokertable.Position_UG:     3,
+		Position_Dealer: 4,
+		Position_SB:     7,
+		Position_BB:     0,
+		Position_UG:     3,
 	}
 	expectedPlayerPositions := map[string][]string{
-		"P1": {pokertable.Position_BB},
-		"P2": {pokertable.Position_UG},
-		"P3": {pokertable.Position_Dealer},
-		"P4": {pokertable.Position_SB},
+		"P1": {Position_BB},
+		"P2": {Position_UG},
+		"P3": {Position_Dealer},
+		"P4": {Position_SB},
 	}
 
 	sm := NewSeatManager(maxSeat, rule)
 	err := sm.AssignSeats(playerSeatIDs)
 	assert.NoError(t, err)
+
+	// activate all players
+	playerActivateSeats := map[string]bool{
+		"P1": true,
+		"P2": true,
+		"P3": true,
+		"P4": true,
+	}
+	err = sm.UpdateSeatPlayerActiveStates(playerActivateSeats)
+	assert.NoError(t, err)
+
+	for _, seatPlayer := range sm.Seats() {
+		if seatPlayer != nil {
+			isActive, exist := playerActivateSeats[seatPlayer.ID]
+			if exist {
+				// all players are active
+				assert.Equal(t, isActive, seatPlayer.Active)
+			} else {
+				// Other players are not active
+				assert.False(t, seatPlayer.Active)
+			}
+		}
+	}
 
 	err = sm.InitPositions(false)
 	assert.NoError(t, err)
@@ -542,12 +746,36 @@ func TestDefaultRule_InitPositions_ErrUnableToInitPositions_InvalidRule(t *testi
 
 func TestDefaultRule_InitPositions_ErrAlreadyInitPositions_DuplicateInit(t *testing.T) {
 	maxSeat := 9
-	rule := pokertable.CompetitionRule_Default
+	rule := Rule_Default
 	playerIDs := []string{"P1", "P2", "P3", "P4", "P5"}
 
 	sm := NewSeatManager(maxSeat, rule)
 	err := sm.RandomAssignSeats(playerIDs)
 	assert.NoError(t, err)
+
+	// activate all players
+	playerActivateSeats := map[string]bool{
+		"P1": true,
+		"P2": true,
+		"P3": true,
+		"P4": true,
+		"P5": true,
+	}
+	err = sm.UpdateSeatPlayerActiveStates(playerActivateSeats)
+	assert.NoError(t, err)
+
+	for _, seatPlayer := range sm.Seats() {
+		if seatPlayer != nil {
+			isActive, exist := playerActivateSeats[seatPlayer.ID]
+			if exist {
+				// all players are active
+				assert.Equal(t, isActive, seatPlayer.Active)
+			} else {
+				// Other players are not active
+				assert.False(t, seatPlayer.Active)
+			}
+		}
+	}
 
 	err = sm.InitPositions(true)
 	assert.NoError(t, err)
@@ -558,7 +786,7 @@ func TestDefaultRule_InitPositions_ErrAlreadyInitPositions_DuplicateInit(t *test
 
 func TestDefaultRule_InitPositions_ErrUnableToInitPositions_SinglePlayer(t *testing.T) {
 	maxSeat := 9
-	rule := pokertable.CompetitionRule_Default
+	rule := Rule_Default
 	playerIDs := []string{"P1"}
 
 	sm := NewSeatManager(maxSeat, rule)
@@ -571,33 +799,54 @@ func TestDefaultRule_InitPositions_ErrUnableToInitPositions_SinglePlayer(t *test
 
 func TestDefaultRule_RotatePositions_MultipleTimes_TwoPlayers(t *testing.T) {
 	maxSeat := 9
-	rule := pokertable.CompetitionRule_Default
+	rule := Rule_Default
 	playerSeatIDs := map[string]int{
 		"P1": 0,
 		"P2": 3,
 	}
 	expectedSeatPositions_OddGameCounts := map[string]int{
-		pokertable.Position_Dealer: 3,
-		pokertable.Position_SB:     3,
-		pokertable.Position_BB:     0,
+		Position_Dealer: 3,
+		Position_SB:     3,
+		Position_BB:     0,
 	}
 	expectedPlayerPositions_OddGameCounts := map[string][]string{
-		"P1": {pokertable.Position_BB},
-		"P2": {pokertable.Position_Dealer, pokertable.Position_SB},
+		"P1": {Position_BB},
+		"P2": {Position_Dealer, Position_SB},
 	}
 	expectedSeatPositions_EvenGameCounts := map[string]int{
-		pokertable.Position_Dealer: 0,
-		pokertable.Position_SB:     0,
-		pokertable.Position_BB:     3,
+		Position_Dealer: 0,
+		Position_SB:     0,
+		Position_BB:     3,
 	}
 	expectedPlayerPositions_EvenGameCounts := map[string][]string{
-		"P1": {pokertable.Position_Dealer, pokertable.Position_SB},
-		"P2": {pokertable.Position_BB},
+		"P1": {Position_Dealer, Position_SB},
+		"P2": {Position_BB},
 	}
 
 	sm := NewSeatManager(maxSeat, rule)
 	err := sm.AssignSeats(playerSeatIDs)
 	assert.NoError(t, err)
+
+	// activate all players
+	playerActivateSeats := map[string]bool{
+		"P1": true,
+		"P2": true,
+	}
+	err = sm.UpdateSeatPlayerActiveStates(playerActivateSeats)
+	assert.NoError(t, err)
+
+	for _, seatPlayer := range sm.Seats() {
+		if seatPlayer != nil {
+			isActive, exist := playerActivateSeats[seatPlayer.ID]
+			if exist {
+				// all players are active
+				assert.Equal(t, isActive, seatPlayer.Active)
+			} else {
+				// Other players are not active
+				assert.False(t, seatPlayer.Active)
+			}
+		}
+	}
 
 	for gameCount := 1; gameCount <= 10; gameCount++ {
 		var err error
@@ -622,7 +871,7 @@ func TestDefaultRule_RotatePositions_MultipleTimes_TwoPlayers(t *testing.T) {
 
 func TestDefaultRule_RotatePositions_MultipleTimes_MoreThanTwoPlayers(t *testing.T) {
 	maxSeat := 9
-	rule := pokertable.CompetitionRule_Default
+	rule := Rule_Default
 	playerSeatIDs := map[string]int{
 		"P1": 0,
 		"P2": 3,
@@ -632,81 +881,104 @@ func TestDefaultRule_RotatePositions_MultipleTimes_MoreThanTwoPlayers(t *testing
 	expectedSeatPositions := []map[string]int{
 		// game count = 1
 		{
-			pokertable.Position_Dealer: 4, // P3
-			pokertable.Position_SB:     7, // P4
-			pokertable.Position_BB:     0, // P1
-			pokertable.Position_UG:     3, // P2
+			Position_Dealer: 4, // P3
+			Position_SB:     7, // P4
+			Position_BB:     0, // P1
+			Position_UG:     3, // P2
 		},
 		// game count = 2
 		{
-			pokertable.Position_Dealer: 7, // P4
-			pokertable.Position_SB:     0, // P1
-			pokertable.Position_BB:     3, // P2
-			pokertable.Position_UG:     4, // P3
+			Position_Dealer: 7, // P4
+			Position_SB:     0, // P1
+			Position_BB:     3, // P2
+			Position_UG:     4, // P3
 		},
 		// game count = 3
 		{
-			pokertable.Position_Dealer: 0, // P1
-			pokertable.Position_SB:     3, // P2
-			pokertable.Position_BB:     4, // P3
-			pokertable.Position_UG:     7, // P4
+			Position_Dealer: 0, // P1
+			Position_SB:     3, // P2
+			Position_BB:     4, // P3
+			Position_UG:     7, // P4
 		},
 		// game count = 4
 		{
-			pokertable.Position_Dealer: 3, // P2
-			pokertable.Position_SB:     4, // P3
-			pokertable.Position_BB:     7, // P4
-			pokertable.Position_UG:     0, // P1
+			Position_Dealer: 3, // P2
+			Position_SB:     4, // P3
+			Position_BB:     7, // P4
+			Position_UG:     0, // P1
 		},
 		// game count = 5
 		{
-			pokertable.Position_Dealer: 4, // P3
-			pokertable.Position_SB:     7, // P4
-			pokertable.Position_BB:     0, // P1
-			pokertable.Position_UG:     3, // P2
+			Position_Dealer: 4, // P3
+			Position_SB:     7, // P4
+			Position_BB:     0, // P1
+			Position_UG:     3, // P2
 		},
 	}
 	expectedPlayerPositions := []map[string][]string{
 		// game count = 1
 		{
-			"P1": {pokertable.Position_BB},
-			"P2": {pokertable.Position_UG},
-			"P3": {pokertable.Position_Dealer},
-			"P4": {pokertable.Position_SB},
+			"P1": {Position_BB},
+			"P2": {Position_UG},
+			"P3": {Position_Dealer},
+			"P4": {Position_SB},
 		},
 		// game count = 2
 		{
-			"P1": {pokertable.Position_SB},
-			"P2": {pokertable.Position_BB},
-			"P3": {pokertable.Position_UG},
-			"P4": {pokertable.Position_Dealer},
+			"P1": {Position_SB},
+			"P2": {Position_BB},
+			"P3": {Position_UG},
+			"P4": {Position_Dealer},
 		},
 		// game count = 3
 		{
-			"P1": {pokertable.Position_Dealer},
-			"P2": {pokertable.Position_SB},
-			"P3": {pokertable.Position_BB},
-			"P4": {pokertable.Position_UG},
+			"P1": {Position_Dealer},
+			"P2": {Position_SB},
+			"P3": {Position_BB},
+			"P4": {Position_UG},
 		},
 		// game count = 4
 		{
-			"P1": {pokertable.Position_UG},
-			"P2": {pokertable.Position_Dealer},
-			"P3": {pokertable.Position_SB},
-			"P4": {pokertable.Position_BB},
+			"P1": {Position_UG},
+			"P2": {Position_Dealer},
+			"P3": {Position_SB},
+			"P4": {Position_BB},
 		},
 		// game count = 5
 		{
-			"P1": {pokertable.Position_BB},
-			"P2": {pokertable.Position_UG},
-			"P3": {pokertable.Position_Dealer},
-			"P4": {pokertable.Position_SB},
+			"P1": {Position_BB},
+			"P2": {Position_UG},
+			"P3": {Position_Dealer},
+			"P4": {Position_SB},
 		},
 	}
 
 	sm := NewSeatManager(maxSeat, rule)
 	err := sm.AssignSeats(playerSeatIDs)
 	assert.NoError(t, err)
+
+	// activate all players
+	playerActivateSeats := map[string]bool{
+		"P1": true,
+		"P2": true,
+		"P3": true,
+		"P4": true,
+	}
+	err = sm.UpdateSeatPlayerActiveStates(playerActivateSeats)
+	assert.NoError(t, err)
+
+	for _, seatPlayer := range sm.Seats() {
+		if seatPlayer != nil {
+			isActive, exist := playerActivateSeats[seatPlayer.ID]
+			if exist {
+				// all players are active
+				assert.Equal(t, isActive, seatPlayer.Active)
+			} else {
+				// Other players are not active
+				assert.False(t, seatPlayer.Active)
+			}
+		}
+	}
 
 	for i := 0; i < 5; i++ {
 		gameCount := i + 1
@@ -729,7 +1001,7 @@ func TestDefaultRule_RotatePositions_MultipleTimes_MoreThanTwoPlayers(t *testing
 
 func TestDefaultRule_RotatePositions_MultipleTimes_MoreThanTwoPlayers_PlayersInOut1(t *testing.T) {
 	maxSeat := 9
-	rule := pokertable.CompetitionRule_Default
+	rule := Rule_Default
 	playerSeatIDs := map[string]int{
 		"P1": 0,
 		"P2": 3,
@@ -743,6 +1015,16 @@ func TestDefaultRule_RotatePositions_MultipleTimes_MoreThanTwoPlayers_PlayersInO
 	err := sm.AssignSeats(playerSeatIDs)
 	assert.NoError(t, err)
 
+	// activate all players
+	playerActivateSeats := map[string]bool{
+		"P1": true,
+		"P2": true,
+		"P3": true,
+		"P4": true,
+	}
+	err = sm.UpdateSeatPlayerActiveStates(playerActivateSeats)
+	assert.NoError(t, err)
+
 	// game count = 1 (P1, P2, P3, P4 are playing)
 	err = sm.InitPositions(false)
 	assert.NoError(t, err)
@@ -751,16 +1033,16 @@ func TestDefaultRule_RotatePositions_MultipleTimes_MoreThanTwoPlayers_PlayersInO
 	// DebugPrintSeats("game count = 1", sm)
 
 	expectedSeatPositions = map[string]int{
-		pokertable.Position_Dealer: 4, // P3
-		pokertable.Position_SB:     7, // P4
-		pokertable.Position_BB:     0, // P1
-		pokertable.Position_UG:     3, // P2
+		Position_Dealer: 4, // P3
+		Position_SB:     7, // P4
+		Position_BB:     0, // P1
+		Position_UG:     3, // P2
 	}
 	expectedPlayerPositions = map[string][]string{
-		"P1": {pokertable.Position_BB},
-		"P2": {pokertable.Position_UG},
-		"P3": {pokertable.Position_Dealer},
-		"P4": {pokertable.Position_SB},
+		"P1": {Position_BB},
+		"P2": {Position_UG},
+		"P3": {Position_Dealer},
+		"P4": {Position_SB},
 	}
 	verifySeatsAndPlayerPositions(t, expectedSeatPositions, expectedPlayerPositions, sm)
 
@@ -777,6 +1059,16 @@ func TestDefaultRule_RotatePositions_MultipleTimes_MoreThanTwoPlayers_PlayersInO
 	err = sm.AssignSeats(newPlayerSeatIDs)
 	assert.NoError(t, err)
 
+	isInPosition := true
+	// active states means player is not between dealer-bb & is_in position
+	playerActivateSeats = map[string]bool{
+		"P5": !sm.IsPlayerBetweenDealerBB("P5") && isInPosition,
+		"P6": !sm.IsPlayerBetweenDealerBB("P6") && isInPosition,
+		"P7": !sm.IsPlayerBetweenDealerBB("P7") && isInPosition,
+	}
+	err = sm.UpdateSeatPlayerActiveStates(playerActivateSeats)
+	assert.NoError(t, err)
+
 	err = sm.RotatePositions()
 	assert.NoError(t, err)
 
@@ -784,23 +1076,23 @@ func TestDefaultRule_RotatePositions_MultipleTimes_MoreThanTwoPlayers_PlayersInO
 
 	// P6, P7 are between Dealer & BB, so active players are P2, P3, P5
 	expectedSeatPositions = map[string]int{
-		pokertable.Position_Dealer: 7,
-		pokertable.Position_SB:     0,
-		pokertable.Position_BB:     2,
-		pokertable.Position_UG:     3,
-		pokertable.Position_CO:     4,
+		Position_Dealer: 7,
+		Position_SB:     0,
+		Position_BB:     2,
+		Position_UG:     3,
+		Position_CO:     4,
 	}
 	expectedPlayerPositions = map[string][]string{
-		"P2": {pokertable.Position_UG},
-		"P3": {pokertable.Position_CO},
-		"P5": {pokertable.Position_BB},
+		"P2": {Position_UG},
+		"P3": {Position_CO},
+		"P5": {Position_BB},
 	}
 	verifySeatsAndPlayerPositions(t, expectedSeatPositions, expectedPlayerPositions, sm)
 }
 
 func TestDefaultRule_RotatePositions_ErrUnableToRotatePositions_BeforeInitPositions(t *testing.T) {
 	maxSeat := 9
-	rule := pokertable.CompetitionRule_Default
+	rule := Rule_Default
 	playerSeatIDs := map[string]int{
 		"P1": 0,
 		"P2": 3,
@@ -818,7 +1110,7 @@ func TestDefaultRule_RotatePositions_ErrUnableToRotatePositions_BeforeInitPositi
 
 func TestDefaultRule_RotatePositions_ErrUnableToRotatePositions_InsufficientActivePlayers(t *testing.T) {
 	maxSeat := 9
-	rule := pokertable.CompetitionRule_Default
+	rule := Rule_Default
 	playerSeatIDs := map[string]int{
 		"P1": 0,
 		"P2": 3,
@@ -826,6 +1118,14 @@ func TestDefaultRule_RotatePositions_ErrUnableToRotatePositions_InsufficientActi
 
 	sm := NewSeatManager(maxSeat, rule)
 	err := sm.AssignSeats(playerSeatIDs)
+	assert.NoError(t, err)
+
+	// activate all players
+	playerActivateSeats := map[string]bool{
+		"P1": true,
+		"P2": true,
+	}
+	err = sm.UpdateSeatPlayerActiveStates(playerActivateSeats)
 	assert.NoError(t, err)
 
 	err = sm.InitPositions(false)
@@ -838,9 +1138,9 @@ func TestDefaultRule_RotatePositions_ErrUnableToRotatePositions_InsufficientActi
 	assert.ErrorIs(t, err, ErrUnableToRotatePositions)
 }
 
-func TestDefaultRule_IsPlayerBetweenDealerBB(t *testing.T) {
+func TestDefaultRule_BeforeInitPositions_IsPlayerBetweenDealerBB(t *testing.T) {
 	maxSeat := 9
-	rule := pokertable.CompetitionRule_Default
+	rule := Rule_Default
 	playerSeatIDs := map[string]int{
 		"P1": 0,
 		"P2": 3,
@@ -850,6 +1150,36 @@ func TestDefaultRule_IsPlayerBetweenDealerBB(t *testing.T) {
 
 	sm := NewSeatManager(maxSeat, rule)
 	err := sm.AssignSeats(playerSeatIDs)
+	assert.NoError(t, err)
+
+	assert.False(t, sm.IsPlayerBetweenDealerBB("P1"))
+	assert.False(t, sm.IsPlayerBetweenDealerBB("P2"))
+	assert.False(t, sm.IsPlayerBetweenDealerBB("P3"))
+	assert.False(t, sm.IsPlayerBetweenDealerBB("P4"))
+}
+
+func TestDefaultRule_AfterInitPositions_IsPlayerBetweenDealerBB(t *testing.T) {
+	maxSeat := 9
+	rule := Rule_Default
+	playerSeatIDs := map[string]int{
+		"P1": 0,
+		"P2": 3,
+		"P3": 4,
+		"P4": 7,
+	}
+
+	sm := NewSeatManager(maxSeat, rule)
+	err := sm.AssignSeats(playerSeatIDs)
+	assert.NoError(t, err)
+
+	// activate all players
+	playerActivateSeats := map[string]bool{
+		"P1": true,
+		"P2": true,
+		"P3": true,
+		"P4": true,
+	}
+	err = sm.UpdateSeatPlayerActiveStates(playerActivateSeats)
 	assert.NoError(t, err)
 
 	err = sm.InitPositions(false)
@@ -870,9 +1200,9 @@ func TestDefaultRule_IsPlayerBetweenDealerBB(t *testing.T) {
 
 func verifySeatsAndPlayerPositions(t *testing.T, expectedSeatPositions map[string]int, expectedPlayerPositions map[string][]string, sm SeatManager) {
 	// check seats
-	assert.Equal(t, expectedSeatPositions[pokertable.Position_Dealer], sm.CurrentDealerSeatID())
-	assert.Equal(t, expectedSeatPositions[pokertable.Position_SB], sm.CurrentSBSeatID())
-	assert.Equal(t, expectedSeatPositions[pokertable.Position_BB], sm.CurrentBBSeatID())
+	assert.Equal(t, expectedSeatPositions[Position_Dealer], sm.CurrentDealerSeatID())
+	assert.Equal(t, expectedSeatPositions[Position_SB], sm.CurrentSBSeatID())
+	assert.Equal(t, expectedSeatPositions[Position_BB], sm.CurrentBBSeatID())
 
 	// check player positions
 	for seatID, seatPlayer := range sm.Seats() {

@@ -2,12 +2,6 @@ package seat_manager
 
 import (
 	"errors"
-
-	"github.com/weedbox/pokertable"
-)
-
-const (
-	UnsetSeatID = -1
 )
 
 var (
@@ -22,7 +16,7 @@ var (
 	ErrAlreadyInitPositions    = errors.New("seat manager: already init positions")
 	ErrUnableToRotatePositions = errors.New("seat manager: unable to rotate positions")
 
-	SupportedRules = []string{pokertable.CompetitionRule_Default, pokertable.CompetitionRule_ShortDeck}
+	SupportedRules = []string{Rule_Default, Rule_ShortDeck}
 )
 
 type SeatManager interface {

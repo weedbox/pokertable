@@ -4,8 +4,6 @@ import (
 	"math/rand"
 	"sort"
 	"time"
-
-	"github.com/weedbox/pokertable"
 )
 
 func (sm *seatManager) randomSeatIDs(count int) ([]int, error) {
@@ -23,16 +21,8 @@ func (sm *seatManager) randomSeatIDs(count int) ([]int, error) {
 	return emptySeatIDs[:count], nil
 }
 
-func (sm *seatManager) calcPlayerIsActive(seatID int) bool {
-	active := true
-	if sm.isInitPositions {
-		active = !sm.isBetweenDealerBB(seatID)
-	}
-	return active
-}
-
 func (sm *seatManager) isBetweenDealerBB(seatID int) bool {
-	if sm.rule == pokertable.CompetitionRule_ShortDeck {
+	if sm.rule == Rule_ShortDeck {
 		return false
 	}
 
@@ -188,7 +178,7 @@ func (sm *seatManager) initPositions(isRandom bool) error {
 		firstSeatID = seatID
 	}
 
-	if sm.rule == pokertable.CompetitionRule_Default {
+	if sm.rule == Rule_Default {
 		// pick an occupied seat id as BB
 		sm.bbSeatID = firstSeatID
 		if activeCount == 2 {
@@ -213,7 +203,7 @@ func (sm *seatManager) initPositions(isRandom bool) error {
 				return ErrUnableToInitPositions
 			}
 		}
-	} else if sm.rule == pokertable.CompetitionRule_ShortDeck {
+	} else if sm.rule == Rule_ShortDeck {
 		sm.dealerSeatID = firstSeatID
 		sm.sbSeatID = UnsetSeatID
 		sm.bbSeatID = UnsetSeatID
@@ -244,7 +234,7 @@ func (sm *seatManager) rotatePositions() error {
 		return ErrUnableToRotatePositions
 	}
 
-	if sm.rule == pokertable.CompetitionRule_Default {
+	if sm.rule == Rule_Default {
 		previousBBSeatID := sm.bbSeatID
 		sm.bbSeatID = sm.nextOccupiedSeatID(previousBBSeatID)
 
@@ -256,7 +246,7 @@ func (sm *seatManager) rotatePositions() error {
 			sm.sbSeatID = previousBBSeatID
 			sm.dealerSeatID = previousSBSeatID
 		}
-	} else if sm.rule == pokertable.CompetitionRule_ShortDeck {
+	} else if sm.rule == Rule_ShortDeck {
 		// must find a next valid dealer
 		sm.dealerSeatID = sm.nextOccupiedSeatID(sm.dealerSeatID)
 		sm.sbSeatID = UnsetSeatID

@@ -748,7 +748,7 @@ func TestDefaultRule_RotatePositions_MultipleTimes_MoreThanTwoPlayers_PlayersInO
 	assert.NoError(t, err)
 	assert.True(t, sm.IsInitPositions())
 
-	DebugPrintSeats("game count = 1", sm)
+	// DebugPrintSeats("game count = 1", sm)
 
 	expectedSeatPositions = map[string]int{
 		pokertable.Position_Dealer: 4, // P3
@@ -780,7 +780,7 @@ func TestDefaultRule_RotatePositions_MultipleTimes_MoreThanTwoPlayers_PlayersInO
 	err = sm.RotatePositions()
 	assert.NoError(t, err)
 
-	DebugPrintSeats("game count = 2", sm)
+	// DebugPrintSeats("game count = 2", sm)
 
 	// P6, P7 are between Dealer & BB, so active players are P2, P3, P5
 	expectedSeatPositions = map[string]int{
@@ -797,8 +797,6 @@ func TestDefaultRule_RotatePositions_MultipleTimes_MoreThanTwoPlayers_PlayersInO
 	}
 	verifySeatsAndPlayerPositions(t, expectedSeatPositions, expectedPlayerPositions, sm)
 }
-
-// TODO: co-work with David to think about cases, expectedSeatPositions & expectedPlayerPositions
 
 func TestDefaultRule_RotatePositions_ErrUnableToRotatePositions_BeforeInitPositions(t *testing.T) {
 	maxSeat := 9

@@ -1,149 +1,34 @@
 package pokertable
 
 import (
-	"math/rand"
-	"time"
+	"github.com/weedbox/pokertable/seat_manager"
 )
 
 func NewDefaultSeatMap(seatCount int) []int {
 	seatMap := make([]int, seatCount)
 	for seatIdx := 0; seatIdx < seatCount; seatIdx++ {
-		seatMap[seatIdx] = UnsetValue
+		seatMap[seatIdx] = seat_manager.UnsetSeatID
 	}
 	return seatMap
 }
 
-func RandomSeats(seatMap []int, count int) ([]int, error) {
-	emptySeats := make([]int, 0)
-	for seatIdx, playerIdx := range seatMap {
-		if playerIdx == UnsetValue {
-			emptySeats = append(emptySeats, seatIdx)
-		}
-	}
-
-	if len(emptySeats) < count {
-		return nil, ErrTableNoEmptySeats
-	}
-
-	rand.Seed(time.Now().UnixNano())
-	rand.Shuffle(len(emptySeats), func(i, j int) {
-		emptySeats[i], emptySeats[j] = emptySeats[j], emptySeats[i]
-	})
-
-	return emptySeats[:count], nil
-}
-
-func IsBetweenDealerBB(seatIdx, currDealerTableSeatIdx, currBBTableSeatIdx, maxPlayerCount int, rule string) bool {
-	if rule == CompetitionRule_ShortDeck {
-		return false
-	}
-
-	if currBBTableSeatIdx-currDealerTableSeatIdx < 0 {
-		for i := currDealerTableSeatIdx + 1; i < (currBBTableSeatIdx + maxPlayerCount); i++ {
-			if i%maxPlayerCount == seatIdx {
-				return true
-			}
-		}
-	}
-
-	return seatIdx < currBBTableSeatIdx && seatIdx > currDealerTableSeatIdx
-}
-
-/*
-FindDealerPlayerIndex 找到 Dealer 資訊
-  - @return NewDealerPlayerIndex
-*/
-func FindDealerPlayerIndex(gameCount, prevDealerSeatIdx, minPlayingCount, maxSeatCount int, players []*TablePlayerState, seatMap []int) int {
-	newDealerIdx := UnsetValue
-	if gameCount == 0 {
-		// 第一次開局，隨機挑選一位玩家當 Dealer
-		newDealerIdx = rand.Intn(len(players))
-
-		// 如果玩家沒資格就照順序選有資格玩家
-		if !players[newDealerIdx].IsParticipated {
-			for playerIdx := 0; playerIdx < len(players); playerIdx++ {
-				if players[playerIdx].IsParticipated {
-					newDealerIdx = playerIdx
-					break
-				}
-			}
-		}
-	} else {
-		// 找下一位 Dealer Index
-		for i := prevDealerSeatIdx + 1; i < (maxSeatCount + prevDealerSeatIdx + 1); i++ {
-			targetTableSeatIdx := i % maxSeatCount
-			targetPlayerIdx := seatMap[targetTableSeatIdx]
-
-			if targetPlayerIdx != UnsetValue && players[targetPlayerIdx].IsParticipated && players[targetPlayerIdx].IsIn {
-				newDealerIdx = targetPlayerIdx
-				break
-			}
-		}
-	}
-	return newDealerIdx
-}
-
-/*
-FindGamePlayerIndexes 找出參與本手的玩家 PlayerIndex 陣列
-  - @return gamePlayerIndexes
-  - index 0: dealer player index
-  - index 1: sb player index
-  - index 2: bb player index
-*/
-func FindGamePlayerIndexes(dealerSeatIdx int, seatMap []int, players []*TablePlayerState) []int {
-	dealerPlayerIndex := seatMap[dealerSeatIdx]
-
-	// 找出正在玩的玩家
-	totalPlayersCount := 0
-	gamePlayerIndexes := make([]int, 0)
-
-	/*
-		seatMapDealerPlayerIdx Dealer Player Index 在 SeatMap 中的 有參加玩家的 Index
-		  - 當在 SeatMap 找有參加玩家時，如果 playerIndex == dealerPlayerIndex 則 seatMapDealerPlayerIdx 就是當前 totalPlayersCount
-	*/
-	seatMapDealerPlayerIdx := UnsetValue
-
-	for _, playerIndex := range seatMap {
-		if playerIndex == UnsetValue {
-			continue
-		}
-		player := players[playerIndex]
-		if player.IsParticipated {
-			if playerIndex == dealerPlayerIndex {
-				seatMapDealerPlayerIdx = totalPlayersCount
-			}
-
-			totalPlayersCount++
-			gamePlayerIndexes = append(gamePlayerIndexes, playerIndex)
-		}
-	}
-
-	if len(gamePlayerIndexes) == 0 {
-		return gamePlayerIndexes
-	}
-
-	// 調整玩家陣列 Index, 以 DealerIndex 當基準當作第一個元素做 Rotations
-	gamePlayerIndexes = rotateIntArray(gamePlayerIndexes, seatMapDealerPlayerIdx)
-
-	return gamePlayerIndexes
-}
-
 func GetPlayerPositionMap(rule string, players []*TablePlayerState, gamePlayerIndexes []int) map[int][]string {
 	playerPositionMap := make(map[int][]string)
-	positions := newPositions(len(gamePlayerIndexes))
-	for gamePlayerIdx, playerIdx := range gamePlayerIndexes {
-		playerPositionMap[playerIdx] = positions[gamePlayerIdx]
+	switch rule {
+	case CompetitionRule_Default, CompetitionRule_Omaha:
+		positions := newPositions(len(gamePlayerIndexes))
+		for gamePlayerIdx, playerIdx := range gamePlayerIndexes {
+			playerPositionMap[playerIdx] = positions[gamePlayerIdx]
+		}
+	case CompetitionRule_ShortDeck:
+		for gamePlayerIdx, playerIdx := range gamePlayerIndexes {
+			if gamePlayerIdx == 0 {
+				playerPositionMap[playerIdx] = []string{Position_Dealer}
+			} else {
+				playerPositionMap[playerIdx] = make([]string, 0)
+			}
+		}
 	}
-	// switch rule {
-	// case CompetitionRule_Default, CompetitionRule_Omaha:
-	// 	positions := newPositions(len(gamePlayerIndexes))
-	// 	for gamePlayerIdx, playerIdx := range gamePlayerIndexes {
-	// 		playerPositionMap[playerIdx] = positions[gamePlayerIdx]
-	// 	}
-	// case CompetitionRule_ShortDeck:
-	// 	dealerPlayerIdx := gamePlayerIndexes[0]
-	// 	playerPositionMap[dealerPlayerIdx] = []string{Position_Dealer}
-	// }
 	return playerPositionMap
 }
 

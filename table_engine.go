@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/thoas/go-funk"
+	"github.com/weedbox/pokertable/seat_manager"
 	"github.com/weedbox/syncsaga"
 	"github.com/weedbox/timebank"
 )
@@ -74,6 +75,7 @@ type tableEngine struct {
 	gameBackend               GameBackend
 	rg                        *syncsaga.ReadyGroup
 	tb                        *timebank.TimeBank
+	sm                        seat_manager.SeatManager
 	onTableUpdated            func(table *Table)
 	onTableErrorUpdated       func(table *Table, err error)
 	onTableStateUpdated       func(event string, table *Table)
@@ -159,6 +161,9 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
 	if len(tableSetting.JoinPlayers) > tableSetting.Meta.TableMaxSeatCount {
 		return nil, ErrTableInvalidCreateSetting
 	}
+
+	// init seat manager
+	te.sm = seat_manager.NewSeatManager(tableSetting.Meta.TableMaxSeatCount, tableSetting.Meta.Rule)
 
 	// create table instance
 	table := &Table{
@@ -368,7 +373,7 @@ func (te *tableEngine) PlayerReserve(joinPlayer JoinPlayer) error {
 		// ReBuy
 		// 補碼要檢查玩家是否介於 Dealer-BB 之間
 		playerState := te.table.State.PlayerStates[targetPlayerIdx]
-		playerState.IsBetweenDealerBB = IsBetweenDealerBB(playerState.Seat, te.table.State.CurrentDealerSeat, te.table.State.CurrentBBSeat, te.table.Meta.TableMaxSeatCount, te.table.Meta.Rule)
+		playerState.IsBetweenDealerBB = te.sm.IsPlayerBetweenDealerBB(playerState.PlayerID)
 		playerState.Bankroll += joinPlayer.RedeemChips
 
 		te.emitTablePlayerStateEvent(playerState)
@@ -405,6 +410,14 @@ func (te *tableEngine) PlayerJoin(playerID string) error {
 		te.rg.Ready(int64(playerIdx))
 	}
 
+	// 更新 seat manager active state
+	playerActivateSeats := map[string]bool{
+		playerID: !te.table.State.PlayerStates[playerIdx].IsBetweenDealerBB && te.table.State.PlayerStates[playerIdx].IsIn && te.table.State.PlayerStates[playerIdx].Bankroll > 0,
+	}
+	if err := te.sm.UpdateSeatPlayerActiveStates(playerActivateSeats); err != nil {
+		return err
+	}
+
 	te.emitEvent("PlayerJoin", playerID)
 	return nil
 }
@@ -423,7 +436,7 @@ func (te *tableEngine) PlayerRedeemChips(joinPlayer JoinPlayer) error {
 	// 如果是 Bankroll 為 0 的情況，增購要檢查玩家是否介於 Dealer-BB 之間
 	playerState := te.table.State.PlayerStates[playerIdx]
 	if playerState.Bankroll == 0 {
-		playerState.IsBetweenDealerBB = IsBetweenDealerBB(playerState.Seat, te.table.State.CurrentDealerSeat, te.table.State.CurrentBBSeat, te.table.Meta.TableMaxSeatCount, te.table.Meta.Rule)
+		playerState.IsBetweenDealerBB = te.sm.IsPlayerBetweenDealerBB(playerState.PlayerID)
 	}
 	playerState.Bankroll += joinPlayer.RedeemChips
 

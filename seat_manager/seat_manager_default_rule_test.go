@@ -999,7 +999,7 @@ func TestDefaultRule_RotatePositions_MultipleTimes_MoreThanTwoPlayers(t *testing
 	}
 }
 
-func TestDefaultRule_RotatePositions_MultipleTimes_MoreThanTwoPlayers_PlayersInOut1(t *testing.T) {
+func TestDefaultRule_RotatePositions_MultipleTimes_MoreThanTwoPlayers_ValidBBEmptyDealerSB(t *testing.T) {
 	maxSeat := 9
 	rule := Rule_Default
 	playerSeatIDs := map[string]int{
@@ -1046,7 +1046,7 @@ func TestDefaultRule_RotatePositions_MultipleTimes_MoreThanTwoPlayers_PlayersInO
 	}
 	verifySeatsAndPlayerPositions(t, expectedSeatPositions, expectedPlayerPositions, sm)
 
-	// game count = 2 (P1, P4 are out, P5, P6, P7 are in: P2, P3, P5, P6, P7 are playing)
+	// game count = 2 (P1, P4 are out, P5, P6, P7 are in: P2, P3, P5, P6, P7 are playing.)
 	outPlayerIDs := []string{"P1", "P4"}
 	err = sm.CancelSeats(outPlayerIDs)
 	assert.NoError(t, err)
@@ -1058,6 +1058,11 @@ func TestDefaultRule_RotatePositions_MultipleTimes_MoreThanTwoPlayers_PlayersInO
 	}
 	err = sm.AssignSeats(newPlayerSeatIDs)
 	assert.NoError(t, err)
+
+	// P5 is not between Dealer & BB but P6 & P7 are, so only P5  is active
+	assert.False(t, sm.IsPlayerBetweenDealerBB("P5"))
+	assert.True(t, sm.IsPlayerBetweenDealerBB("P6"))
+	assert.True(t, sm.IsPlayerBetweenDealerBB("P7"))
 
 	isInPosition := true
 	// active states means player is not between dealer-bb & is_in position
@@ -1085,6 +1090,196 @@ func TestDefaultRule_RotatePositions_MultipleTimes_MoreThanTwoPlayers_PlayersInO
 	expectedPlayerPositions = map[string][]string{
 		"P2": {Position_UG},
 		"P3": {Position_CO},
+		"P5": {Position_BB},
+	}
+	verifySeatsAndPlayerPositions(t, expectedSeatPositions, expectedPlayerPositions, sm)
+}
+
+func TestDefaultRule_RotatePositions_MultipleTimes_MoreThanTwoPlayers_ValidSBBBEmptyDealer(t *testing.T) {
+	maxSeat := 9
+	rule := Rule_Default
+	playerSeatIDs := map[string]int{
+		"P1": 0,
+		"P2": 3,
+		"P3": 4,
+		"P4": 7,
+	}
+	var expectedSeatPositions map[string]int
+	var expectedPlayerPositions map[string][]string
+
+	sm := NewSeatManager(maxSeat, rule)
+	err := sm.AssignSeats(playerSeatIDs)
+	assert.NoError(t, err)
+
+	// activate all players
+	playerActivateSeats := map[string]bool{
+		"P1": true,
+		"P2": true,
+		"P3": true,
+		"P4": true,
+	}
+	err = sm.UpdateSeatPlayerActiveStates(playerActivateSeats)
+	assert.NoError(t, err)
+
+	// game count = 1 (P1, P2, P3, P4 are playing)
+	err = sm.InitPositions(false)
+	assert.NoError(t, err)
+	assert.True(t, sm.IsInitPositions())
+
+	// DebugPrintSeats("game count = 1", sm)
+
+	expectedSeatPositions = map[string]int{
+		Position_Dealer: 4, // P3
+		Position_SB:     7, // P4
+		Position_BB:     0, // P1
+		Position_UG:     3, // P2
+	}
+	expectedPlayerPositions = map[string][]string{
+		"P1": {Position_BB},
+		"P2": {Position_UG},
+		"P3": {Position_Dealer},
+		"P4": {Position_SB},
+	}
+	verifySeatsAndPlayerPositions(t, expectedSeatPositions, expectedPlayerPositions, sm)
+
+	// game count = 2 (P4 are out, P5, P6, P7 are in: P1, P2, P3, P5, P6, P7 are playing)
+	outPlayerIDs := []string{"P4"}
+	err = sm.CancelSeats(outPlayerIDs)
+	assert.NoError(t, err)
+
+	newPlayerSeatIDs := map[string]int{
+		"P5": 2,
+		"P6": 8,
+		"P7": 6,
+	}
+	err = sm.AssignSeats(newPlayerSeatIDs)
+	assert.NoError(t, err)
+
+	// P5 is not between Dealer & BB but P6 & P7 are, so only P5  is active
+	assert.False(t, sm.IsPlayerBetweenDealerBB("P5"))
+	assert.True(t, sm.IsPlayerBetweenDealerBB("P6"))
+	assert.True(t, sm.IsPlayerBetweenDealerBB("P7"))
+
+	isInPosition := true
+	// active states means player is not between dealer-bb & is_in position
+	playerActivateSeats = map[string]bool{
+		"P5": !sm.IsPlayerBetweenDealerBB("P5") && isInPosition,
+		"P6": !sm.IsPlayerBetweenDealerBB("P6") && isInPosition,
+		"P7": !sm.IsPlayerBetweenDealerBB("P7") && isInPosition,
+	}
+	err = sm.UpdateSeatPlayerActiveStates(playerActivateSeats)
+	assert.NoError(t, err)
+
+	err = sm.RotatePositions()
+	assert.NoError(t, err)
+
+	// DebugPrintSeats("game count = 2", sm)
+
+	// P6, P7 are between Dealer & BB, so active players are P1, P2, P3, P5
+	expectedSeatPositions = map[string]int{
+		Position_Dealer: 7,
+		Position_SB:     0,
+		Position_BB:     2,
+	}
+	expectedPlayerPositions = map[string][]string{
+		"P1": {Position_SB},
+		"P2": {},
+		"P3": {},
+		"P5": {Position_BB},
+	}
+	verifySeatsAndPlayerPositions(t, expectedSeatPositions, expectedPlayerPositions, sm)
+}
+
+func TestDefaultRule_RotatePositions_MultipleTimes_MoreThanTwoPlayers_ValidDealerBBEmptySB(t *testing.T) {
+	maxSeat := 9
+	rule := Rule_Default
+	playerSeatIDs := map[string]int{
+		"P1": 0,
+		"P2": 3,
+		"P3": 4,
+		"P4": 7,
+	}
+	var expectedSeatPositions map[string]int
+	var expectedPlayerPositions map[string][]string
+
+	sm := NewSeatManager(maxSeat, rule)
+	err := sm.AssignSeats(playerSeatIDs)
+	assert.NoError(t, err)
+
+	// activate all players
+	playerActivateSeats := map[string]bool{
+		"P1": true,
+		"P2": true,
+		"P3": true,
+		"P4": true,
+	}
+	err = sm.UpdateSeatPlayerActiveStates(playerActivateSeats)
+	assert.NoError(t, err)
+
+	// game count = 1 (P1, P2, P3, P4 are playing)
+	err = sm.InitPositions(false)
+	assert.NoError(t, err)
+	assert.True(t, sm.IsInitPositions())
+
+	// DebugPrintSeats("game count = 1", sm)
+
+	expectedSeatPositions = map[string]int{
+		Position_Dealer: 4, // P3
+		Position_SB:     7, // P4
+		Position_BB:     0, // P1
+		Position_UG:     3, // P2
+	}
+	expectedPlayerPositions = map[string][]string{
+		"P1": {Position_BB},
+		"P2": {Position_UG},
+		"P3": {Position_Dealer},
+		"P4": {Position_SB},
+	}
+	verifySeatsAndPlayerPositions(t, expectedSeatPositions, expectedPlayerPositions, sm)
+
+	// game count = 2 (P1 are out, P5, P6, P7 are in: P2, P3, P4, P5, P6, P7 are playing)
+	outPlayerIDs := []string{"P1"}
+	err = sm.CancelSeats(outPlayerIDs)
+	assert.NoError(t, err)
+
+	newPlayerSeatIDs := map[string]int{
+		"P5": 2,
+		"P6": 8,
+		"P7": 6,
+	}
+	err = sm.AssignSeats(newPlayerSeatIDs)
+	assert.NoError(t, err)
+
+	// P5 is not between Dealer & BB but P6 & P7 are, so only P5  is active
+	assert.False(t, sm.IsPlayerBetweenDealerBB("P5"))
+	assert.True(t, sm.IsPlayerBetweenDealerBB("P6"))
+	assert.True(t, sm.IsPlayerBetweenDealerBB("P7"))
+
+	isInPosition := true
+	// active states means player is not between dealer-bb & is_in position
+	playerActivateSeats = map[string]bool{
+		"P5": !sm.IsPlayerBetweenDealerBB("P5") && isInPosition,
+		"P6": !sm.IsPlayerBetweenDealerBB("P6") && isInPosition,
+		"P7": !sm.IsPlayerBetweenDealerBB("P7") && isInPosition,
+	}
+	err = sm.UpdateSeatPlayerActiveStates(playerActivateSeats)
+	assert.NoError(t, err)
+
+	err = sm.RotatePositions()
+	assert.NoError(t, err)
+
+	// DebugPrintSeats("game count = 2", sm)
+
+	// P6, P7 are between Dealer & BB, so active players are P2, P3, P4, P5
+	expectedSeatPositions = map[string]int{
+		Position_Dealer: 7,
+		Position_SB:     0,
+		Position_BB:     2,
+	}
+	expectedPlayerPositions = map[string][]string{
+		"P2": {},
+		"P3": {},
+		"P4": {Position_Dealer},
 		"P5": {Position_BB},
 	}
 	verifySeatsAndPlayerPositions(t, expectedSeatPositions, expectedPlayerPositions, sm)

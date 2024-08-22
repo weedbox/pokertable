@@ -21,20 +21,20 @@ func (sm *seatManager) randomSeatIDs(count int) ([]int, error) {
 	return emptySeatIDs[:count], nil
 }
 
-func (sm *seatManager) isBetweenDealerBB(seatID int) bool {
+func (sm *seatManager) isBetweenDealerBB(dealerSeatID, bbSeatID, targetSeatID int) bool {
 	if sm.rule == Rule_ShortDeck {
 		return false
 	}
 
-	if sm.CurrentBBSeatID()-sm.CurrentDealerSeatID() < 0 {
-		for i := sm.CurrentDealerSeatID() + 1; i < (sm.CurrentBBSeatID() + sm.maxSeat); i++ {
-			if i%sm.maxSeat == seatID {
+	if bbSeatID-dealerSeatID < 0 {
+		for i := dealerSeatID + 1; i < (bbSeatID + sm.maxSeat); i++ {
+			if i%sm.maxSeat == targetSeatID {
 				return true
 			}
 		}
 	}
 
-	return seatID < sm.CurrentBBSeatID() && seatID > sm.CurrentDealerSeatID()
+	return targetSeatID < bbSeatID && targetSeatID > dealerSeatID
 }
 
 func (sm *seatManager) getEmptySeatIDs() []int {
@@ -50,7 +50,7 @@ func (sm *seatManager) getEmptySeatIDs() []int {
 func (sm *seatManager) getOccupiedSeatIDs() []int {
 	seatIDs := make([]int, 0)
 	for seatID, seatPlayer := range sm.seats {
-		if seatPlayer != nil && seatPlayer.Active {
+		if seatPlayer != nil && seatPlayer.Active() {
 			seatIDs = append(seatIDs, seatID)
 		}
 	}
@@ -111,7 +111,7 @@ func (sm *seatManager) newRandom() *rand.Rand {
 func (sm *seatManager) nextOccupiedSeatID(startSeatID int) int {
 	for i := 1; i < sm.maxSeat; i++ {
 		seatID := (startSeatID + i) % 9
-		if sp, exist := sm.seats[seatID]; exist && sp != nil && sp.Active {
+		if sp, exist := sm.seats[seatID]; exist && sp != nil && sp.Active() {
 			return seatID
 		}
 	}
@@ -122,7 +122,7 @@ func (sm *seatManager) previousOccupiedSeatID(startSeatID int, shouldActive bool
 	for i := 1; i < sm.maxSeat; i++ {
 		seatID := (startSeatID + 9 - i) % 9
 		if sp, exist := sm.seats[seatID]; exist && sp != nil {
-			if shouldActive && sp.Active {
+			if shouldActive && sp.Active() {
 				return seatID
 			}
 
@@ -137,7 +137,7 @@ func (sm *seatManager) previousOccupiedSeatID(startSeatID int, shouldActive bool
 func (sm *seatManager) getActivePlayerCount() int {
 	count := 0
 	for _, seatPlayer := range sm.seats {
-		if seatPlayer != nil && seatPlayer.Active {
+		if seatPlayer != nil && seatPlayer.Active() {
 			count++
 		}
 	}
@@ -184,7 +184,7 @@ func (sm *seatManager) initPositions(isRandom bool) error {
 		if activeCount == 2 {
 			// Dealer & SB are another seat id
 			for seatID, seatPlayer := range sm.seats {
-				if seatPlayer != nil && seatPlayer.Active && seatID != firstSeatID {
+				if seatPlayer != nil && seatPlayer.Active() && seatID != firstSeatID {
 					sm.dealerSeatID = seatID
 					sm.sbSeatID = seatID
 					break
@@ -229,24 +229,41 @@ func (sm *seatManager) initPositions(isRandom bool) error {
   - Dealer 往下一個座位找，直到找到有籌碼的玩家為止
 */
 func (sm *seatManager) rotatePositions() error {
-	activeCount := sm.getActivePlayerCount()
-	if activeCount < 2 {
-		return ErrUnableToRotatePositions
-	}
-
 	if sm.rule == Rule_Default {
 		previousBBSeatID := sm.bbSeatID
-		sm.bbSeatID = sm.nextOccupiedSeatID(previousBBSeatID)
+		newBBSeatID := sm.nextOccupiedSeatID(previousBBSeatID)
+		previousSBSeatID := sm.sbSeatID
+		tempNewDealerSeatID := previousSBSeatID
 
+		// update seat_player.IsBetweenDealerBB before
+		for seatID, sp := range sm.Seats() {
+			if sp != nil && !sp.Active() {
+				sm.seats[seatID].IsBetweenDealerBB = sm.isBetweenDealerBB(tempNewDealerSeatID, newBBSeatID, seatID)
+			}
+		}
+
+		activeCount := sm.getActivePlayerCount()
+		if activeCount < 2 {
+			return ErrUnableToRotatePositions
+		}
+
+		// update bb seat id
+		sm.bbSeatID = newBBSeatID
 		if activeCount == 2 {
+			// calc & update dealer & sb seat ids
 			sm.dealerSeatID = sm.nextOccupiedSeatID(sm.bbSeatID)
 			sm.sbSeatID = sm.dealerSeatID
 		} else {
+			// calc & update dealer & sb seat ids
 			previousSBSeatID := sm.sbSeatID
 			sm.sbSeatID = previousBBSeatID
 			sm.dealerSeatID = previousSBSeatID
 		}
 	} else if sm.rule == Rule_ShortDeck {
+		if sm.getActivePlayerCount() < 2 {
+			return ErrUnableToRotatePositions
+		}
+
 		// must find a next valid dealer
 		sm.dealerSeatID = sm.nextOccupiedSeatID(sm.dealerSeatID)
 		sm.sbSeatID = UnsetSeatID
@@ -257,4 +274,12 @@ func (sm *seatManager) rotatePositions() error {
 	}
 
 	return nil
+}
+
+func (sm *seatManager) newSeatPlayer(playerID string) SeatPlayer {
+	return SeatPlayer{
+		ID:       playerID,
+		IsIn:     false,
+		HasChips: true,
+	}
 }

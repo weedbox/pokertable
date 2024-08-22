@@ -79,14 +79,13 @@ type TablePlayerGameAction struct {
 }
 
 type TablePlayerState struct {
-	PlayerID          string                    `json:"player_id"`            // 玩家 ID
-	Seat              int                       `json:"seat"`                 // 座位編號 0 ~ 8
-	Positions         []string                  `json:"positions"`            // 場上位置
-	IsParticipated    bool                      `json:"is_participated"`      // 玩家是否參戰
-	IsBetweenDealerBB bool                      `json:"is_between_dealer_bb"` // 玩家入場時是否在 Dealer & BB 之間
-	Bankroll          int64                     `json:"bankroll"`             // 玩家身上籌碼
-	IsIn              bool                      `json:"is_in"`                // 玩家是否入座
-	GameStatistics    TablePlayerGameStatistics `json:"game_statistics"`      // 玩家每手遊戲統計
+	PlayerID       string                    `json:"player_id"`       // 玩家 ID
+	Seat           int                       `json:"seat"`            // 座位編號 0 ~ 8
+	Positions      []string                  `json:"positions"`       // 場上位置
+	IsParticipated bool                      `json:"is_participated"` // 玩家是否參戰
+	Bankroll       int64                     `json:"bankroll"`        // 玩家身上籌碼
+	IsIn           bool                      `json:"is_in"`           // 玩家是否入座
+	GameStatistics TablePlayerGameStatistics `json:"game_statistics"` // 玩家每手遊戲統計
 }
 
 type TableBlindState struct {

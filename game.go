@@ -19,6 +19,8 @@ var (
 
 type Game interface {
 	// Events
+	OnAntesReceived(func(*pokerface.GameState))
+	OnBlindsReceived(func(*pokerface.GameState))
 	OnGameStateUpdated(func(*pokerface.GameState))
 	OnGameErrorUpdated(func(*pokerface.GameState, error))
 
@@ -52,6 +54,8 @@ type game struct {
 	mu                 sync.RWMutex
 	isClosed           bool
 	incomingStates     chan *pokerface.GameState
+	onAntesReceived    func(*pokerface.GameState)
+	onBlindsReceived   func(*pokerface.GameState)
 	onGameStateUpdated func(*pokerface.GameState)
 	onGameErrorUpdated func(*pokerface.GameState, error)
 }
@@ -73,9 +77,19 @@ func NewGame(backend GameBackend, opts *pokerface.GameOptions) *game {
 		opts:               opts,
 		rg:                 rg,
 		incomingStates:     make(chan *pokerface.GameState, 1024),
+		onAntesReceived:    func(gs *pokerface.GameState) {},
+		onBlindsReceived:   func(gs *pokerface.GameState) {},
 		onGameStateUpdated: func(gs *pokerface.GameState) {},
 		onGameErrorUpdated: func(gs *pokerface.GameState, err error) {},
 	}
+}
+
+func (g *game) OnAntesReceived(fn func(*pokerface.GameState)) {
+	g.onAntesReceived = fn
+}
+
+func (g *game) OnBlindsReceived(fn func(*pokerface.GameState)) {
+	g.onBlindsReceived = fn
 }
 
 func (g *game) OnGameStateUpdated(fn func(*pokerface.GameState)) {
@@ -398,10 +412,14 @@ func (g *game) onAnteRequested(gs *pokerface.GameState) {
 	// Preparing ready group to wait for ante paid from all player
 	g.rg.Stop()
 	g.rg.OnCompleted(func(rg *syncsaga.ReadyGroup) {
-		if _, err := g.PayAnte(); err != nil {
+		gameState, err := g.PayAnte()
+		if err != nil {
 			g.onGameErrorUpdated(gs, err)
 			return
 		}
+
+		// emit event
+		g.onAntesReceived(gameState)
 
 		// reset AllowedActions
 		for _, p := range gs.Players {
@@ -428,10 +446,14 @@ func (g *game) onBlindsRequested(gs *pokerface.GameState) {
 	// Preparing ready group to wait for blinds
 	g.rg.Stop()
 	g.rg.OnCompleted(func(rg *syncsaga.ReadyGroup) {
-		if _, err := g.PayBlinds(); err != nil {
+		gameState, err := g.PayBlinds()
+		if err != nil {
 			g.onGameErrorUpdated(gs, err)
 			return
 		}
+
+		// emit event
+		g.onBlindsReceived(gameState)
 
 		// reset AllowedActions
 		for _, p := range gs.Players {

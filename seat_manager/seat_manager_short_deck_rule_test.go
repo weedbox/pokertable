@@ -36,12 +36,8 @@ func TestShortDeckRule_RotatePositions_MultipleTimes_TwoPlayers(t *testing.T) {
 	err := sm.AssignSeats(playerSeatIDs)
 	assert.NoError(t, err)
 
-	// activate all players
-	playerActivateSeats := map[string]bool{
-		"P1": true,
-		"P2": true,
-	}
-	err = sm.UpdateSeatPlayerActiveStates(playerActivateSeats)
+	// join players
+	err = sm.JoinPlayers([]string{"P1", "P2"})
 	assert.NoError(t, err)
 
 	for gameCount := 1; gameCount <= 10; gameCount++ {
@@ -148,14 +144,8 @@ func TestShortDeckRule_RotatePositions_MultipleTimes_MoreThanTwoPlayers(t *testi
 	err := sm.AssignSeats(playerSeatIDs)
 	assert.NoError(t, err)
 
-	// activate all players
-	playerActivateSeats := map[string]bool{
-		"P1": true,
-		"P2": true,
-		"P3": true,
-		"P4": true,
-	}
-	err = sm.UpdateSeatPlayerActiveStates(playerActivateSeats)
+	// join players
+	err = sm.JoinPlayers([]string{"P1", "P2", "P3", "P4"})
 	assert.NoError(t, err)
 
 	for i := 0; i < 5; i++ {
@@ -193,14 +183,8 @@ func TestShortDeckRule_RotatePositions_MultipleTimes_MoreThanTwoPlayers_PlayersI
 	err := sm.AssignSeats(playerSeatIDs)
 	assert.NoError(t, err)
 
-	// activate all players
-	playerActivateSeats := map[string]bool{
-		"P1": true,
-		"P2": true,
-		"P3": true,
-		"P4": true,
-	}
-	err = sm.UpdateSeatPlayerActiveStates(playerActivateSeats)
+	// join players
+	err = sm.JoinPlayers([]string{"P1", "P2", "P3", "P4"})
 	assert.NoError(t, err)
 
 	// game count = 1 (P1, P2, P3, P4 are playing)
@@ -225,7 +209,7 @@ func TestShortDeckRule_RotatePositions_MultipleTimes_MoreThanTwoPlayers_PlayersI
 
 	// game count = 2 (P1, P4 are out, P5, P6, P7 are in: P2, P3, P5, P6, P7 are playing)
 	outPlayerIDs := []string{"P1", "P4"}
-	err = sm.CancelSeats(outPlayerIDs)
+	err = sm.RemoveSeats(outPlayerIDs)
 	assert.NoError(t, err)
 
 	newPlayerSeatIDs := map[string]int{
@@ -236,13 +220,8 @@ func TestShortDeckRule_RotatePositions_MultipleTimes_MoreThanTwoPlayers_PlayersI
 	err = sm.AssignSeats(newPlayerSeatIDs)
 	assert.NoError(t, err)
 
-	// activate all players
-	playerActivateSeats = map[string]bool{
-		"P5": true,
-		"P6": true,
-		"P7": true,
-	}
-	err = sm.UpdateSeatPlayerActiveStates(playerActivateSeats)
+	// join players
+	err = sm.JoinPlayers([]string{"P5", "P6", "P7"})
 	assert.NoError(t, err)
 
 	err = sm.RotatePositions()

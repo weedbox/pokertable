@@ -36,12 +36,18 @@ func (sm *seatManager) RandomAssignSeats(playerIDs []string) error {
 	}
 
 	for i := 0; i < len(playerIDs); i++ {
+		playerID := playerIDs[i]
 		seatID := seatIDs[i]
-		seatPlayer := SeatPlayer{
-			ID:     playerIDs[i],
-			Active: false,
+		sp := sm.newSeatPlayer(playerID)
+		sm.seats[seatID] = &sp
+
+		var isBetweenDealerBB bool
+		if sm.isInitPositions {
+			isBetweenDealerBB = sm.IsPlayerBetweenDealerBB(playerID)
+		} else {
+			isBetweenDealerBB = false
 		}
-		sm.seats[seatID] = &seatPlayer
+		sm.seats[seatID].IsBetweenDealerBB = isBetweenDealerBB
 	}
 
 	return nil
@@ -87,17 +93,22 @@ func (sm *seatManager) AssignSeats(playerSeatIDs map[string]int) error {
 
 	// assign seats to all players
 	for playerID, seatID := range playerSeatIDs {
-		seatPlayer := SeatPlayer{
-			ID:     playerID,
-			Active: false,
+		sp := sm.newSeatPlayer(playerID)
+		sm.seats[seatID] = &sp
+
+		var isBetweenDealerBB bool
+		if sm.isInitPositions {
+			isBetweenDealerBB = sm.IsPlayerBetweenDealerBB(playerID)
+		} else {
+			isBetweenDealerBB = false
 		}
-		sm.seats[seatID] = &seatPlayer
+		sm.seats[seatID].IsBetweenDealerBB = isBetweenDealerBB
 	}
 
 	return nil
 }
 
-func (sm *seatManager) CancelSeats(playerIDs []string) error {
+func (sm *seatManager) RemoveSeats(playerIDs []string) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -118,23 +129,36 @@ func (sm *seatManager) CancelSeats(playerIDs []string) error {
 	return nil
 }
 
-func (sm *seatManager) UpdateSeatPlayerActiveStates(playerActiveStates map[string]bool) error {
+func (sm *seatManager) JoinPlayers(playerIDs []string) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	targetPlayerSeatIDs := make(map[string]int)
-	for playerID := range playerActiveStates {
+	targetPlayerSeatIDs := make([]int, 0)
+	for _, playerID := range playerIDs {
 		_, seatID, err := sm.getSeatPlayer(playerID)
 		if err != nil {
 			return err
 		}
-		targetPlayerSeatIDs[playerID] = seatID
+		targetPlayerSeatIDs = append(targetPlayerSeatIDs, seatID)
 	}
 
-	for playerID, seatID := range targetPlayerSeatIDs {
-		sm.seats[seatID].Active = playerActiveStates[playerID]
+	for _, seatID := range targetPlayerSeatIDs {
+		sm.seats[seatID].IsIn = true
 	}
 
+	return nil
+}
+
+func (sm *seatManager) UpdatePlayerHasChips(playerID string, hasChips bool) error {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	_, seatID, err := sm.getSeatPlayer(playerID)
+	if err != nil {
+		return err
+	}
+
+	sm.seats[seatID].HasChips = hasChips
 	return nil
 }
 
@@ -180,7 +204,7 @@ func (sm *seatManager) IsPlayerBetweenDealerBB(playerID string) bool {
 
 	for seatID, seatPlayer := range sm.seats {
 		if seatPlayer != nil && seatPlayer.ID == playerID {
-			return sm.isBetweenDealerBB(seatID)
+			return sm.isBetweenDealerBB(sm.CurrentDealerSeatID(), sm.CurrentBBSeatID(), seatID)
 		}
 	}
 
@@ -205,4 +229,29 @@ func (sm *seatManager) CurrentBBSeatID() int {
 
 func (sm *seatManager) IsInitPositions() bool {
 	return sm.isInitPositions
+}
+
+func (sm *seatManager) IsPlayerActive(playerID string) (bool, error) {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
+	_, seatID, err := sm.getSeatPlayer(playerID)
+	if err != nil {
+		return false, err
+	}
+
+	return sm.seats[seatID].Active(), nil
+}
+
+func (sm *seatManager) ListPlayerSeatsFromDealer() []*SeatPlayer {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
+	seatPlayers := make([]*SeatPlayer, 0)
+	for i := sm.dealerSeatID; i < sm.maxSeat+sm.dealerSeatID; i++ {
+		seatID := i % sm.maxSeat
+		seatPlayers = append(seatPlayers, sm.seats[seatID])
+	}
+
+	return seatPlayers
 }

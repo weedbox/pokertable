@@ -329,7 +329,9 @@ func (te *tableEngine) UpdateTablePlayers(joinPlayers []JoinPlayer, leavePlayerI
 
 	// remove players
 	if len(leavePlayerIDs) > 0 {
-		te.batchRemovePlayers(leavePlayerIDs)
+		if err := te.batchRemovePlayers(leavePlayerIDs); err != nil {
+			return nil, err
+		}
 	}
 
 	// add players
@@ -371,9 +373,7 @@ func (te *tableEngine) PlayerReserve(joinPlayer JoinPlayer) error {
 		}
 	} else {
 		// ReBuy
-		// 補碼要檢查玩家是否介於 Dealer-BB 之間
 		playerState := te.table.State.PlayerStates[targetPlayerIdx]
-		playerState.IsBetweenDealerBB = te.sm.IsPlayerBetweenDealerBB(playerState.PlayerID)
 		playerState.Bankroll += joinPlayer.RedeemChips
 
 		te.emitTablePlayerStateEvent(playerState)
@@ -410,11 +410,8 @@ func (te *tableEngine) PlayerJoin(playerID string) error {
 		te.rg.Ready(int64(playerIdx))
 	}
 
-	// 更新 seat manager active state
-	playerActivateSeats := map[string]bool{
-		playerID: !te.table.State.PlayerStates[playerIdx].IsBetweenDealerBB && te.table.State.PlayerStates[playerIdx].IsIn && te.table.State.PlayerStates[playerIdx].Bankroll > 0,
-	}
-	if err := te.sm.UpdateSeatPlayerActiveStates(playerActivateSeats); err != nil {
+	// 更新 seat manager
+	if err := te.sm.JoinPlayers([]string{playerID}); err != nil {
 		return err
 	}
 
@@ -433,11 +430,7 @@ func (te *tableEngine) PlayerRedeemChips(joinPlayer JoinPlayer) error {
 		return ErrTablePlayerNotFound
 	}
 
-	// 如果是 Bankroll 為 0 的情況，增購要檢查玩家是否介於 Dealer-BB 之間
 	playerState := te.table.State.PlayerStates[playerIdx]
-	if playerState.Bankroll == 0 {
-		playerState.IsBetweenDealerBB = te.sm.IsPlayerBetweenDealerBB(playerState.PlayerID)
-	}
 	playerState.Bankroll += joinPlayer.RedeemChips
 
 	te.emitEvent("PlayerRedeemChips", joinPlayer.PlayerID)
@@ -456,7 +449,10 @@ func (te *tableEngine) PlayersLeave(playerIDs []string) error {
 	te.lock.Lock()
 	defer te.lock.Unlock()
 
-	te.batchRemovePlayers(playerIDs)
+	if err := te.batchRemovePlayers(playerIDs); err != nil {
+		return err
+	}
+
 	te.emitEvent("PlayersLeave", strings.Join(playerIDs, ","))
 	te.emitTableStateEvent(TableStateEvent_PlayersLeave)
 

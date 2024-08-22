@@ -69,18 +69,6 @@ func (te *tableEngine) updateGameState(gs *pokerface.GameState) {
 		if event == pokerface.GameEvent_RoundClosed {
 			te.table.State.LastPlayerGameAction = nil
 		}
-
-		if event == pokerface.GameEvent_ReadyRequested && gs.Status.Round == GameRound_Preflop && gs.Status.CurrentPlayer == 0 {
-			for gpIdx, p := range gs.Players {
-				if p.DidAction == WagerAction_AllIn {
-					if playerIdx := te.table.FindPlayerIndexFromGamePlayerIndex(gpIdx); playerIdx != UnsetValue {
-						player := te.table.State.PlayerStates[playerIdx]
-						te.table.State.LastPlayerGameAction = te.createPlayerGameAction(player.PlayerID, playerIdx, p.DidAction, player.Bankroll, p)
-						te.emitGamePlayerActionEvent(*te.table.State.LastPlayerGameAction)
-					}
-				}
-			}
-		}
 	}
 }
 
@@ -99,41 +87,7 @@ func (te *tableEngine) openGame(oldTable *Table) (*Table, error) {
 	// Step 3: 更新狀態
 	cloneTable.State.Status = TableStateStatus_TableGameOpened
 
-	// Step 4: 檢查參賽資格
-	for i := 0; i < len(cloneTable.State.PlayerStates); i++ {
-		playerState := cloneTable.State.PlayerStates[i]
-
-		// 沒有入桌玩家直接不參加
-		if !playerState.IsIn {
-			playerState.IsParticipated = false
-			continue
-		}
-
-		// 先讓沒有坐在 大盲、Dealer 之間的玩家參賽
-		if playerState.IsParticipated || playerState.IsBetweenDealerBB {
-			playerState.IsParticipated = playerState.Bankroll > 0
-			continue
-		}
-
-		// 檢查後手 (有錢的玩家可參賽)
-		playerState.IsParticipated = playerState.Bankroll > 0
-	}
-
-	// Step 5: 可參賽玩家剩餘一人時，無法開新局
-	if len(cloneTable.ParticipatedPlayers()) < 2 {
-		return oldTable, ErrTableOpenGameFailed
-	}
-
-	// Step 6: 更新 seat manager active state
-	playerActivateSeats := make(map[string]bool)
-	for _, p := range cloneTable.State.PlayerStates {
-		playerActivateSeats[p.PlayerID] = p.IsParticipated
-	}
-	if err := te.sm.UpdateSeatPlayerActiveStates(playerActivateSeats); err != nil {
-		return oldTable, ErrTableOpenGameFailed
-	}
-
-	// Step 7: 計算座位
+	// Step 4: 計算座位
 	if !te.sm.IsInitPositions() {
 		if err := te.sm.InitPositions(true); err != nil {
 			return oldTable, err
@@ -144,10 +98,32 @@ func (te *tableEngine) openGame(oldTable *Table) (*Table, error) {
 		}
 	}
 
-	// Step 8: 更新參與本手的玩家資訊
-	te.updateGameOpenPlayerInfo(te.sm.CurrentDealerSeatID(), te.sm.CurrentSBSeatID(), te.sm.CurrentBBSeatID(), cloneTable)
+	// Step 5: 更新參與本手的玩家資訊
+	// update player is_participated
+	for i := 0; i < len(cloneTable.State.PlayerStates); i++ {
+		player := cloneTable.State.PlayerStates[i]
+		active, err := te.sm.IsPlayerActive(player.PlayerID)
+		if err != nil {
+			return oldTable, err
+		}
+		player.IsParticipated = active
+	}
 
-	// Step 9: 更新桌次狀態 (GameCount & 當前 Dealer & BB 位置)
+	// update gamePlayerIndexes & positions
+	cloneTable.State.GamePlayerIndexes = te.calcGamePlayerIndexes(
+		cloneTable.Meta.Rule,
+		cloneTable.Meta.TableMaxSeatCount,
+		te.sm.CurrentDealerSeatID(),
+		te.sm.CurrentSBSeatID(),
+		te.sm.CurrentBBSeatID(),
+		cloneTable.State.SeatMap,
+		cloneTable.State.PlayerStates,
+	)
+
+	// update player positions
+	te.updatePlayerPositions(cloneTable.Meta.TableMaxSeatCount, cloneTable.State.PlayerStates)
+
+	// Step 6: 更新桌次狀態 (GameCount & 當前 Dealer & BB 位置)
 	cloneTable.State.GameCount = cloneTable.State.GameCount + 1
 	cloneTable.State.CurrentDealerSeat = te.sm.CurrentDealerSeatID()
 	cloneTable.State.CurrentBBSeat = te.sm.CurrentBBSeatID()
@@ -188,6 +164,9 @@ func (te *tableEngine) startGame() error {
 			Positions: player.Positions,
 		})
 	}
+	if !funk.Contains(playerSettings[0].Positions, Position_Dealer) {
+		playerSettings[0].Positions = append(playerSettings[0].Positions, Position_Dealer)
+	}
 	opts.Players = playerSettings
 
 	// create game
@@ -198,6 +177,25 @@ func (te *tableEngine) startGame() error {
 	te.game.OnGameErrorUpdated(func(gs *pokerface.GameState, err error) {
 		te.table.State.GameState = gs
 		go te.emitErrorEvent("OnGameErrorUpdated", "", err)
+	})
+	te.game.OnAntesReceived(func(gs *pokerface.GameState) {
+		for gpIdx, p := range gs.Players {
+			if playerIdx := te.table.FindPlayerIndexFromGamePlayerIndex(gpIdx); playerIdx != UnsetValue {
+				player := te.table.State.PlayerStates[playerIdx]
+				pga := te.createPlayerGameAction(player.PlayerID, playerIdx, "pay", player.Bankroll, p)
+				pga.Round = "ante"
+				te.emitGamePlayerActionEvent(*pga)
+			}
+		}
+	})
+	te.game.OnBlindsReceived(func(gs *pokerface.GameState) {
+		for gpIdx, p := range gs.Players {
+			if playerIdx := te.table.FindPlayerIndexFromGamePlayerIndex(gpIdx); playerIdx != UnsetValue {
+				player := te.table.State.PlayerStates[playerIdx]
+				pga := te.createPlayerGameAction(player.PlayerID, playerIdx, "pay", player.Bankroll, p)
+				te.emitGamePlayerActionEvent(*pga)
+			}
+		}
 	})
 
 	// start game
@@ -260,7 +258,7 @@ func (te *tableEngine) settleGame() {
 	}
 
 	// 更新 NextBBOrderPlayerIDs (移除沒有籌碼的玩家)
-	te.table.State.NextBBOrderPlayerIDs = te.refreshNextBBOrderPlayerIDs(te.table.State.PlayerStates, te.table.State.GamePlayerIndexes)
+	te.table.State.NextBBOrderPlayerIDs = te.refreshNextBBOrderPlayerIDs(te.sm.CurrentBBSeatID(), te.table.Meta.TableMaxSeatCount, te.table.State.PlayerStates, te.table.State.SeatMap)
 
 	te.emitEvent("SettleTableGameResult", "")
 	te.emitTableStateEvent(TableStateEvent_GameSettled)
@@ -277,9 +275,15 @@ func (te *tableEngine) continueGame() error {
 		playerState := te.table.State.PlayerStates[i]
 		playerState.Positions = make([]string, 0)
 		playerState.GameStatistics = NewPlayerGameStatistics()
-		if playerState.Bankroll == 0 {
-			playerState.IsParticipated = false
+		if err := te.sm.UpdatePlayerHasChips(playerState.PlayerID, playerState.Bankroll > 0); err != nil {
+			return err
 		}
+		active, err := te.sm.IsPlayerActive(playerState.PlayerID)
+		if err != nil {
+			return err
+		}
+
+		playerState.IsParticipated = active
 	}
 
 	var nextMoveInterval int
@@ -465,14 +469,13 @@ func (te *tableEngine) batchAddPlayers(players []JoinPlayer) error {
 
 		// update state
 		player := &TablePlayerState{
-			PlayerID:          player.PlayerID,
-			Seat:              seat,
-			Positions:         []string{Position_Unknown},
-			IsParticipated:    false,
-			IsBetweenDealerBB: te.sm.IsPlayerBetweenDealerBB(player.PlayerID),
-			Bankroll:          player.RedeemChips,
-			IsIn:              false,
-			GameStatistics:    NewPlayerGameStatistics(),
+			PlayerID:       player.PlayerID,
+			Seat:           seat,
+			Positions:      []string{},
+			IsParticipated: false,
+			Bankroll:       player.RedeemChips,
+			IsIn:           false,
+			GameStatistics: NewPlayerGameStatistics(),
 		}
 		newPlayers = append(newPlayers, player)
 
@@ -564,144 +567,97 @@ func (te *tableEngine) playersAutoIn() {
 	te.rg.Start()
 }
 
-func (te *tableEngine) batchRemovePlayers(playerIDs []string) {
+func (te *tableEngine) batchRemovePlayers(playerIDs []string) error {
 	newPlayerStates, newSeatMap, newGamePlayerIndexes := te.calcLeavePlayers(te.table.State.Status, playerIDs, te.table.State.PlayerStates, te.table.Meta.TableMaxSeatCount)
 	te.table.State.PlayerStates = newPlayerStates
 	te.table.State.SeatMap = newSeatMap
 	te.table.State.GamePlayerIndexes = newGamePlayerIndexes
-	te.sm.CancelSeats(playerIDs)
+	return te.sm.RemoveSeats(playerIDs)
 }
 
-func (te *tableEngine) refreshNextBBOrderPlayerIDs(players []*TablePlayerState, gamePlayerIndexes []int) []string {
+func (te *tableEngine) refreshNextBBOrderPlayerIDs(currentBBSeatID, tableMaxSeatCount int, players []*TablePlayerState, seatMap []int) []string {
 	nextBBOrderPlayerIDs := make([]string, 0)
-
-	targetNextBBOrderPlayerIDs := make(map[string]bool, 0)
-	for _, p := range players {
-		// 只挑有籌碼的玩家進入 NextBBOrderPlayerIDs 清單
-		if p.Bankroll > 0 {
-			targetNextBBOrderPlayerIDs[p.PlayerID] = false
+	for i := currentBBSeatID + 1; i <= tableMaxSeatCount+currentBBSeatID; i++ {
+		newBBSeatID := i % tableMaxSeatCount
+		playerIdx := seatMap[newBBSeatID]
+		if playerIdx >= 0 && players[playerIdx].Bankroll > 0 {
+			nextBBOrderPlayerIDs = append(nextBBOrderPlayerIDs, players[playerIdx].PlayerID)
 		}
 	}
-
-	if len(gamePlayerIndexes) == 2 {
-		if dealerPlayer := players[gamePlayerIndexes[0]]; dealerPlayer.Bankroll > 0 {
-			nextBBOrderPlayerIDs = append(nextBBOrderPlayerIDs, dealerPlayer.PlayerID)
-			targetNextBBOrderPlayerIDs[dealerPlayer.PlayerID] = true
-		}
-
-		if bbPlayer := players[gamePlayerIndexes[1]]; bbPlayer.Bankroll > 0 {
-			nextBBOrderPlayerIDs = append(nextBBOrderPlayerIDs, bbPlayer.PlayerID)
-			targetNextBBOrderPlayerIDs[bbPlayer.PlayerID] = true
-		}
-	} else if len(gamePlayerIndexes) > 2 {
-		gameBBPlayerIdx := 2
-
-		// starts with UG GamePlayerIndex (ug next round will be bb)
-		for i := gameBBPlayerIdx + 1; i < len(gamePlayerIndexes)+gameBBPlayerIdx+1; i++ {
-			gpIdx := i % len(gamePlayerIndexes)
-			player := players[gamePlayerIndexes[gpIdx]]
-
-			// 只挑有籌碼的玩家進入 NextBBOrderPlayerIDs 清單
-			if player.Bankroll > 0 {
-				nextBBOrderPlayerIDs = append(nextBBOrderPlayerIDs, player.PlayerID)
-				targetNextBBOrderPlayerIDs[player.PlayerID] = true
-			}
-		}
-	}
-
-	// 如果有籌碼但沒有參與的玩家，加入 NextBBOrderPlayerIDs 的後面位置
-	for playerID, picked := range targetNextBBOrderPlayerIDs {
-		if !picked {
-			nextBBOrderPlayerIDs = append(nextBBOrderPlayerIDs, playerID)
-		}
-	}
-
 	return nextBBOrderPlayerIDs
 }
 
-/*
-updateGameOpenPlayerInfo 更新參與本手的玩家資訊
-*/
-func (te *tableEngine) updateGameOpenPlayerInfo(dealerSeatID, sbSeatID, bbSeatID int, table *Table) {
-	// update gamePlayerIndexes
+func (te *tableEngine) calcGamePlayerIndexes(rule string, maxSeatCount, currentDealerSeatID, currentSBSeatID, currentBBSeatID int, seatMap []int, players []*TablePlayerState) []int {
+	playerLen := len(players)
 	gamePlayerIndexes := make([]int, 0)
-	if table.Meta.Rule == CompetitionRule_ShortDeck {
-		dealerPlayerIdx := table.State.SeatMap[dealerSeatID]
-		for i := dealerPlayerIdx; i < len(table.State.PlayerStates)+dealerPlayerIdx; i++ {
-			playerIdx := i % len(table.State.PlayerStates)
-			if table.State.PlayerStates[playerIdx].IsParticipated {
+	playerPositions := make(map[int][]string) // key: player_index, value: positions
+	if rule == CompetitionRule_ShortDeck {
+		dealerPlayerIdx := seatMap[currentDealerSeatID]
+		for i := dealerPlayerIdx; i < playerLen+dealerPlayerIdx; i++ {
+			playerIdx := i % playerLen
+			if players[playerIdx].IsParticipated {
 				positions := make([]string, 0)
 				if i == dealerPlayerIdx {
 					positions = append(positions, Position_Dealer)
 				}
-				table.State.PlayerStates[playerIdx].Positions = positions
+				playerPositions[playerIdx] = positions
 				gamePlayerIndexes = append(gamePlayerIndexes, playerIdx)
 			}
 		}
 	} else {
 		// CompetitionRule_Default & CompetitionRule_Omaha
 		dealerPlayerIdx := UnsetValue // allow empty
-		bbPlayerIdx := UnsetValue     // must have
-		for idx, p := range table.State.PlayerStates {
+		sbPlayerIdx := UnsetValue     // allow empty
+		for idx, p := range players {
 			if !p.IsParticipated {
 				continue
 			}
 
-			if p.Seat == dealerSeatID {
+			if p.Seat == currentDealerSeatID {
 				dealerPlayerIdx = idx
 			}
-			if p.Seat == bbSeatID {
-				bbPlayerIdx = idx
+
+			if p.Seat == currentSBSeatID {
+				sbPlayerIdx = idx
 			}
 		}
 
-		// only set dealer, sb & bb to player positions
+		// find by dealer or empty-dealer situation
 		if dealerPlayerIdx == UnsetValue {
-			priorBBPlayerIdx := UnsetValue
-			for i := bbPlayerIdx; i < len(table.State.PlayerStates)+bbPlayerIdx; i++ {
-				playerIdx := i % len(table.State.PlayerStates)
-				player := table.State.PlayerStates[playerIdx]
-				if !player.IsParticipated {
-					continue
-				}
-
-				switch player.Seat {
-				case sbSeatID:
-					player.Positions = append(player.Positions, Position_SB)
-				case bbSeatID:
-					player.Positions = append(player.Positions, Position_BB)
-				default:
-					player.Positions = make([]string, 0)
-				}
-
-				priorBBPlayerIdx = playerIdx
-				gamePlayerIndexes = append(gamePlayerIndexes, playerIdx)
+			// find fake dealer index
+			fakeDealerSeatID := UnsetValue
+			startSeatID := UnsetValue
+			if sbPlayerIdx == UnsetValue {
+				// empty sb, use prior bb active player as fake dealer
+				startSeatID = currentBBSeatID
+			} else {
+				// has sb, use prior sb active player as fake dealer
+				startSeatID = currentSBSeatID
 			}
 
-			// no dealer, use prior dealer seat as fake dealer & adjust gamePlayerIndexes
-			table.State.PlayerStates[priorBBPlayerIdx].Positions = append(table.State.PlayerStates[priorBBPlayerIdx].Positions, Position_Dealer)
-			gamePlayerIndexes = rotateIntArray(gamePlayerIndexes, priorBBPlayerIdx)
+			// find fake dealer seat id
+			for i := startSeatID + maxSeatCount - 1; i >= startSeatID; i-- {
+				seatID := i % maxSeatCount
+				if sp, ok := te.sm.Seats()[seatID]; ok && sp != nil && sp.Active() {
+					fakeDealerSeatID = seatID
+					break
+				}
+			}
+
+			// create game player indexes (starts at fake dealer player index)
+			for i := fakeDealerSeatID; i < len(seatMap)+fakeDealerSeatID; i++ {
+				seatID := i % len(seatMap)
+				playerIdx := seatMap[seatID]
+				if playerIdx >= 0 && players[playerIdx].IsParticipated {
+					gamePlayerIndexes = append(gamePlayerIndexes, playerIdx)
+				}
+			}
 		} else {
-			for i := dealerPlayerIdx; i < len(table.State.PlayerStates)+dealerPlayerIdx; i++ {
-				playerIdx := i % len(table.State.PlayerStates)
-				player := table.State.PlayerStates[playerIdx]
+			for i := dealerPlayerIdx; i < playerLen+dealerPlayerIdx; i++ {
+				playerIdx := i % playerLen
+				player := players[playerIdx]
 				if !player.IsParticipated {
 					continue
-				}
-
-				switch player.Seat {
-				case dealerSeatID:
-					player.Positions = append(player.Positions, Position_Dealer)
-				case sbSeatID:
-					player.Positions = append(player.Positions, Position_SB)
-				case bbSeatID:
-					player.Positions = append(player.Positions, Position_BB)
-				default:
-					player.Positions = make([]string, 0)
-				}
-
-				if dealerSeatID == sbSeatID && (player.Seat == dealerSeatID || player.Seat == sbSeatID) {
-					player.Positions = []string{Position_Dealer, Position_SB}
 				}
 
 				gamePlayerIndexes = append(gamePlayerIndexes, playerIdx)
@@ -709,5 +665,5 @@ func (te *tableEngine) updateGameOpenPlayerInfo(dealerSeatID, sbSeatID, bbSeatID
 		}
 	}
 
-	table.State.GamePlayerIndexes = gamePlayerIndexes
+	return gamePlayerIndexes
 }

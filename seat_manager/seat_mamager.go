@@ -23,8 +23,9 @@ type SeatManager interface {
 	GetSeatID(playerID string) (int, error)
 	RandomAssignSeats(playerIDs []string) error
 	AssignSeats(playerSeatIDs map[string]int) error
-	CancelSeats(playerIDs []string) error
-	UpdateSeatPlayerActiveStates(playerActiveStates map[string]bool) error
+	RemoveSeats(playerIDs []string) error
+	UpdatePlayerHasChips(playerID string, hasChips bool) error
+	JoinPlayers(playerIDs []string) error
 	InitPositions(isRandom bool) error
 	RotatePositions() error
 	IsPlayerBetweenDealerBB(playerID string) bool
@@ -34,11 +35,19 @@ type SeatManager interface {
 	CurrentSBSeatID() int
 	CurrentBBSeatID() int
 	IsInitPositions() bool
+	IsPlayerActive(playerID string) (bool, error)
+	ListPlayerSeatsFromDealer() []*SeatPlayer
 }
 
 type SeatPlayer struct {
-	ID     string
-	Active bool
+	ID                string
+	IsIn              bool
+	IsBetweenDealerBB bool
+	HasChips          bool
+}
+
+func (sp *SeatPlayer) Active() bool {
+	return sp.IsIn && !sp.IsBetweenDealerBB && sp.HasChips
 }
 
 func NewSeatManager(maxSeats int, rule string) SeatManager {

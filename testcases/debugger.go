@@ -62,15 +62,13 @@ func DebugPrintTableGameOpened(t pokertable.Table) {
 		playerID := "X"
 		positions := []string{"Unknown"}
 		bankroll := "X"
-		isBetweenDealerBB := "X"
 		if playerIndex != -1 {
 			playerID = t.State.PlayerStates[playerIndex].PlayerID
 			positions = t.State.PlayerStates[playerIndex].Positions
 			bankroll = fmt.Sprintf("%d", t.State.PlayerStates[playerIndex].Bankroll)
-			isBetweenDealerBB = fmt.Sprintf("%v", t.State.PlayerStates[playerIndex].IsBetweenDealerBB)
 		}
 
-		fmt.Printf("seat: %d, position: %v, player: %s, bankroll: %s, between bb-dealer? %s\n", Seat, positions, playerID, bankroll, isBetweenDealerBB)
+		fmt.Printf("seat: %d, position: %v, player: %s, bankroll: %s\n", Seat, positions, playerID, bankroll)
 	}
 
 	fmt.Println("[Blind Data]")
@@ -91,7 +89,7 @@ func DebugPrintTableGameOpened(t pokertable.Table) {
 		if player.Seat != -1 {
 			seat = strconv.Itoa(player.Seat)
 		}
-		fmt.Printf("seat: %s [%v], player: %s, bankroll: %d, between bb-dealer? %v\n", seat, player.Positions, player.PlayerID, player.Bankroll, player.IsBetweenDealerBB)
+		fmt.Printf("seat: %s [%v], player: %s, bankroll: %d\n", seat, player.Positions, player.PlayerID, player.Bankroll)
 	}
 
 	fmt.Println()

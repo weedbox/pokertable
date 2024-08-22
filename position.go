@@ -157,22 +157,15 @@ func newPositions(playerCount int) []string {
 }
 
 /*
-rotateIntArray 給定 source, 以 startIndex 當作第一個元素做 Rotations
+rotateArray 給定 source, 以 startIndex 當作第一個元素做 Rotations
   - @param source Given source array
   - @param startIndex Base index for the rotation
   - @return rotated source
 
 Example:
-  - Given: []int{0, 1, 2, 3, 4}, startIndex = 2
-  - Output: []int{2, 3, 4, 0, 1}
+  - Given: []string{"0", "1", "2", "3", "4"}, startIndex = 2
+  - Output: []string{"2", "3", "4", '0', '1'}
 */
-func rotateIntArray(source []int, startIndex int) []int {
-	if startIndex > len(source) {
-		startIndex = startIndex % len(source)
-	}
-	return append(source[startIndex:], source[:startIndex]...)
-}
-
 func rotateStringArray(source []string, startIndex int) []string {
 	if startIndex > len(source) {
 		startIndex = startIndex % len(source)

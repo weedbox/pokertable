@@ -190,10 +190,14 @@ func (te *tableEngine) startGame() error {
 	})
 	te.game.OnBlindsReceived(func(gs *pokerface.GameState) {
 		for gpIdx, p := range gs.Players {
-			if playerIdx := te.table.FindPlayerIndexFromGamePlayerIndex(gpIdx); playerIdx != UnsetValue {
-				player := te.table.State.PlayerStates[playerIdx]
-				pga := te.createPlayerGameAction(player.PlayerID, playerIdx, "pay", player.Bankroll, p)
-				te.emitGamePlayerActionEvent(*pga)
+			for _, pos := range p.Positions {
+				if funk.Contains([]string{Position_SB, Position_BB}, pos) {
+					if playerIdx := te.table.FindPlayerIndexFromGamePlayerIndex(gpIdx); playerIdx != UnsetValue {
+						player := te.table.State.PlayerStates[playerIdx]
+						pga := te.createPlayerGameAction(player.PlayerID, playerIdx, "pay", player.Bankroll, p)
+						te.emitGamePlayerActionEvent(*pga)
+					}
+				}
 			}
 		}
 	})

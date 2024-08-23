@@ -215,6 +215,10 @@ func (sm *seatManager) initPositions(isRandom bool) error {
 	return nil
 }
 
+// func (sm *seatManager) defaultRuleInitPositions(startSeatID string) (int, error) {
+
+// }
+
 /*
 - 2 人常牌
   - 新的 BB 必須要從原本 BB 往後尋找到第一個有籌碼的玩家
@@ -230,10 +234,19 @@ func (sm *seatManager) initPositions(isRandom bool) error {
 */
 func (sm *seatManager) rotatePositions() error {
 	if sm.rule == Rule_Default {
-		previousBBSeatID := sm.bbSeatID
-		newBBSeatID := sm.nextOccupiedSeatID(previousBBSeatID)
+		// previousDealerSeatID := sm.dealerSeatID
 		previousSBSeatID := sm.sbSeatID
+		previousBBSeatID := sm.bbSeatID
+
+		// decide new bb first
+		newBBSeatID := sm.nextOccupiedSeatID(previousBBSeatID)
 		tempNewDealerSeatID := previousSBSeatID
+
+		// if previousDealerSeatID == previousSBSeatID {
+
+		// } else {
+
+		// }
 
 		// update seat_player.IsBetweenDealerBB before
 		for seatID, sp := range sm.Seats() {

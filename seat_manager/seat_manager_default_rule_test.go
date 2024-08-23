@@ -790,6 +790,81 @@ func TestDefaultRule_RotatePositions_MultipleTimes_TwoPlayers(t *testing.T) {
 	}
 }
 
+func TestDefaultRule_RotatePositions_HU_MoreThanTwoPlayers(t *testing.T) {
+	maxSeat := 9
+	rule := Rule_Default
+	allPlayers := make([]string, 0)
+	gameCount1PlayerSeatIDs := map[string]int{
+		"P1": 0,
+		"P2": 3,
+	}
+	expectedSeatPositions_GameCount1 := map[string]int{
+		Position_Dealer: 3,
+		Position_SB:     3,
+		Position_BB:     0,
+	}
+	expectedPlayerPositions_GameCount1 := map[string][]string{
+		"P1": {Position_BB},
+		"P2": {Position_Dealer, Position_SB},
+	}
+
+	gameCount2PlayerSeatIDs := map[string]int{
+		"P3": 4,
+		// "P4": 2,
+	}
+
+	sm := NewSeatManager(maxSeat, rule)
+	err := sm.AssignSeats(gameCount1PlayerSeatIDs)
+	assert.NoError(t, err)
+
+	// join all players
+	gameCount1PlayerIDs := make([]string, 0)
+	for playerID := range gameCount1PlayerSeatIDs {
+		gameCount1PlayerIDs = append(gameCount1PlayerIDs, playerID)
+	}
+	err = sm.JoinPlayers(gameCount1PlayerIDs)
+	assert.NoError(t, err)
+	allPlayers = append(allPlayers, gameCount1PlayerIDs...)
+
+	for _, seatPlayer := range sm.Seats() {
+		if seatPlayer != nil {
+			assert.Contains(t, gameCount1PlayerIDs, seatPlayer.ID)
+			assert.True(t, seatPlayer.Active())
+		}
+	}
+
+	// GameCount = 1, P1 & P2 players are playing
+	err = sm.InitPositions(false)
+	assert.NoError(t, err)
+	assert.True(t, sm.IsInitPositions())
+
+	verifySeatsAndPlayerPositions(t, expectedSeatPositions_GameCount1, expectedPlayerPositions_GameCount1, sm)
+
+	// GameCount = 2, add P3
+	err = sm.AssignSeats(gameCount2PlayerSeatIDs)
+	assert.NoError(t, err)
+
+	// join P3
+	gameCount2PlayerIDs := make([]string, 0)
+	for playerID := range gameCount2PlayerSeatIDs {
+		gameCount2PlayerIDs = append(gameCount2PlayerIDs, playerID)
+	}
+	err = sm.JoinPlayers(gameCount2PlayerIDs)
+	assert.NoError(t, err)
+	allPlayers = append(allPlayers, gameCount2PlayerIDs...)
+
+	// for _, seatPlayer := range sm.Seats() {
+	// 	if seatPlayer != nil {
+	// 		assert.Contains(t, allPlayers, seatPlayer.ID)
+	// 		assert.True(t, seatPlayer.Active())
+	// 	}
+	// }
+	err = sm.RotatePositions()
+	assert.NoError(t, err)
+
+	DebugPrintSeats("GameCount = 2", sm)
+}
+
 func TestDefaultRule_RotatePositions_MultipleTimes_MoreThanTwoPlayers_ValidDealerSBBB(t *testing.T) {
 	maxSeat := 9
 	rule := Rule_Default

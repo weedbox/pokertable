@@ -51,6 +51,7 @@ type TableState struct {
 	BlindState           *TableBlindState       `json:"blind_state"`              // 盲注狀態
 	CurrentDealerSeat    int                    `json:"current_dealer_seat"`      // 當前 Dealer 座位編號
 	CurrentBBSeat        int                    `json:"current_bb_seat"`          // 當前 BB 座位編號
+	CurrentActionEndAt   int64                  `json:"current_action_end_at"`    // 當前動作結束時間 (Seconds)
 	PlayerStates         []*TablePlayerState    `json:"player_states"`            // 賽局桌上玩家狀態
 	GameCount            int                    `json:"game_count"`               // 執行牌局遊戲次數 (遊戲跑幾輪)
 	GamePlayerIndexes    []int                  `json:"game_player_indexes"`      // 本手正在玩的 PlayerIndex 陣列 (陣列 index 為從 Dealer 位置開始的 PlayerIndex)，GameEngine 用

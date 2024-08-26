@@ -23,6 +23,7 @@ type Manager interface {
 	TableGameOpen(tableID string) error
 	UpdateBlind(tableID string, level int, ante, dealer, sb, bb int64) error
 	UpdateTablePlayers(tableID string, joinPlayers []JoinPlayer, leavePlayerIDs []string) (map[string]int, error)
+	UpdatePlayerActionDeadline(tableID, playerID string, endAt int64) error
 
 	// Player Table Actions
 	PlayerReserve(tableID string, joinPlayer JoinPlayer) error
@@ -170,6 +171,15 @@ func (m *manager) UpdateTablePlayers(tableID string, joinPlayers []JoinPlayer, l
 	}
 
 	return tableEngine.UpdateTablePlayers(joinPlayers, leavePlayerIDs)
+}
+
+func (m *manager) UpdatePlayerActionDeadline(tableID, playerID string, endAt int64) error {
+	tableEngine, err := m.GetTableEngine(tableID)
+	if err != nil {
+		return ErrManagerTableNotFound
+	}
+
+	return tableEngine.UpdatePlayerActionDeadline(playerID, endAt)
 }
 
 func (m *manager) PlayerReserve(tableID string, joinPlayer JoinPlayer) error {

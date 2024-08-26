@@ -48,6 +48,7 @@ type TableEngine interface {
 	TableGameOpen() error                                                                         // 開下一輪遊戲
 	UpdateBlind(level int, ante, dealer, sb, bb int64)                                            // 更新當前盲注資訊
 	UpdateTablePlayers(joinPlayers []JoinPlayer, leavePlayerIDs []string) (map[string]int, error) // 更新桌上玩家數量
+	UpdatePlayerActionDeadline(playerID string, endAt int64) error                                // 更新玩家動作結束時間
 
 	// Player Table Actions
 	PlayerReserve(joinPlayer JoinPlayer) error     // 玩家確認座位
@@ -349,6 +350,16 @@ func (te *tableEngine) UpdateTablePlayers(joinPlayers []JoinPlayer, leavePlayerI
 	te.emitEvent("UpdateTablePlayers", fmt.Sprintf("joinPlayers: %s, leavePlayerIDs: %s", strings.Join(joinPlayerIDs, ","), strings.Join(leavePlayerIDs, ",")))
 
 	return te.table.PlayerSeatMap(), nil
+}
+
+/*
+UpdatePlayerActionDeadline 更新玩家動作結束時間
+  - 適用時機: 當玩家動作時間計時器開始時
+*/
+func (te *tableEngine) UpdatePlayerActionDeadline(playerID string, endAt int64) error {
+	te.table.State.CurrentActionEndAt = endAt
+	te.emitEvent("UpdatePlayerActionDeadline", "")
+	return nil
 }
 
 /*

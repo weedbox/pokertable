@@ -255,3 +255,12 @@ func (sm *seatManager) ListPlayerSeatsFromDealer() []*SeatPlayer {
 
 	return seatPlayers
 }
+
+func (sm *seatManager) IsHU() bool {
+	/*
+		HU conditions
+		1. dealer_seat is equal to sb_seat
+		2. dealer_seat is not equal to sb_seat
+	*/
+	return sm.CurrentDealerSeatID() == sm.CurrentSBSeatID() && sm.CurrentBBSeatID() != sm.CurrentDealerSeatID()
+}

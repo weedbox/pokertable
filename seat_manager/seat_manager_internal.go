@@ -134,6 +134,18 @@ func (sm *seatManager) previousOccupiedSeatID(startSeatID int, shouldActive bool
 	return UnsetSeatID
 }
 
+func (sm *seatManager) previousOccupiedAliveSeatID(startSeatID int) int {
+	for i := 1; i < sm.maxSeat; i++ {
+		seatID := (startSeatID + 9 - i) % 9
+		if sp, exist := sm.seats[seatID]; exist && sp != nil {
+			if sp.IsIn && sp.HasChips {
+				return seatID
+			}
+		}
+	}
+	return UnsetSeatID
+}
+
 func (sm *seatManager) getActivePlayerCount() int {
 	count := 0
 	for _, seatPlayer := range sm.seats {
@@ -215,6 +227,10 @@ func (sm *seatManager) initPositions(isRandom bool) error {
 	return nil
 }
 
+// func (sm *seatManager) defaultRuleInitPositions(startSeatID string) (int, error) {
+
+// }
+
 /*
 - 2 人常牌
   - 新的 BB 必須要從原本 BB 往後尋找到第一個有籌碼的玩家
@@ -229,10 +245,15 @@ func (sm *seatManager) initPositions(isRandom bool) error {
   - Dealer 往下一個座位找，直到找到有籌碼的玩家為止
 */
 func (sm *seatManager) rotatePositions() error {
+	previousRoundIsHU := sm.IsHU()
+
 	if sm.rule == Rule_Default {
-		previousBBSeatID := sm.bbSeatID
-		newBBSeatID := sm.nextOccupiedSeatID(previousBBSeatID)
+		// previousDealerSeatID := sm.dealerSeatID
 		previousSBSeatID := sm.sbSeatID
+		previousBBSeatID := sm.bbSeatID
+
+		// decide new bb first
+		newBBSeatID := sm.nextOccupiedSeatID(previousBBSeatID)
 		tempNewDealerSeatID := previousSBSeatID
 
 		// update seat_player.IsBetweenDealerBB before
@@ -255,9 +276,21 @@ func (sm *seatManager) rotatePositions() error {
 			sm.sbSeatID = sm.dealerSeatID
 		} else {
 			// calc & update dealer & sb seat ids
-			previousSBSeatID := sm.sbSeatID
 			sm.sbSeatID = previousBBSeatID
-			sm.dealerSeatID = previousSBSeatID
+
+			if previousRoundIsHU {
+				tempNewDealerSeatID = sm.previousOccupiedAliveSeatID(sm.sbSeatID)
+
+				// update seat_player.IsBetweenDealerBB before
+				for seatID, sp := range sm.Seats() {
+					if sp != nil && !sp.Active() {
+						sm.seats[seatID].IsBetweenDealerBB = sm.isBetweenDealerBB(tempNewDealerSeatID, newBBSeatID, seatID)
+					}
+				}
+				sm.dealerSeatID = tempNewDealerSeatID
+			} else {
+				sm.dealerSeatID = previousSBSeatID
+			}
 		}
 	} else if sm.rule == Rule_ShortDeck {
 		if sm.getActivePlayerCount() < 2 {

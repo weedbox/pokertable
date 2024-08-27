@@ -126,6 +126,7 @@ func (te *tableEngine) openGame(oldTable *Table) (*Table, error) {
 	// Step 6: 更新桌次狀態 (GameCount & 當前 Dealer & BB 位置)
 	cloneTable.State.GameCount = cloneTable.State.GameCount + 1
 	cloneTable.State.CurrentDealerSeat = te.sm.CurrentDealerSeatID()
+	cloneTable.State.CurrentSBSeat = te.sm.CurrentSBSeatID()
 	cloneTable.State.CurrentBBSeat = te.sm.CurrentBBSeatID()
 
 	return cloneTable, nil

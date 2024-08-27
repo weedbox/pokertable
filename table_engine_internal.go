@@ -129,8 +129,6 @@ func (te *tableEngine) openGame(oldTable *Table) (*Table, error) {
 	cloneTable.State.CurrentSBSeat = te.sm.CurrentSBSeatID()
 	cloneTable.State.CurrentBBSeat = te.sm.CurrentBBSeatID()
 
-	seat_manager.DebugPrintSeats(fmt.Sprintf("Game %d", cloneTable.State.GameCount), te.sm)
-
 	return cloneTable, nil
 }
 

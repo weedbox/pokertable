@@ -90,14 +90,14 @@ func TestActor_Basic(t *testing.T) {
 	assert.Nil(t, err, "get table engine failed")
 
 	// Initializing bot
-	redeemChips := int64(30000)
+	redeemChips := int64(3000)
 	seat := -1
 	players := []pokertable.JoinPlayer{
-		{PlayerID: "Jeffrey", RedeemChips: redeemChips, Seat: seat},
-		{PlayerID: "Chuck", RedeemChips: redeemChips, Seat: seat},
-		{PlayerID: "Fred", RedeemChips: redeemChips, Seat: seat},
-		{PlayerID: "Loz", RedeemChips: redeemChips, Seat: seat},
-		{PlayerID: "Kimi", RedeemChips: redeemChips, Seat: seat},
+		{PlayerID: "P1", RedeemChips: redeemChips, Seat: seat},
+		{PlayerID: "P2", RedeemChips: redeemChips, Seat: seat},
+		{PlayerID: "P3", RedeemChips: redeemChips, Seat: seat},
+		{PlayerID: "P4", RedeemChips: redeemChips, Seat: seat},
+		{PlayerID: "P5", RedeemChips: redeemChips, Seat: seat},
 	}
 
 	// Preparing actors

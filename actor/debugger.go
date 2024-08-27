@@ -49,6 +49,17 @@ func DebugPrintTableGameOpened(t pokertable.Table) {
 		fmt.Println("[Table Current Dealer] X")
 	}
 
+	if t.State.CurrentSBSeat != -1 {
+		sbPlayerIndex := t.State.SeatMap[t.State.CurrentSBSeat]
+		if sbPlayerIndex == -1 {
+			fmt.Println("[Table Current SB] X")
+		} else {
+			fmt.Println("[Table Current SB] ", t.State.PlayerStates[sbPlayerIndex].PlayerID)
+		}
+	} else {
+		fmt.Println("[Table Current SB] X")
+	}
+
 	if t.State.CurrentBBSeat != -1 {
 		bbPlayerIndex := t.State.SeatMap[t.State.CurrentBBSeat]
 		if bbPlayerIndex == -1 {

@@ -48,7 +48,6 @@ type TableEngine interface {
 	TableGameOpen() error                                                                         // 開下一輪遊戲
 	UpdateBlind(level int, ante, dealer, sb, bb int64)                                            // 更新當前盲注資訊
 	UpdateTablePlayers(joinPlayers []JoinPlayer, leavePlayerIDs []string) (map[string]int, error) // 更新桌上玩家數量
-	UpdatePlayerActionDeadline(playerID string, endAt int64) error                                // 更新玩家動作結束時間
 
 	// Player Table Actions
 	PlayerReserve(joinPlayer JoinPlayer) error     // 玩家確認座位
@@ -57,15 +56,16 @@ type TableEngine interface {
 	PlayersLeave(playerIDs []string) error         // 玩家們離桌
 
 	// Player Game Actions
-	PlayerReady(playerID string) error                  // 玩家準備動作完成
-	PlayerPay(playerID string, chips int64) error       // 玩家付籌碼
-	PlayerBet(playerID string, chips int64) error       // 玩家下注
-	PlayerRaise(playerID string, chipLevel int64) error // 玩家加注
-	PlayerCall(playerID string) error                   // 玩家跟注
-	PlayerAllin(playerID string) error                  // 玩家全下
-	PlayerCheck(playerID string) error                  // 玩家過牌
-	PlayerFold(playerID string) error                   // 玩家棄牌
-	PlayerPass(playerID string) error                   // 玩家 Pass
+	PlayerExtendActionDeadline(playerID string, duration int) (int64, error) // 延長玩家動作結束時間
+	PlayerReady(playerID string) error                                       // 玩家準備動作完成
+	PlayerPay(playerID string, chips int64) error                            // 玩家付籌碼
+	PlayerBet(playerID string, chips int64) error                            // 玩家下注
+	PlayerRaise(playerID string, chipLevel int64) error                      // 玩家加注
+	PlayerCall(playerID string) error                                        // 玩家跟注
+	PlayerAllin(playerID string) error                                       // 玩家全下
+	PlayerCheck(playerID string) error                                       // 玩家過牌
+	PlayerFold(playerID string) error                                        // 玩家棄牌
+	PlayerPass(playerID string) error                                        // 玩家 Pass
 }
 
 type tableEngine struct {
@@ -353,16 +353,6 @@ func (te *tableEngine) UpdateTablePlayers(joinPlayers []JoinPlayer, leavePlayerI
 }
 
 /*
-UpdatePlayerActionDeadline 更新玩家動作結束時間
-  - 適用時機: 當玩家動作時間計時器開始時
-*/
-func (te *tableEngine) UpdatePlayerActionDeadline(playerID string, endAt int64) error {
-	te.table.State.CurrentActionEndAt = endAt
-	te.emitEvent("UpdatePlayerActionDeadline", "")
-	return nil
-}
-
-/*
 PlayerReserve 玩家確認座位
   - 適用時機: 玩家帶籌碼報名或補碼
 */
@@ -468,6 +458,18 @@ func (te *tableEngine) PlayersLeave(playerIDs []string) error {
 	te.emitTableStateEvent(TableStateEvent_PlayersLeave)
 
 	return nil
+}
+
+/*
+PlayerExtendActionDeadline 延長玩家動作結束時間
+  - 適用時機: 當玩家動作時間計時器開始時
+*/
+func (te *tableEngine) PlayerExtendActionDeadline(playerID string, duration int) (int64, error) {
+	endAt := time.Unix(te.table.State.CurrentActionEndAt, 0)
+	currentActionEndAt := endAt.Add(time.Duration(duration) * time.Second).Unix()
+	te.table.State.CurrentActionEndAt = currentActionEndAt
+	te.emitEvent("PlayerExtendActionDeadline", "")
+	return currentActionEndAt, nil
 }
 
 func (te *tableEngine) PlayerReady(playerID string) error {

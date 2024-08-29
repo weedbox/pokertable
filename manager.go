@@ -23,7 +23,6 @@ type Manager interface {
 	TableGameOpen(tableID string) error
 	UpdateBlind(tableID string, level int, ante, dealer, sb, bb int64) error
 	UpdateTablePlayers(tableID string, joinPlayers []JoinPlayer, leavePlayerIDs []string) (map[string]int, error)
-	UpdatePlayerActionDeadline(tableID, playerID string, endAt int64) error
 
 	// Player Table Actions
 	PlayerReserve(tableID string, joinPlayer JoinPlayer) error
@@ -32,6 +31,7 @@ type Manager interface {
 	PlayersLeave(tableID string, playerIDs []string) error
 
 	// Player Game Actions
+	PlayerExtendActionDeadline(tableID, playerID string, duration int) (int64, error)
 	PlayerReady(tableID, playerID string) error
 	PlayerPay(tableID, playerID string, chips int64) error
 	PlayerBet(tableID, playerID string, chips int64) error
@@ -173,15 +173,6 @@ func (m *manager) UpdateTablePlayers(tableID string, joinPlayers []JoinPlayer, l
 	return tableEngine.UpdateTablePlayers(joinPlayers, leavePlayerIDs)
 }
 
-func (m *manager) UpdatePlayerActionDeadline(tableID, playerID string, endAt int64) error {
-	tableEngine, err := m.GetTableEngine(tableID)
-	if err != nil {
-		return ErrManagerTableNotFound
-	}
-
-	return tableEngine.UpdatePlayerActionDeadline(playerID, endAt)
-}
-
 func (m *manager) PlayerReserve(tableID string, joinPlayer JoinPlayer) error {
 	tableEngine, err := m.GetTableEngine(tableID)
 	if err != nil {
@@ -216,6 +207,15 @@ func (m *manager) PlayersLeave(tableID string, playerIDs []string) error {
 	}
 
 	return tableEngine.PlayersLeave(playerIDs)
+}
+
+func (m *manager) PlayerExtendActionDeadline(tableID, playerID string, duration int) (int64, error) {
+	tableEngine, err := m.GetTableEngine(tableID)
+	if err != nil {
+		return -1, ErrManagerTableNotFound
+	}
+
+	return tableEngine.PlayerExtendActionDeadline(playerID, duration)
 }
 
 func (m *manager) PlayerReady(tableID, playerID string) error {

@@ -50,7 +50,7 @@ type TableState struct {
 	SeatMap              []int                  `json:"seat_map"`                 // 座位入座狀況，index: seat index (0-8), value: TablePlayerState index (-1 by default)
 	BlindState           *TableBlindState       `json:"blind_state"`              // 盲注狀態
 	CurrentDealerSeat    int                    `json:"current_dealer_seat"`      // 當前 Dealer 座位編號
-	CurrentSBSeat        int                    `json:"-"`                        // 當前 SB 座位編號
+	CurrentSBSeat        int                    `json:"current_sb_seat"`          // 當前 SB 座位編號
 	CurrentBBSeat        int                    `json:"current_bb_seat"`          // 當前 BB 座位編號
 	CurrentActionEndAt   int64                  `json:"current_action_end_at"`    // 當前動作結束時間 (Seconds)
 	PlayerStates         []*TablePlayerState    `json:"player_states"`            // 賽局桌上玩家狀態

@@ -184,6 +184,7 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
 		StartAt:              UnsetValue,
 		BlindState:           &tableSetting.Blind,
 		CurrentDealerSeat:    UnsetValue,
+		CurrentSBSeat:        UnsetValue,
 		CurrentBBSeat:        UnsetValue,
 		SeatMap:              NewDefaultSeatMap(tableSetting.Meta.TableMaxSeatCount),
 		PlayerStates:         make([]*TablePlayerState, 0),

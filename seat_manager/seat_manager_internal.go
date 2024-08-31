@@ -118,6 +118,16 @@ func (sm *seatManager) nextOccupiedSeatID(startSeatID int) int {
 	return UnsetSeatID
 }
 
+func (sm *seatManager) nextInAndHasChipsSeatID(startSeatID int) int {
+	for i := 1; i < sm.maxSeat; i++ {
+		seatID := (startSeatID + i) % 9
+		if sp, exist := sm.seats[seatID]; exist && sp != nil && sp.HasChips && sp.IsIn {
+			return seatID
+		}
+	}
+	return UnsetSeatID
+}
+
 func (sm *seatManager) previousOccupiedSeatID(startSeatID int, shouldActive bool) int {
 	for i := 1; i < sm.maxSeat; i++ {
 		seatID := (startSeatID + 9 - i) % 9
@@ -150,6 +160,16 @@ func (sm *seatManager) getActivePlayerCount() int {
 	count := 0
 	for _, seatPlayer := range sm.seats {
 		if seatPlayer != nil && seatPlayer.Active() {
+			count++
+		}
+	}
+	return count
+}
+
+func (sm *seatManager) getPlayerCountBy(matcher func(sp *SeatPlayer) bool) int {
+	count := 0
+	for _, seatPlayer := range sm.seats {
+		if seatPlayer != nil && matcher(seatPlayer) {
 			count++
 		}
 	}
@@ -227,10 +247,6 @@ func (sm *seatManager) initPositions(isRandom bool) error {
 	return nil
 }
 
-// func (sm *seatManager) defaultRuleInitPositions(startSeatID string) (int, error) {
-
-// }
-
 /*
 - 2 人常牌
   - 新的 BB 必須要從原本 BB 往後尋找到第一個有籌碼的玩家
@@ -248,12 +264,11 @@ func (sm *seatManager) rotatePositions() error {
 	previousRoundIsHU := sm.IsHU()
 
 	if sm.rule == Rule_Default {
-		// previousDealerSeatID := sm.dealerSeatID
 		previousSBSeatID := sm.sbSeatID
 		previousBBSeatID := sm.bbSeatID
 
 		// decide new bb first
-		newBBSeatID := sm.nextOccupiedSeatID(previousBBSeatID)
+		newBBSeatID := sm.nextInAndHasChipsSeatID(previousBBSeatID)
 		tempNewDealerSeatID := previousSBSeatID
 
 		// update seat_player.IsBetweenDealerBB before

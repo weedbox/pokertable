@@ -139,6 +139,9 @@ func (te *tableEngine) startGame() error {
 			}
 		}
 	})
+	te.game.OnGameRoundClosed(func(gs *pokerface.GameState) {
+		te.table.State.CurrentActionEndAt = 0
+	})
 
 	// start game
 	if _, err := te.game.Start(); err != nil {
@@ -211,6 +214,7 @@ func (te *tableEngine) continueGame() error {
 	te.table.State.Status = TableStateStatus_TableGameStandby
 	te.table.State.GamePlayerIndexes = make([]int, 0)
 	te.table.State.NextBBOrderPlayerIDs = make([]string, 0)
+	te.table.State.CurrentActionEndAt = 0
 	te.table.State.GameState = nil
 	te.table.State.LastPlayerGameAction = nil
 	for i := 0; i < len(te.table.State.PlayerStates); i++ {

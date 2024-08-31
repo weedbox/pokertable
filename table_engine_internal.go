@@ -76,7 +76,7 @@ func (te *tableEngine) updateCurrentActionEndAt(event pokerface.GameEvent, gs *p
 	p := gs.GetPlayer(gs.Status.CurrentPlayer)
 	validRounds := []string{GameRound_Preflop, GameRound_Flop, GameRound_Turn, GameRound_River}
 	validRoundState := te.table.State.Status == TableStateStatus_TableGamePlaying && event == pokerface.GameEvent_RoundStarted && funk.Contains(validRounds, gs.Status.Round)
-	validActions := []string{WagerAction_Call, WagerAction_Raise, WagerAction_AllIn, WagerAction_Check, WagerAction_Fold}
+	validActions := []string{WagerAction_Call, WagerAction_Raise, WagerAction_AllIn, WagerAction_Check, WagerAction_Fold, WagerAction_Bet}
 
 	isActionValid := true
 	for _, action := range p.AllowedActions {
@@ -406,14 +406,13 @@ func (te *tableEngine) calcGamePlayerIndexes(rule string, maxSeatCount, currentD
 				}
 			}
 		} else {
-			for i := dealerPlayerIdx; i < playerLen+dealerPlayerIdx; i++ {
-				playerIdx := i % playerLen
-				player := players[playerIdx]
-				if !player.IsParticipated {
-					continue
+			startSeatID := currentDealerSeatID
+			for i := startSeatID; i < len(seatMap)+startSeatID; i++ {
+				seatID := i % len(seatMap)
+				playerIdx := seatMap[seatID]
+				if playerIdx >= 0 && players[playerIdx].IsParticipated {
+					gamePlayerIndexes = append(gamePlayerIndexes, playerIdx)
 				}
-
-				gamePlayerIndexes = append(gamePlayerIndexes, playerIdx)
 			}
 		}
 	}

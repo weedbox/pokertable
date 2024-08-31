@@ -22,6 +22,7 @@ type Game interface {
 	OnAntesReceived(func(*pokerface.GameState))
 	OnBlindsReceived(func(*pokerface.GameState))
 	OnGameStateUpdated(func(*pokerface.GameState))
+	OnGameRoundClosed(func(*pokerface.GameState))
 	OnGameErrorUpdated(func(*pokerface.GameState, error))
 
 	// Others
@@ -57,6 +58,7 @@ type game struct {
 	onAntesReceived    func(*pokerface.GameState)
 	onBlindsReceived   func(*pokerface.GameState)
 	onGameStateUpdated func(*pokerface.GameState)
+	onGameRoundClosed  (func(*pokerface.GameState))
 	onGameErrorUpdated func(*pokerface.GameState, error)
 }
 
@@ -80,6 +82,7 @@ func NewGame(backend GameBackend, opts *pokerface.GameOptions) *game {
 		onAntesReceived:    func(gs *pokerface.GameState) {},
 		onBlindsReceived:   func(gs *pokerface.GameState) {},
 		onGameStateUpdated: func(gs *pokerface.GameState) {},
+		onGameRoundClosed:  func(*pokerface.GameState) {},
 		onGameErrorUpdated: func(gs *pokerface.GameState, err error) {},
 	}
 }
@@ -94,6 +97,10 @@ func (g *game) OnBlindsReceived(fn func(*pokerface.GameState)) {
 
 func (g *game) OnGameStateUpdated(fn func(*pokerface.GameState)) {
 	g.onGameStateUpdated = fn
+}
+
+func (g *game) OnGameRoundClosed(fn func(*pokerface.GameState)) {
+	g.onGameRoundClosed = fn
 }
 
 func (g *game) OnGameErrorUpdated(fn func(*pokerface.GameState, error)) {
@@ -484,6 +491,8 @@ func (g *game) onBlindsRequested(gs *pokerface.GameState) {
 }
 
 func (g *game) onRoundClosed(gs *pokerface.GameState) {
+	g.onGameRoundClosed(gs)
+
 	// Next round automatically
 	gs, err := g.backend.Next(gs)
 	if err != nil {

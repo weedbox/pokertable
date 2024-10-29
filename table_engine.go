@@ -377,6 +377,9 @@ func (te *tableEngine) PlayerReserve(joinPlayer JoinPlayer) error {
 		// ReBuy
 		playerState := te.table.State.PlayerStates[targetPlayerIdx]
 		playerState.Bankroll += joinPlayer.RedeemChips
+		if err := te.sm.UpdatePlayerHasChips(playerState.PlayerID, true); err != nil {
+			return err
+		}
 
 		te.emitTablePlayerStateEvent(playerState)
 		te.emitTablePlayerReservedEvent(playerState)

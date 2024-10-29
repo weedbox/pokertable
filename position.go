@@ -52,8 +52,8 @@ func (te *tableEngine) updatePlayerPositions(maxSeat int, players []*TablePlayer
 
 	for i := bbSeatID; i < maxSeat+bbSeatID; i++ {
 		seatID := i % maxSeat
-		if seatPlayer, exist := te.sm.Seats()[seatID]; exist && seatPlayer != nil {
-			if seatPlayer.Active() {
+		if seatPlayer, exist := te.sm.Seats()[seatID]; exist {
+			if seatPlayer != nil && seatPlayer.Active() {
 				if playerIdx, exist := playerIdxData[seatPlayer.ID]; exist && playerIdx < len(players) {
 					players[playerIdx].Positions = playerPositions[0]
 					playerPositions = playerPositions[1:]

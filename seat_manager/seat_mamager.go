@@ -66,3 +66,7 @@ func NewSeatManager(maxSeats int, rule string) SeatManager {
 		isInitPositions: false,
 	}
 }
+
+func NewSeatManagerFromState(sm *seatManager) SeatManager {
+	return sm
+}

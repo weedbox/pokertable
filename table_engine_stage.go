@@ -27,11 +27,11 @@ func (te *tableEngine) openGame(oldTable *Table) (*Table, error) {
 	// Step 4: 計算座位
 	if !te.sm.IsInitPositions() {
 		if err := te.sm.InitPositions(true); err != nil {
-			return oldTable, err
+			return oldTable, ErrTableOpenGameFailed
 		}
 	} else {
 		if err := te.sm.RotatePositions(); err != nil {
-			return oldTable, err
+			return oldTable, ErrTableOpenGameFailed
 		}
 	}
 

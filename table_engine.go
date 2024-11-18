@@ -52,6 +52,7 @@ type TableEngine interface {
 	// Player Table Actions
 	PlayerReserve(joinPlayer JoinPlayer) error     // 玩家確認座位
 	PlayerJoin(playerID string) error              // 玩家入桌
+	PlayerSettlementFinish(playerID string) error  // 玩家結算完成
 	PlayerRedeemChips(joinPlayer JoinPlayer) error // 增購籌碼
 	PlayersLeave(playerIDs []string) error         // 玩家們離桌
 
@@ -75,7 +76,8 @@ type tableEngine struct {
 	game                      Game
 	gameBackend               GameBackend
 	rg                        *syncsaga.ReadyGroup
-	tb                        *timebank.TimeBank
+	rgForOpenGame             *syncsaga.ReadyGroup
+	tbForOpenGame             *timebank.TimeBank
 	sm                        seat_manager.SeatManager
 	onTableUpdated            func(table *Table)
 	onTableErrorUpdated       func(table *Table, err error)
@@ -92,7 +94,8 @@ func NewTableEngine(options *TableEngineOptions, opts ...TableEngineOpt) TableEn
 	te := &tableEngine{
 		options:                   options,
 		rg:                        syncsaga.NewReadyGroup(),
-		tb:                        timebank.NewTimeBank(),
+		rgForOpenGame:             syncsaga.NewReadyGroup(),
+		tbForOpenGame:             timebank.NewTimeBank(),
 		onTableUpdated:            callbacks.OnTableUpdated,
 		onTableErrorUpdated:       callbacks.OnTableErrorUpdated,
 		onTableStateUpdated:       callbacks.OnTableStateUpdated,
@@ -254,6 +257,9 @@ func (te *tableEngine) StartTableGame() error {
 }
 
 func (te *tableEngine) TableGameOpen() error {
+	te.rgForOpenGame.Stop()
+	te.tbForOpenGame.Cancel()
+
 	te.lock.Lock()
 	defer te.lock.Unlock()
 
@@ -421,6 +427,28 @@ func (te *tableEngine) PlayerJoin(playerID string) error {
 	}
 
 	te.emitEvent("PlayerJoin", playerID)
+	return nil
+}
+
+/*
+PlayerSettlementFinish 玩家結算完成
+  - 適用時機: 玩家已經看完結算動畫
+*/
+func (te *tableEngine) PlayerSettlementFinish(playerID string) error {
+	playerIdx := te.table.FindPlayerIdx(playerID)
+	if playerIdx == UnsetValue {
+		return ErrTablePlayerNotFound
+	}
+
+	if !te.table.State.PlayerStates[playerIdx].IsIn {
+		return ErrTablePlayerInvalidAction
+	}
+
+	// 有設定 ReadyGroup，且玩家尚未 SettlementFinish 時，則 SettlementFinish
+	if isReady, exist := te.rgForOpenGame.GetParticipantStates()[int64(playerIdx)]; exist && !isReady {
+		te.rgForOpenGame.Ready(int64(playerIdx))
+	}
+
 	return nil
 }
 

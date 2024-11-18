@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/weedbox/syncsaga"
+
 	"github.com/thoas/go-funk"
 	"github.com/weedbox/pokerface"
 	"github.com/weedbox/pokerface/settlement"
@@ -280,6 +282,23 @@ func (te *tableEngine) continueGame() error {
 			}
 			return nil
 		}
+
+		te.rgForOpenGame.Stop()
+		te.rgForOpenGame.OnCompleted(func(rg *syncsaga.ReadyGroup) {
+			err := nextMoveHandler()
+			if err != nil {
+				fmt.Printf("[DEBUG#continueGame] rgForOpenGame.OnCompleted() -> nextMoveHandler error: %v\n", err)
+			}
+		})
+		te.rgForOpenGame.ResetParticipants()
+		for playerIdx := range te.table.State.PlayerStates {
+			if te.table.State.PlayerStates[playerIdx].IsIn {
+				// 目前入桌玩家才要放到 ready group 做處理
+				te.rgForOpenGame.Add(int64(playerIdx), false)
+			}
+		}
+
+		te.rgForOpenGame.Start()
 	}
 
 	return te.delay(nextMoveInterval, nextMoveHandler)

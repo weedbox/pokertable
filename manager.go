@@ -27,6 +27,7 @@ type Manager interface {
 	// Player Table Actions
 	PlayerReserve(tableID string, joinPlayer JoinPlayer) error
 	PlayerJoin(tableID, playerID string) error
+	PlayerSettlementFinish(tableID, playerID string) error
 	PlayerRedeemChips(tableID string, joinPlayer JoinPlayer) error
 	PlayersLeave(tableID string, playerIDs []string) error
 
@@ -189,6 +190,15 @@ func (m *manager) PlayerJoin(tableID, playerID string) error {
 	}
 
 	return tableEngine.PlayerJoin(playerID)
+}
+
+func (m *manager) PlayerSettlementFinish(tableID, playerID string) error {
+	tableEngine, err := m.GetTableEngine(tableID)
+	if err != nil {
+		return ErrManagerTableNotFound
+	}
+
+	return tableEngine.PlayerSettlementFinish(playerID)
 }
 
 func (m *manager) PlayerRedeemChips(tableID string, joinPlayer JoinPlayer) error {

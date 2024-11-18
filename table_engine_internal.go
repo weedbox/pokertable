@@ -30,7 +30,7 @@ func (te *tableEngine) delay(interval int, fn func() error) error {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	te.tb.NewTask(time.Duration(interval)*time.Second, func(isCancelled bool) {
+	te.tbForOpenGame.NewTask(time.Duration(interval)*time.Second, func(isCancelled bool) {
 		defer wg.Done()
 
 		if isCancelled {

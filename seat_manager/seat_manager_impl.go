@@ -36,13 +36,10 @@ func (sm *seatManager) RandomAssignSeats(playerIDs []string) error {
 	defer sm.mu.Unlock()
 
 	seatIDs, err := sm.randomSeatIDs(len(playerIDs))
-	fmt.Println("[RandomAssignSeats] 1")
 	if err != nil {
-		fmt.Println("[RandomAssignSeats] 2 Error:", err)
 		sm.printState(1, func(tag int) {
 			fmt.Printf("[DEBUG#seatManager#RandomAssignSeats#%d][randomSeatIDs] count: %d. Error: %+v\n", tag, len(playerIDs), err)
 		})
-		fmt.Println("[RandomAssignSeats] 3 Error:", err)
 		return err
 	}
 
@@ -61,7 +58,6 @@ func (sm *seatManager) RandomAssignSeats(playerIDs []string) error {
 		sm.SeatData[seatID].IsBetweenDealerBB = isBetweenDealerBB
 	}
 
-	fmt.Println("[RandomAssignSeats] 4")
 	return nil
 }
 

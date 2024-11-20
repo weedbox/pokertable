@@ -1,6 +1,8 @@
 package seat_manager
 
 import (
+	"encoding/json"
+	"fmt"
 	"math/rand"
 	"sort"
 	"time"
@@ -10,6 +12,9 @@ func (sm *seatManager) randomSeatIDs(count int) ([]int, error) {
 	emptySeatIDs := sm.getEmptySeatIDs()
 
 	if len(emptySeatIDs) < count {
+		sm.printState(1, func(tag int) {
+			fmt.Printf("[DEBUG#seatManager#randomSeatIDs#%d] count: %d, emptySeatIDs: %+v, len(emptySeatIDs): %d. Error: %+v\n", tag, count, emptySeatIDs, len(emptySeatIDs), ErrNotEnoughSeats)
+		})
 		return nil, ErrNotEnoughSeats
 	}
 
@@ -22,13 +27,13 @@ func (sm *seatManager) randomSeatIDs(count int) ([]int, error) {
 }
 
 func (sm *seatManager) isBetweenDealerBB(dealerSeatID, bbSeatID, targetSeatID int) bool {
-	if sm.rule == Rule_ShortDeck {
+	if sm.Rule == Rule_ShortDeck {
 		return false
 	}
 
 	if bbSeatID-dealerSeatID < 0 {
-		for i := dealerSeatID + 1; i < (bbSeatID + sm.maxSeat); i++ {
-			if i%sm.maxSeat == targetSeatID {
+		for i := dealerSeatID + 1; i < (bbSeatID + sm.MaxSeat); i++ {
+			if i%sm.MaxSeat == targetSeatID {
 				return true
 			}
 		}
@@ -39,7 +44,7 @@ func (sm *seatManager) isBetweenDealerBB(dealerSeatID, bbSeatID, targetSeatID in
 
 func (sm *seatManager) getEmptySeatIDs() []int {
 	emptySeatIDs := make([]int, 0)
-	for seatID, seatPlayer := range sm.seats {
+	for seatID, seatPlayer := range sm.SeatData {
 		if seatPlayer == nil {
 			emptySeatIDs = append(emptySeatIDs, seatID)
 		}
@@ -49,7 +54,7 @@ func (sm *seatManager) getEmptySeatIDs() []int {
 
 func (sm *seatManager) getOccupiedSeatIDs() []int {
 	seatIDs := make([]int, 0)
-	for seatID, seatPlayer := range sm.seats {
+	for seatID, seatPlayer := range sm.SeatData {
 		if seatPlayer != nil && seatPlayer.Active() {
 			seatIDs = append(seatIDs, seatID)
 		}
@@ -63,7 +68,7 @@ func (sm *seatManager) getOccupiedSeatIDs() []int {
 
 func (sm *seatManager) getOccupiedPlayerSeatIDs() map[string]int {
 	seats := make(map[string]int)
-	for seatID, seatPlayer := range sm.seats {
+	for seatID, seatPlayer := range sm.SeatData {
 		if seatPlayer != nil {
 			seats[seatPlayer.ID] = seatID
 		}
@@ -72,7 +77,7 @@ func (sm *seatManager) getOccupiedPlayerSeatIDs() map[string]int {
 }
 
 func (sm *seatManager) getSeatPlayer(playerID string) (*SeatPlayer, int, error) {
-	for seat, seatPlayer := range sm.seats {
+	for seat, seatPlayer := range sm.SeatData {
 		if seatPlayer != nil && seatPlayer.ID == playerID {
 			return seatPlayer, seat, nil
 		}
@@ -83,6 +88,9 @@ func (sm *seatManager) getSeatPlayer(playerID string) (*SeatPlayer, int, error) 
 func (sm *seatManager) randomOccupiedSeat() (int, error) {
 	seatIDs := sm.getOccupiedSeatIDs()
 	if len(seatIDs) == 0 {
+		sm.printState(1, func(tag int) {
+			fmt.Printf("[DEBUG#seatManager#randomOccupiedSeat#%d] len(seatIDs): %d, seatIDs: %+v. Error: %+v\n", tag, len(seatIDs), seatIDs, ErrNotEnoughSeats)
+		})
 		return UnsetSeatID, ErrNotEnoughSeats
 	}
 
@@ -97,6 +105,9 @@ func (sm *seatManager) randomOccupiedSeat() (int, error) {
 func (sm *seatManager) firstOccupiedSeat() (int, error) {
 	seatIDs := sm.getOccupiedSeatIDs()
 	if len(seatIDs) == 0 {
+		sm.printState(1, func(tag int) {
+			fmt.Printf("[DEBUG#seatManager#firstOccupiedSeat#%d] len(seatIDs): %d, seatIDs: %+v. Error: %+v\n", tag, len(seatIDs), seatIDs, ErrNotEnoughSeats)
+		})
 		return UnsetSeatID, ErrNotEnoughSeats
 	}
 	return seatIDs[0], nil
@@ -109,29 +120,35 @@ func (sm *seatManager) newRandom() *rand.Rand {
 }
 
 func (sm *seatManager) nextOccupiedSeatID(startSeatID int) int {
-	for i := 1; i < sm.maxSeat; i++ {
+	for i := 1; i < sm.MaxSeat; i++ {
 		seatID := (startSeatID + i) % 9
-		if sp, exist := sm.seats[seatID]; exist && sp != nil && sp.Active() {
+		if sp, exist := sm.SeatData[seatID]; exist && sp != nil && sp.Active() {
 			return seatID
 		}
 	}
+	sm.printState(1, func(tag int) {
+		fmt.Printf("[DEBUG#seatManager#nextOccupiedSeatID#%d] startSeatID: %d. UnsetSeatID Error.\n", tag, startSeatID)
+	})
 	return UnsetSeatID
 }
 
 func (sm *seatManager) nextInAndHasChipsSeatID(startSeatID int) int {
-	for i := 1; i < sm.maxSeat; i++ {
+	for i := 1; i < sm.MaxSeat; i++ {
 		seatID := (startSeatID + i) % 9
-		if sp, exist := sm.seats[seatID]; exist && sp != nil && sp.HasChips && sp.IsIn {
+		if sp, exist := sm.SeatData[seatID]; exist && sp != nil && sp.HasChips && sp.IsIn {
 			return seatID
 		}
 	}
+	sm.printState(1, func(tag int) {
+		fmt.Printf("[DEBUG#seatManager#nextInAndHasChipsSeatID#%d] startSeatID: %d. UnsetSeatID Error.\n", tag, startSeatID)
+	})
 	return UnsetSeatID
 }
 
 func (sm *seatManager) previousOccupiedSeatID(startSeatID int, shouldActive bool) int {
-	for i := 1; i < sm.maxSeat; i++ {
+	for i := 1; i < sm.MaxSeat; i++ {
 		seatID := (startSeatID + 9 - i) % 9
-		if sp, exist := sm.seats[seatID]; exist && sp != nil {
+		if sp, exist := sm.SeatData[seatID]; exist && sp != nil {
 			if shouldActive && sp.Active() {
 				return seatID
 			}
@@ -141,35 +158,31 @@ func (sm *seatManager) previousOccupiedSeatID(startSeatID int, shouldActive bool
 			}
 		}
 	}
+	sm.printState(1, func(tag int) {
+		fmt.Printf("[DEBUG#seatManager#previousOccupiedSeatID#%d] startSeatID: %d, shouldActive: %+v. UnsetSeatID Error.\n", tag, startSeatID, shouldActive)
+	})
 	return UnsetSeatID
 }
 
 func (sm *seatManager) previousOccupiedAliveSeatID(startSeatID int) int {
-	for i := 1; i < sm.maxSeat; i++ {
+	for i := 1; i < sm.MaxSeat; i++ {
 		seatID := (startSeatID + 9 - i) % 9
-		if sp, exist := sm.seats[seatID]; exist && sp != nil {
+		if sp, exist := sm.SeatData[seatID]; exist && sp != nil {
 			if sp.IsIn && sp.HasChips {
 				return seatID
 			}
 		}
 	}
+	sm.printState(1, func(tag int) {
+		fmt.Printf("[DEBUG#seatManager#previousOccupiedAliveSeatID#%d] startSeatID: %d. UnsetSeatID Error.\n", tag, startSeatID)
+	})
 	return UnsetSeatID
 }
 
 func (sm *seatManager) getActivePlayerCount() int {
 	count := 0
-	for _, seatPlayer := range sm.seats {
+	for _, seatPlayer := range sm.SeatData {
 		if seatPlayer != nil && seatPlayer.Active() {
-			count++
-		}
-	}
-	return count
-}
-
-func (sm *seatManager) getPlayerCountBy(matcher func(sp *SeatPlayer) bool) int {
-	count := 0
-	for _, seatPlayer := range sm.seats {
-		if seatPlayer != nil && matcher(seatPlayer) {
 			count++
 		}
 	}
@@ -192,6 +205,9 @@ func (sm *seatManager) getPlayerCountBy(matcher func(sp *SeatPlayer) bool) int {
 func (sm *seatManager) initPositions(isRandom bool) error {
 	activeCount := sm.getActivePlayerCount()
 	if activeCount < 2 {
+		sm.printState(1, func(tag int) {
+			fmt.Printf("[DEBUG#seatManager#initPositions#%d] activeCount: %d. Error: %+v\n", tag, activeCount, ErrUnableToInitPositions)
+		})
 		return ErrUnableToInitPositions
 	}
 
@@ -199,48 +215,63 @@ func (sm *seatManager) initPositions(isRandom bool) error {
 	if isRandom {
 		seatID, err := sm.randomOccupiedSeat()
 		if err != nil {
+			sm.printState(2, func(tag int) {
+				fmt.Printf("[DEBUG#seatManager#initPositions#%d] [randomOccupiedSeat] seatID: %d. Error: %+v\n", tag, seatID, err)
+			})
 			return err
 		}
 		firstSeatID = seatID
 	} else {
 		seatID, err := sm.firstOccupiedSeat()
 		if err != nil {
+			sm.printState(3, func(tag int) {
+				fmt.Printf("[DEBUG#seatManager#initPositions#%d] [firstOccupiedSeat] seatID: %d. Error: %+v\n", tag, seatID, err)
+			})
 			return err
 		}
 		firstSeatID = seatID
 	}
 
-	if sm.rule == Rule_Default {
+	if sm.Rule == Rule_Default {
 		// pick an occupied seat id as BB
-		sm.bbSeatID = firstSeatID
+		sm.BBSeatID = firstSeatID
 		if activeCount == 2 {
 			// Dealer & SB are another seat id
-			for seatID, seatPlayer := range sm.seats {
+			for seatID, seatPlayer := range sm.SeatData {
 				if seatPlayer != nil && seatPlayer.Active() && seatID != firstSeatID {
-					sm.dealerSeatID = seatID
-					sm.sbSeatID = seatID
+					sm.DealerSeatID = seatID
+					sm.SBSeatID = seatID
 					break
 				}
 			}
 		} else {
-			if sbSeatID := sm.previousOccupiedSeatID(sm.bbSeatID, true); sbSeatID != UnsetSeatID {
-				sm.sbSeatID = sbSeatID
+			if sbSeatID := sm.previousOccupiedSeatID(sm.BBSeatID, true); sbSeatID != UnsetSeatID {
+				sm.SBSeatID = sbSeatID
 			} else {
+				sm.printState(4, func(tag int) {
+					fmt.Printf("[DEBUG#seatManager#initPositions#%d] [previousOccupiedSeatID] sbSeatID: %d. Error: %+v\n", tag, sbSeatID, ErrUnableToInitPositions)
+				})
 				return ErrUnableToInitPositions
 			}
 
-			if dealerSeatID := sm.previousOccupiedSeatID(sm.sbSeatID, true); dealerSeatID != UnsetSeatID {
-				sm.dealerSeatID = dealerSeatID
+			if dealerSeatID := sm.previousOccupiedSeatID(sm.SBSeatID, true); dealerSeatID != UnsetSeatID {
+				sm.DealerSeatID = dealerSeatID
 			} else {
+				sm.printState(5, func(tag int) {
+					fmt.Printf("[DEBUG#seatManager#initPositions#%d] [previousOccupiedSeatID] dealerSeatID: %d. Error: %+v\n", tag, dealerSeatID, ErrUnableToInitPositions)
+				})
 				return ErrUnableToInitPositions
 			}
 		}
-	} else if sm.rule == Rule_ShortDeck {
-		sm.dealerSeatID = firstSeatID
-		sm.sbSeatID = UnsetSeatID
-		sm.bbSeatID = UnsetSeatID
+	} else if sm.Rule == Rule_ShortDeck {
+		sm.DealerSeatID = firstSeatID
+		sm.SBSeatID = UnsetSeatID
+		sm.BBSeatID = UnsetSeatID
 	} else {
 		// FIXME: apply more rule calculations
+		sm.printState(6, func(tag int) {
+			fmt.Printf("[DEBUG#seatManager#initPositions#%d] sm.Rule: %s. Error: %+v\n", tag, sm.Rule, ErrUnableToInitPositions)
+		})
 		return ErrUnableToInitPositions
 	}
 
@@ -263,9 +294,9 @@ func (sm *seatManager) initPositions(isRandom bool) error {
 func (sm *seatManager) rotatePositions() error {
 	previousRoundIsHU := sm.IsHU()
 
-	if sm.rule == Rule_Default {
-		previousSBSeatID := sm.sbSeatID
-		previousBBSeatID := sm.bbSeatID
+	if sm.Rule == Rule_Default {
+		previousSBSeatID := sm.SBSeatID
+		previousBBSeatID := sm.BBSeatID
 
 		// decide new bb first
 		newBBSeatID := sm.nextInAndHasChipsSeatID(previousBBSeatID)
@@ -274,50 +305,59 @@ func (sm *seatManager) rotatePositions() error {
 		// update seat_player.IsBetweenDealerBB before
 		for seatID, sp := range sm.Seats() {
 			if sp != nil && !sp.Active() {
-				sm.seats[seatID].IsBetweenDealerBB = sm.isBetweenDealerBB(tempNewDealerSeatID, newBBSeatID, seatID)
+				sm.SeatData[seatID].IsBetweenDealerBB = sm.isBetweenDealerBB(tempNewDealerSeatID, newBBSeatID, seatID)
 			}
 		}
 
 		activeCount := sm.getActivePlayerCount()
 		if activeCount < 2 {
+			sm.printState(1, func(tag int) {
+				fmt.Printf("[DEBUG#seatManager#rotatePositions#%d] activeCount: %d. Error: %+v\n", tag, activeCount, ErrUnableToRotatePositions)
+			})
 			return ErrUnableToRotatePositions
 		}
 
 		// update bb seat id
-		sm.bbSeatID = newBBSeatID
+		sm.BBSeatID = newBBSeatID
 		if activeCount == 2 {
 			// calc & update dealer & sb seat ids
-			sm.dealerSeatID = sm.nextOccupiedSeatID(sm.bbSeatID)
-			sm.sbSeatID = sm.dealerSeatID
+			sm.DealerSeatID = sm.nextOccupiedSeatID(sm.BBSeatID)
+			sm.SBSeatID = sm.DealerSeatID
 		} else {
 			// calc & update dealer & sb seat ids
-			sm.sbSeatID = previousBBSeatID
+			sm.SBSeatID = previousBBSeatID
 
 			if previousRoundIsHU {
-				tempNewDealerSeatID = sm.previousOccupiedAliveSeatID(sm.sbSeatID)
+				tempNewDealerSeatID = sm.previousOccupiedAliveSeatID(sm.SBSeatID)
 
 				// update seat_player.IsBetweenDealerBB before
 				for seatID, sp := range sm.Seats() {
 					if sp != nil && !sp.Active() {
-						sm.seats[seatID].IsBetweenDealerBB = sm.isBetweenDealerBB(tempNewDealerSeatID, newBBSeatID, seatID)
+						sm.SeatData[seatID].IsBetweenDealerBB = sm.isBetweenDealerBB(tempNewDealerSeatID, newBBSeatID, seatID)
 					}
 				}
-				sm.dealerSeatID = tempNewDealerSeatID
+				sm.DealerSeatID = tempNewDealerSeatID
 			} else {
-				sm.dealerSeatID = previousSBSeatID
+				sm.DealerSeatID = previousSBSeatID
 			}
 		}
-	} else if sm.rule == Rule_ShortDeck {
+	} else if sm.Rule == Rule_ShortDeck {
 		if sm.getActivePlayerCount() < 2 {
+			sm.printState(2, func(tag int) {
+				fmt.Printf("[DEBUG#seatManager#rotatePositions#%d] sm.getActivePlayerCount: %d. Error: %+v\n", tag, sm.getActivePlayerCount(), ErrUnableToRotatePositions)
+			})
 			return ErrUnableToRotatePositions
 		}
 
 		// must find a next valid dealer
-		sm.dealerSeatID = sm.nextOccupiedSeatID(sm.dealerSeatID)
-		sm.sbSeatID = UnsetSeatID
-		sm.bbSeatID = UnsetSeatID
+		sm.DealerSeatID = sm.nextOccupiedSeatID(sm.DealerSeatID)
+		sm.SBSeatID = UnsetSeatID
+		sm.BBSeatID = UnsetSeatID
 	} else {
 		// FIXME: apply more rule calculations
+		sm.printState(3, func(tag int) {
+			fmt.Printf("[DEBUG#seatManager#rotatePositions#%d] sm.Rule: %s. Error: %+v\n", tag, sm.Rule, ErrUnableToRotatePositions)
+		})
 		return ErrUnableToRotatePositions
 	}
 
@@ -329,5 +369,15 @@ func (sm *seatManager) newSeatPlayer(playerID string) SeatPlayer {
 		ID:       playerID,
 		IsIn:     false,
 		HasChips: true,
+	}
+}
+
+func (sm *seatManager) printState(tag int, errorLogger func(tag int)) {
+	errorLogger(tag)
+	encoded, err := json.Marshal(sm)
+	if err != nil {
+		fmt.Println("[DEBUG#seatManager#printState] Error:", err)
+	} else {
+		fmt.Println("[DEBUG#seatManager#printState] State:", string(encoded))
 	}
 }

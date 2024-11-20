@@ -40,10 +40,10 @@ type SeatManager interface {
 }
 
 type SeatPlayer struct {
-	ID                string
-	IsIn              bool
-	IsBetweenDealerBB bool
-	HasChips          bool
+	ID                string `json:"id"`
+	IsIn              bool   `json:"is_in"`
+	IsBetweenDealerBB bool   `json:"is_between_dealer_bb"`
+	HasChips          bool   `json:"has_chips"`
 }
 
 func (sp *SeatPlayer) Active() bool {
@@ -51,19 +51,19 @@ func (sp *SeatPlayer) Active() bool {
 }
 
 func NewSeatManager(maxSeats int, rule string) SeatManager {
-	seats := make(map[int]*SeatPlayer)
+	seatData := make(map[int]*SeatPlayer)
 	for i := 0; i < maxSeats; i++ {
-		seats[i] = nil
+		seatData[i] = nil
 	}
 
 	return &seatManager{
-		maxSeat:         maxSeats,
-		seats:           seats,
-		dealerSeatID:    UnsetSeatID,
-		sbSeatID:        UnsetSeatID,
-		bbSeatID:        UnsetSeatID,
-		rule:            rule,
-		isInitPositions: false,
+		MaxSeat:      maxSeats,
+		SeatData:     seatData,
+		DealerSeatID: UnsetSeatID,
+		SBSeatID:     UnsetSeatID,
+		BBSeatID:     UnsetSeatID,
+		Rule:         rule,
+		IsInit:       false,
 	}
 }
 

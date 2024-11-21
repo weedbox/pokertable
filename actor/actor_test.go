@@ -29,7 +29,7 @@ func TestActor_Basic(t *testing.T) {
 			TableMaxSeatCount:   9,
 			TableMinPlayerCount: 2,
 			MinChipUnit:         2,
-			ActionTime:          10,
+			ActionTime:          11,
 		},
 		Blind: pokertable.TableBlindState{
 			Level:  1,

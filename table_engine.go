@@ -257,11 +257,11 @@ func (te *tableEngine) StartTableGame() error {
 }
 
 func (te *tableEngine) TableGameOpen() error {
-	te.rgForOpenGame.Stop()
-	te.tbForOpenGame.Cancel()
-
 	te.lock.Lock()
 	defer te.lock.Unlock()
+
+	te.rgForOpenGame.Stop()
+	te.tbForOpenGame.Cancel()
 
 	if te.table.State.GameState != nil {
 		fmt.Printf("[DEBUG#TableGameOpen] Table (%s) game (%s) with game count (%d) is already opened.\n", te.table.ID, te.table.State.GameState.GameID, te.table.State.GameCount)

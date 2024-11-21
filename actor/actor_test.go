@@ -65,6 +65,18 @@ func TestActor_Basic(t *testing.T) {
 			DebugPrintTableGameOpened(*table)
 		case pokertable.TableStateStatus_TableGameSettled:
 			DebugPrintTableGameSettled(*table)
+
+			for _, player := range table.State.PlayerStates {
+				if player.Bankroll <= 0 {
+					continue
+				}
+
+				go func(playerID string) {
+					// time.Sleep(time.Millisecond * 100)
+					manager.PlayerSettlementFinish(table.ID, playerID)
+				}(player.PlayerID)
+			}
+
 		case pokertable.TableStateStatus_TablePausing:
 			err := tableEngine.CloseTable()
 			assert.Nil(t, err, "close table failed")

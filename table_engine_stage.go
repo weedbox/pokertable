@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/weedbox/syncsaga"
-
 	"github.com/thoas/go-funk"
 	"github.com/weedbox/pokerface"
 	"github.com/weedbox/pokerface/settlement"
@@ -154,7 +152,7 @@ func (te *tableEngine) startGame() error {
 	return nil
 }
 
-func (te *tableEngine) settleGame() {
+func (te *tableEngine) settleGame() []*TablePlayerState {
 	te.table.State.Status = TableStateStatus_TableGameSettled
 
 	// 計算攤牌勝率用
@@ -187,6 +185,7 @@ func (te *tableEngine) settleGame() {
 	}
 
 	// 把玩家輸贏籌碼更新到 Bankroll
+	alivePlayers := make([]*TablePlayerState, 0)
 	for _, player := range te.table.State.GameState.Result.Players {
 		playerIdx := te.table.State.GamePlayerIndexes[player.Idx]
 		playerState := te.table.State.PlayerStates[playerIdx]
@@ -202,6 +201,10 @@ func (te *tableEngine) settleGame() {
 		} else {
 			playerState.GameStatistics.ShowdownWinningChance = false
 		}
+
+		if playerState.Bankroll > 0 {
+			alivePlayers = append(alivePlayers, playerState)
+		}
 	}
 
 	// 更新 NextBBOrderPlayerIDs (移除沒有籌碼的玩家)
@@ -209,9 +212,11 @@ func (te *tableEngine) settleGame() {
 
 	te.emitEvent("SettleTableGameResult", "")
 	te.emitTableStateEvent(TableStateEvent_GameSettled)
+
+	return alivePlayers
 }
 
-func (te *tableEngine) continueGame() error {
+func (te *tableEngine) continueGame(alivePlayers []*TablePlayerState) error {
 	// Reset table state
 	te.table.State.Status = TableStateStatus_TableGameStandby
 	te.table.State.GamePlayerIndexes = make([]int, 0)
@@ -272,8 +277,15 @@ func (te *tableEngine) continueGame() error {
 				te.emitTableStateEvent(TableStateEvent_StatusUpdated)
 			} else {
 				if te.shouldAutoGameOpen() {
-					fmt.Println("[DEBUG#continueGame] delay -> TableGameOpen")
-					return te.TableGameOpen()
+					// fmt.Println("[DEBUG#continueGame] delay -> TableGameOpen")
+					// return te.TableGameOpen()
+					nextGameCount := te.table.State.GameCount + 1
+					participants := make(map[string]int)
+					for idx, player := range alivePlayers {
+						participants[player.PlayerID] = idx
+					}
+					te.ogm.Setup(nextGameCount, participants)
+					return nil
 				}
 
 				// Unhandled Situation
@@ -283,22 +295,22 @@ func (te *tableEngine) continueGame() error {
 			return nil
 		}
 
-		te.rgForOpenGame.Stop()
-		te.rgForOpenGame.OnCompleted(func(rg *syncsaga.ReadyGroup) {
-			err := nextMoveHandler()
-			if err != nil {
-				fmt.Printf("[DEBUG#continueGame] rgForOpenGame.OnCompleted() -> nextMoveHandler error: %v\n", err)
-			}
-		})
-		te.rgForOpenGame.ResetParticipants()
-		for playerIdx := range te.table.State.PlayerStates {
-			if te.table.State.PlayerStates[playerIdx].IsIn {
-				// 目前入桌玩家才要放到 ready group 做處理
-				te.rgForOpenGame.Add(int64(playerIdx), false)
-			}
-		}
+		// te.rgForOpenGame.Stop()
+		// te.rgForOpenGame.OnCompleted(func(rg *syncsaga.ReadyGroup) {
+		// 	err := nextMoveHandler()
+		// 	if err != nil {
+		// 		fmt.Printf("[DEBUG#continueGame] rgForOpenGame.OnCompleted() -> nextMoveHandler error: %v\n", err)
+		// 	}
+		// })
+		// te.rgForOpenGame.ResetParticipants()
+		// for playerIdx := range te.table.State.PlayerStates {
+		// 	if te.table.State.PlayerStates[playerIdx].IsIn {
+		// 		// 目前入桌玩家才要放到 ready group 做處理
+		// 		te.rgForOpenGame.Add(int64(playerIdx), false)
+		// 	}
+		// }
 
-		te.rgForOpenGame.Start()
+		// te.rgForOpenGame.Start()
 	}
 
 	return te.delay(nextMoveInterval, nextMoveHandler)

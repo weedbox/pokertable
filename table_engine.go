@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/thoas/go-funk"
+	"github.com/weedbox/pokertable/open_game_manager"
 	"github.com/weedbox/pokertable/seat_manager"
 	"github.com/weedbox/syncsaga"
 	"github.com/weedbox/timebank"
@@ -70,15 +71,16 @@ type TableEngine interface {
 }
 
 type tableEngine struct {
-	lock                      sync.Mutex
-	options                   *TableEngineOptions
-	table                     *Table
-	game                      Game
-	gameBackend               GameBackend
-	rg                        *syncsaga.ReadyGroup
-	rgForOpenGame             *syncsaga.ReadyGroup
+	lock        sync.Mutex
+	options     *TableEngineOptions
+	table       *Table
+	game        Game
+	gameBackend GameBackend
+	rg          *syncsaga.ReadyGroup
+	// rgForOpenGame             *syncsaga.ReadyGroup
 	tbForOpenGame             *timebank.TimeBank
 	sm                        seat_manager.SeatManager
+	ogm                       open_game_manager.OpenGameManager
 	onTableUpdated            func(table *Table)
 	onTableErrorUpdated       func(table *Table, err error)
 	onTableStateUpdated       func(event string, table *Table)
@@ -92,9 +94,9 @@ type tableEngine struct {
 func NewTableEngine(options *TableEngineOptions, opts ...TableEngineOpt) TableEngine {
 	callbacks := NewTableEngineCallbacks()
 	te := &tableEngine{
-		options:                   options,
-		rg:                        syncsaga.NewReadyGroup(),
-		rgForOpenGame:             syncsaga.NewReadyGroup(),
+		options: options,
+		rg:      syncsaga.NewReadyGroup(),
+		// rgForOpenGame:             syncsaga.NewReadyGroup(),
 		tbForOpenGame:             timebank.NewTimeBank(),
 		onTableUpdated:            callbacks.OnTableUpdated,
 		onTableErrorUpdated:       callbacks.OnTableErrorUpdated,
@@ -168,6 +170,22 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
 
 	// init seat manager
 	te.sm = seat_manager.NewSeatManager(tableSetting.Meta.TableMaxSeatCount, tableSetting.Meta.Rule)
+
+	// init open game manager
+	te.ogm = open_game_manager.NewOpenGameManager(open_game_manager.OpenGameOption{
+		Timeout: 2,
+		OnOpenGameReady: func(state open_game_manager.OpenGameState) {
+			// 小於等於一個人，不開局
+			if len(state.Participants) <= 1 {
+				return
+			}
+
+			// 大於一個人，開局
+			if err := te.TableGameOpen(); err != nil {
+				te.emitErrorEvent("OnOpenGameReady", "", err)
+			}
+		},
+	})
 
 	// create table instance
 	table := &Table{
@@ -260,8 +278,8 @@ func (te *tableEngine) TableGameOpen() error {
 	te.lock.Lock()
 	defer te.lock.Unlock()
 
-	te.rgForOpenGame.Stop()
-	te.tbForOpenGame.Cancel()
+	// te.rgForOpenGame.Stop()
+	// te.tbForOpenGame.Cancel()
 
 	if te.table.State.GameState != nil {
 		fmt.Printf("[DEBUG#TableGameOpen] Table (%s) game (%s) with game count (%d) is already opened.\n", te.table.ID, te.table.State.GameState.GameID, te.table.State.GameCount)
@@ -444,10 +462,12 @@ func (te *tableEngine) PlayerSettlementFinish(playerID string) error {
 		return ErrTablePlayerInvalidAction
 	}
 
-	// 有設定 ReadyGroup，且玩家尚未 SettlementFinish 時，則 SettlementFinish
-	if isReady, exist := te.rgForOpenGame.GetParticipantStates()[int64(playerIdx)]; exist && !isReady {
-		te.rgForOpenGame.Ready(int64(playerIdx))
-	}
+	// // 有設定 ReadyGroup，且玩家尚未 SettlementFinish 時，則 SettlementFinish
+	// if isReady, exist := te.rgForOpenGame.GetParticipantStates()[int64(playerIdx)]; exist && !isReady {
+	// 	te.rgForOpenGame.Ready(int64(playerIdx))
+	// }
+
+	te.ogm.Ready(playerID)
 
 	return nil
 }

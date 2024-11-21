@@ -99,8 +99,8 @@ func (te *tableEngine) shouldAutoGameOpen() bool {
 }
 
 func (te *tableEngine) onGameClosed() error {
-	te.settleGame()
-	return te.continueGame()
+	alivePlayers := te.settleGame()
+	return te.continueGame(alivePlayers)
 }
 
 func (te *tableEngine) calcLeavePlayers(status TableStateStatus, leavePlayerIDs []string, currentPlayers []*TablePlayerState, tableMaxSeatCount int) ([]*TablePlayerState, []int, []int) {

@@ -97,7 +97,7 @@ func TestTableGame_Preflop_Settlement(t *testing.T) {
 	tableEngineCallbacks.OnTableErrorUpdated = func(table *pokertable.Table, err error) {
 		t.Log("[Table] Error:", err)
 	}
-	tableEngineCallbacks.OnReadyOpenFirstTableGame = func(gameCount int, players []*pokertable.TablePlayerState) {
+	tableEngineCallbacks.OnReadyOpenFirstTableGame = func(competitionID, tableID string, gameCount int, players []*pokertable.TablePlayerState) {
 		participants := map[string]int{}
 		for idx, p := range players {
 			participants[p.PlayerID] = idx

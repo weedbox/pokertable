@@ -94,7 +94,7 @@ func TestActor_Basic(t *testing.T) {
 		t.Log("AutoGameOpenEnd")
 		wg.Done()
 	}
-	tableEngineCallbacks.OnReadyOpenFirstTableGame = func(gameCount int, playerStates []*pokertable.TablePlayerState) {
+	tableEngineCallbacks.OnReadyOpenFirstTableGame = func(competitionID, tableID string, gameCount int, playerStates []*pokertable.TablePlayerState) {
 		participants := map[string]int{}
 		for idx, p := range playerStates {
 			participants[p.PlayerID] = idx

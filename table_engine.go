@@ -27,14 +27,14 @@ type TableEngineOpt func(*tableEngine)
 
 type TableEngine interface {
 	// Events
-	OnTableUpdated(fn func(table *Table))                                                            // 桌次更新事件監聽器
-	OnTableErrorUpdated(fn func(table *Table, err error))                                            // 錯誤更新事件監聽器
-	OnTableStateUpdated(fn func(event string, table *Table))                                         // 桌次狀態監聽器
-	OnTablePlayerStateUpdated(fn func(competitionID, tableID string, playerState *TablePlayerState)) // 桌次玩家狀態監聽器
-	OnTablePlayerReserved(fn func(competitionID, tableID string, playerState *TablePlayerState))     // 桌次玩家確認座位監聽器
-	OnGamePlayerActionUpdated(fn func(gameAction TablePlayerGameAction))                             // 遊戲玩家動作更新事件監聽器
-	OnAutoGameOpenEnd(fn func(competitionID, tableID string))                                        // 自動開桌結束事件監聽器
-	OnReadyOpenFirstTableGame(fn func(gameCount int, playerStates []*TablePlayerState))              // 開始第一手遊戲監聽器
+	OnTableUpdated(fn func(table *Table))                                                                              // 桌次更新事件監聽器
+	OnTableErrorUpdated(fn func(table *Table, err error))                                                              // 錯誤更新事件監聽器
+	OnTableStateUpdated(fn func(event string, table *Table))                                                           // 桌次狀態監聽器
+	OnTablePlayerStateUpdated(fn func(competitionID, tableID string, playerState *TablePlayerState))                   // 桌次玩家狀態監聽器
+	OnTablePlayerReserved(fn func(competitionID, tableID string, playerState *TablePlayerState))                       // 桌次玩家確認座位監聽器
+	OnGamePlayerActionUpdated(fn func(gameAction TablePlayerGameAction))                                               // 遊戲玩家動作更新事件監聽器
+	OnAutoGameOpenEnd(fn func(competitionID, tableID string))                                                          // 自動開桌結束事件監聽器
+	OnReadyOpenFirstTableGame(fn func(competitionID, tableID string, gameCount int, playerStates []*TablePlayerState)) // 開始第一手遊戲監聽器
 
 	// Other Actions
 	ReleaseTable() error // 結束釋放桌次
@@ -87,7 +87,7 @@ type tableEngine struct {
 	onTablePlayerReserved     func(competitionID, tableID string, playerState *TablePlayerState)
 	onGamePlayerActionUpdated func(gameAction TablePlayerGameAction)
 	onAutoGameOpenEnd         func(competitionID, tableID string)
-	onReadyOpenFirstTableGame func(gameCount int, playerStates []*TablePlayerState)
+	onReadyOpenFirstTableGame func(competitionID, tableID string, gameCount int, playerStates []*TablePlayerState)
 	isReleased                bool
 }
 
@@ -149,7 +149,7 @@ func (te *tableEngine) OnAutoGameOpenEnd(fn func(competitionID, tableID string))
 	te.onAutoGameOpenEnd = fn
 }
 
-func (te *tableEngine) OnReadyOpenFirstTableGame(fn func(gameCount int, playerStates []*TablePlayerState)) {
+func (te *tableEngine) OnReadyOpenFirstTableGame(fn func(competitionID, tableID string, gameCount int, playerStates []*TablePlayerState)) {
 	te.onReadyOpenFirstTableGame = fn
 }
 

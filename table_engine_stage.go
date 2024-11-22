@@ -1,6 +1,7 @@
 package pokertable
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -24,7 +25,7 @@ func (te *tableEngine) tableGameOpen() error {
 	retry := 10
 	if err != nil {
 		// 30 秒內嘗試重新開局
-		if err == ErrTableOpenGameFailed {
+		if errors.Is(err, ErrTableOpenGameFailed) {
 			reopened := false
 
 			for i := 0; i < retry; i++ {
@@ -43,9 +44,13 @@ func (te *tableEngine) tableGameOpen() error {
 
 				newTable, err = te.openGame(te.table)
 				if err != nil {
-					if err == ErrTableOpenGameFailed {
+					if errors.Is(err, ErrTableOpenGameFailed) {
 						fmt.Printf("table (%s): failed to open game. retry %d time(s)...\n", te.table.ID, i+1)
 						continue
+					} else if errors.Is(err, ErrTableOpenGameFailedInBlindBreakingLevel) {
+						// 已經中場休息，不做任何事
+						fmt.Printf("table (%s): failed to open game when blind level is negative\n", te.table.ID)
+						return nil
 					} else {
 						return err
 					}
@@ -58,6 +63,10 @@ func (te *tableEngine) tableGameOpen() error {
 			if !reopened {
 				return err
 			}
+		} else if errors.Is(err, ErrTableOpenGameFailedInBlindBreakingLevel) {
+			// 已經中場休息，不做任何事
+			fmt.Printf("table (%s): failed to open game when blind level is negative\n", te.table.ID)
+			return nil
 		} else {
 			return err
 		}
@@ -73,6 +82,10 @@ func (te *tableEngine) openGame(oldTable *Table) (*Table, error) {
 	// Step 1: Check TableState
 	if !oldTable.State.BlindState.IsSet() {
 		return oldTable, ErrTableOpenGameFailed
+	}
+
+	if oldTable.State.BlindState.IsBreaking() {
+		return oldTable, ErrTableOpenGameFailedInBlindBreakingLevel
 	}
 
 	// Step 2: Clone Table for calculation
@@ -209,6 +222,13 @@ func (te *tableEngine) startGame() error {
 	}
 
 	te.table.State.Status = TableStateStatus_TableGamePlaying
+	te.table.State.GameBlindState = &TableBlindState{
+		Level:  blind.Level,
+		Ante:   blind.Ante,
+		Dealer: blind.Dealer,
+		SB:     blind.SB,
+		BB:     blind.BB,
+	}
 	return nil
 }
 

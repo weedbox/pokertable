@@ -14,13 +14,14 @@ import (
 )
 
 var (
-	ErrTableNoEmptySeats            = errors.New("table: no empty seats available")
-	ErrTableInvalidCreateSetting    = errors.New("table: invalid create table setting")
-	ErrTablePlayerNotFound          = errors.New("table: player not found")
-	ErrTablePlayerInvalidGameAction = errors.New("table: player invalid game action")
-	ErrTablePlayerInvalidAction     = errors.New("table: player invalid action")
-	ErrTablePlayerSeatUnavailable   = errors.New("table: player seat unavailable")
-	ErrTableOpenGameFailed          = errors.New("table: failed to open game")
+	ErrTableNoEmptySeats                       = errors.New("table: no empty seats available")
+	ErrTableInvalidCreateSetting               = errors.New("table: invalid create table setting")
+	ErrTablePlayerNotFound                     = errors.New("table: player not found")
+	ErrTablePlayerInvalidGameAction            = errors.New("table: player invalid game action")
+	ErrTablePlayerInvalidAction                = errors.New("table: player invalid action")
+	ErrTablePlayerSeatUnavailable              = errors.New("table: player seat unavailable")
+	ErrTableOpenGameFailed                     = errors.New("table: failed to open game")
+	ErrTableOpenGameFailedInBlindBreakingLevel = errors.New("table: unable to open game when blind level is breaking")
 )
 
 type TableEngineOpt func(*tableEngine)

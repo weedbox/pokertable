@@ -17,6 +17,10 @@ func (te *tableEngine) openGame(oldTable *Table) (*Table, error) {
 		return oldTable, ErrTableOpenGameFailed
 	}
 
+	if oldTable.State.BlindState.IsBreaking() {
+		return oldTable, ErrTableOpenGameFailedInBlindBreakingLevel
+	}
+
 	// Step 2: Clone Table for calculation
 	cloneTable, err := oldTable.Clone()
 	if err != nil {
@@ -151,6 +155,7 @@ func (te *tableEngine) startGame() error {
 	}
 
 	te.table.State.Status = TableStateStatus_TableGamePlaying
+	te.table.State.GameBlindState = te.table.State.BlindState
 	return nil
 }
 

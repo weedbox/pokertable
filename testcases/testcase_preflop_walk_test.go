@@ -31,7 +31,8 @@ func TestTableGame_Preflop_Walk(t *testing.T) {
 	var tableEngine pokertable.TableEngine
 	manager := pokertable.NewManager()
 	tableEngineOption := pokertable.NewTableEngineOptions()
-	tableEngineOption.Interval = 3
+	tableEngineOption.GameContinueInterval = 1
+	tableEngineOption.OpenGameTimeout = 2
 	tableEngineCallbacks := pokertable.NewTableEngineCallbacks()
 	tableEngineCallbacks.OnTableUpdated = func(table *pokertable.Table) {
 		switch table.State.Status {
@@ -95,6 +96,13 @@ func TestTableGame_Preflop_Walk(t *testing.T) {
 	}
 	tableEngineCallbacks.OnTableErrorUpdated = func(table *pokertable.Table, err error) {
 		t.Log("[Table] Error:", err)
+	}
+	tableEngineCallbacks.OnReadyOpenFirstTableGame = func(gameCount int, players []*pokertable.TablePlayerState) {
+		participants := map[string]int{}
+		for idx, p := range players {
+			participants[p.PlayerID] = idx
+		}
+		tableEngine.SetUpTableGame(gameCount, participants)
 	}
 	table, err := manager.CreateTable(tableEngineOption, tableEngineCallbacks, NewDefaultTableSetting())
 	assert.Nil(t, err, "create table failed")

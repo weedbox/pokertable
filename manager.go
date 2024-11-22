@@ -20,7 +20,7 @@ type Manager interface {
 	PauseTable(tableID string) error
 	CloseTable(tableID string) error
 	StartTableGame(tableID string) error
-	TableGameOpen(tableID string) error
+	SetUpTableGame(tableID string, gameCount int, participants map[string]int) error
 	UpdateBlind(tableID string, level int, ante, dealer, sb, bb int64) error
 	UpdateTablePlayers(tableID string, joinPlayers []JoinPlayer, leavePlayerIDs []string) (map[string]int, error)
 
@@ -86,7 +86,6 @@ func (m *manager) CreateTable(options *TableEngineOptions, callbacks *TableEngin
 		engineOptions = options
 	} else {
 		engineOptions = NewTableEngineOptions()
-		engineOptions.Interval = 1
 	}
 
 	var engineCallbacks *TableEngineCallbacks
@@ -105,6 +104,7 @@ func (m *manager) CreateTable(options *TableEngineOptions, callbacks *TableEngin
 	tableEngine.OnTablePlayerReserved(engineCallbacks.OnTablePlayerReserved)
 	tableEngine.OnGamePlayerActionUpdated(engineCallbacks.OnGamePlayerActionUpdated)
 	tableEngine.OnAutoGameOpenEnd(engineCallbacks.OnAutoGameOpenEnd)
+	tableEngine.OnReadyOpenFirstTableGame(engineCallbacks.OnReadyOpenFirstTableGame)
 	table, err := tableEngine.CreateTable(setting)
 	if err != nil {
 		return nil, err
@@ -146,13 +146,13 @@ func (m *manager) StartTableGame(tableID string) error {
 	return tableEngine.StartTableGame()
 }
 
-func (m *manager) TableGameOpen(tableID string) error {
+func (m *manager) SetUpTableGame(tableID string, gameCount int, participants map[string]int) error {
 	tableEngine, err := m.GetTableEngine(tableID)
 	if err != nil {
 		return ErrManagerTableNotFound
 	}
-
-	return tableEngine.TableGameOpen()
+	tableEngine.SetUpTableGame(gameCount, participants)
+	return nil
 }
 
 func (m *manager) UpdateBlind(tableID string, level int, ante, dealer, sb, bb int64) error {

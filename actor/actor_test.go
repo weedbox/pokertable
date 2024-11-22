@@ -25,7 +25,7 @@ func TestActor_Basic(t *testing.T) {
 			CompetitionID:       uuid.New().String(),
 			Rule:                pokertable.CompetitionRule_Default,
 			Mode:                pokertable.CompetitionMode_CT,
-			MaxDuration:         10,
+			MaxDuration:         20,
 			TableMaxSeatCount:   9,
 			TableMinPlayerCount: 2,
 			MinChipUnit:         2,
@@ -40,7 +40,8 @@ func TestActor_Basic(t *testing.T) {
 		},
 	}
 	tableEngineOption := pokertable.NewTableEngineOptions()
-	tableEngineOption.Interval = 1
+	tableEngineOption.GameContinueInterval = 1
+	tableEngineOption.OpenGameTimeout = 2
 	tableEngineCallbacks := pokertable.NewTableEngineCallbacks()
 	tableEngineCallbacks.OnTableUpdated = func(table *pokertable.Table) {
 		if table.State.LastPlayerGameAction != nil {
@@ -92,6 +93,13 @@ func TestActor_Basic(t *testing.T) {
 	tableEngineCallbacks.OnAutoGameOpenEnd = func(competitionID, tableID string) {
 		t.Log("AutoGameOpenEnd")
 		wg.Done()
+	}
+	tableEngineCallbacks.OnReadyOpenFirstTableGame = func(gameCount int, playerStates []*pokertable.TablePlayerState) {
+		participants := map[string]int{}
+		for idx, p := range playerStates {
+			participants[p.PlayerID] = idx
+		}
+		tableEngine.SetUpTableGame(gameCount, participants)
 	}
 
 	table, err := manager.CreateTable(tableEngineOption, tableEngineCallbacks, tableSetting)

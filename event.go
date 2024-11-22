@@ -52,3 +52,9 @@ func (te *tableEngine) emitGamePlayerActionEvent(gameAction TablePlayerGameActio
 	// fmt.Printf("->emit player game action Event: %s %s %d\n", gameAction.PlayerID, gameAction.Action, gameAction.Chips)
 	te.onGamePlayerActionUpdated(gameAction)
 }
+
+func (te *tableEngine) emitReadyOpenFirstTableGame(gameCount int, playerStates []*TablePlayerState) {
+	// emit event
+	// fmt.Printf("->emit ready open first table game: %d players\n", len(playerStates))
+	te.onReadyOpenFirstTableGame(gameCount, playerStates)
+}

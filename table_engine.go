@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/thoas/go-funk"
 	"github.com/weedbox/pokertable/open_game_manager"
 	"github.com/weedbox/pokertable/seat_manager"
 	"github.com/weedbox/syncsaga"
@@ -35,6 +34,7 @@ type TableEngine interface {
 	OnTablePlayerReserved(fn func(competitionID, tableID string, playerState *TablePlayerState))     // 桌次玩家確認座位監聽器
 	OnGamePlayerActionUpdated(fn func(gameAction TablePlayerGameAction))                             // 遊戲玩家動作更新事件監聽器
 	OnAutoGameOpenEnd(fn func(competitionID, tableID string))                                        // 自動開桌結束事件監聽器
+	OnReadyOpenFirstTableGame(fn func(gameCount int, playerStates []*TablePlayerState))              // 開始第一手遊戲監聽器
 
 	// Other Actions
 	ReleaseTable() error // 結束釋放桌次
@@ -46,8 +46,8 @@ type TableEngine interface {
 	PauseTable() error                                                                            // 暫停桌
 	CloseTable() error                                                                            // 關閉桌
 	StartTableGame() error                                                                        // 開打遊戲
-	TableGameOpen() error                                                                         // 開下一輪遊戲
 	UpdateBlind(level int, ante, dealer, sb, bb int64)                                            // 更新當前盲注資訊
+	SetUpTableGame(gameCount int, participants map[string]int)                                    // 設定某手遊戲
 	UpdateTablePlayers(joinPlayers []JoinPlayer, leavePlayerIDs []string) (map[string]int, error) // 更新桌上玩家數量
 
 	// Player Table Actions
@@ -71,13 +71,12 @@ type TableEngine interface {
 }
 
 type tableEngine struct {
-	lock        sync.Mutex
-	options     *TableEngineOptions
-	table       *Table
-	game        Game
-	gameBackend GameBackend
-	rg          *syncsaga.ReadyGroup
-	// rgForOpenGame             *syncsaga.ReadyGroup
+	lock                      sync.Mutex
+	options                   *TableEngineOptions
+	table                     *Table
+	game                      Game
+	gameBackend               GameBackend
+	rg                        *syncsaga.ReadyGroup
 	tbForOpenGame             *timebank.TimeBank
 	sm                        seat_manager.SeatManager
 	ogm                       open_game_manager.OpenGameManager
@@ -88,15 +87,15 @@ type tableEngine struct {
 	onTablePlayerReserved     func(competitionID, tableID string, playerState *TablePlayerState)
 	onGamePlayerActionUpdated func(gameAction TablePlayerGameAction)
 	onAutoGameOpenEnd         func(competitionID, tableID string)
+	onReadyOpenFirstTableGame func(gameCount int, playerStates []*TablePlayerState)
 	isReleased                bool
 }
 
 func NewTableEngine(options *TableEngineOptions, opts ...TableEngineOpt) TableEngine {
 	callbacks := NewTableEngineCallbacks()
 	te := &tableEngine{
-		options: options,
-		rg:      syncsaga.NewReadyGroup(),
-		// rgForOpenGame:             syncsaga.NewReadyGroup(),
+		options:                   options,
+		rg:                        syncsaga.NewReadyGroup(),
 		tbForOpenGame:             timebank.NewTimeBank(),
 		onTableUpdated:            callbacks.OnTableUpdated,
 		onTableErrorUpdated:       callbacks.OnTableErrorUpdated,
@@ -105,6 +104,7 @@ func NewTableEngine(options *TableEngineOptions, opts ...TableEngineOpt) TableEn
 		onTablePlayerReserved:     callbacks.OnTablePlayerReserved,
 		onGamePlayerActionUpdated: callbacks.OnGamePlayerActionUpdated,
 		onAutoGameOpenEnd:         callbacks.OnAutoGameOpenEnd,
+		onReadyOpenFirstTableGame: callbacks.OnReadyOpenFirstTableGame,
 		isReleased:                false,
 	}
 
@@ -149,6 +149,10 @@ func (te *tableEngine) OnAutoGameOpenEnd(fn func(competitionID, tableID string))
 	te.onAutoGameOpenEnd = fn
 }
 
+func (te *tableEngine) OnReadyOpenFirstTableGame(fn func(gameCount int, playerStates []*TablePlayerState)) {
+	te.onReadyOpenFirstTableGame = fn
+}
+
 func (te *tableEngine) ReleaseTable() error {
 	te.isReleased = true
 	return nil
@@ -181,8 +185,8 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
 			}
 
 			// 大於一個人，開局
-			if err := te.TableGameOpen(); err != nil {
-				te.emitErrorEvent("OnOpenGameReady", "", err)
+			if err := te.tableGameOpen(); err != nil {
+				te.emitErrorEvent("OnOpenGameReady#tableGameOpen", "", err)
 			}
 		},
 	})
@@ -271,70 +275,9 @@ func (te *tableEngine) StartTableGame() error {
 	te.emitEvent("StartTableGame", "")
 
 	//  開局
-	return te.TableGameOpen()
-}
+	te.emitReadyOpenFirstTableGame(te.table.State.GameCount, te.table.State.PlayerStates)
+	return nil
 
-func (te *tableEngine) TableGameOpen() error {
-	te.lock.Lock()
-	defer te.lock.Unlock()
-
-	// te.rgForOpenGame.Stop()
-	// te.tbForOpenGame.Cancel()
-
-	if te.table.State.GameState != nil {
-		fmt.Printf("[DEBUG#TableGameOpen] Table (%s) game (%s) with game count (%d) is already opened.\n", te.table.ID, te.table.State.GameState.GameID, te.table.State.GameCount)
-		return nil
-	}
-
-	// 開局
-	newTable, err := te.openGame(te.table)
-
-	retry := 10
-	if err != nil {
-		// 30 秒內嘗試重新開局
-		if err == ErrTableOpenGameFailed {
-			reopened := false
-
-			for i := 0; i < retry; i++ {
-				time.Sleep(time.Second * 3)
-
-				// 已經開始新的一手遊戲，不做任何事
-				gameStartingStatuses := []TableStateStatus{
-					TableStateStatus_TableGameOpened,
-					TableStateStatus_TableGamePlaying,
-					TableStateStatus_TableGameSettled,
-				}
-				isGameRunning := funk.Contains(gameStartingStatuses, te.table.State.Status)
-				if isGameRunning {
-					return nil
-				}
-
-				newTable, err = te.openGame(te.table)
-				if err != nil {
-					if err == ErrTableOpenGameFailed {
-						fmt.Printf("table (%s): failed to open game. retry %d time(s)...\n", te.table.ID, i+1)
-						continue
-					} else {
-						return err
-					}
-				} else {
-					reopened = true
-					break
-				}
-			}
-
-			if !reopened {
-				return err
-			}
-		} else {
-			return err
-		}
-	}
-	te.table = newTable
-	te.emitEvent("TableGameOpen", "")
-
-	// 啟動本手遊戲引擎
-	return te.startGame()
 }
 
 func (te *tableEngine) UpdateBlind(level int, ante, dealer, sb, bb int64) {
@@ -343,6 +286,16 @@ func (te *tableEngine) UpdateBlind(level int, ante, dealer, sb, bb int64) {
 	te.table.State.BlindState.Dealer = dealer
 	te.table.State.BlindState.SB = sb
 	te.table.State.BlindState.BB = bb
+}
+
+/*
+SetUpTableGame 設定某手遊戲
+  - 適用時機:
+    1. Start game 之後，準備開第一手
+    2. 每手結束，在 Continue 階段，準備開下一手
+*/
+func (te *tableEngine) SetUpTableGame(gameCount int, participants map[string]int) {
+	te.ogm.Setup(gameCount, participants)
 }
 
 /*
@@ -461,11 +414,6 @@ func (te *tableEngine) PlayerSettlementFinish(playerID string) error {
 	if !te.table.State.PlayerStates[playerIdx].IsIn {
 		return ErrTablePlayerInvalidAction
 	}
-
-	// // 有設定 ReadyGroup，且玩家尚未 SettlementFinish 時，則 SettlementFinish
-	// if isReady, exist := te.rgForOpenGame.GetParticipantStates()[int64(playerIdx)]; exist && !isReady {
-	// 	te.rgForOpenGame.Ready(int64(playerIdx))
-	// }
 
 	te.ogm.Ready(playerID)
 

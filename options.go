@@ -8,6 +8,7 @@ type TableEngineCallbacks struct {
 	OnTablePlayerReserved     func(competitionID, tableID string, playerState *TablePlayerState)
 	OnGamePlayerActionUpdated func(gameAction TablePlayerGameAction)
 	OnAutoGameOpenEnd         func(competitionID, tableID string)
+	OnReadyOpenFirstTableGame func(gameCount int, playerStates []*TablePlayerState)
 }
 
 func NewTableEngineCallbacks() *TableEngineCallbacks {
@@ -19,15 +20,18 @@ func NewTableEngineCallbacks() *TableEngineCallbacks {
 		OnTablePlayerReserved:     func(competitionID, tableID string, playerState *TablePlayerState) {},
 		OnGamePlayerActionUpdated: func(gameAction TablePlayerGameAction) {},
 		OnAutoGameOpenEnd:         func(competitionID, tableID string) {},
+		OnReadyOpenFirstTableGame: func(gameCount int, playerStates []*TablePlayerState) {},
 	}
 }
 
 type TableEngineOptions struct {
-	Interval int
+	GameContinueInterval int
+	OpenGameTimeout      int
 }
 
 func NewTableEngineOptions() *TableEngineOptions {
 	return &TableEngineOptions{
-		Interval: 0, // 0 second by default
+		GameContinueInterval: 1, // 1 second by default
+		OpenGameTimeout:      2,
 	}
 }

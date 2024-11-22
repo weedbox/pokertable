@@ -40,7 +40,8 @@ func TestActor_ObserverRunner_PlayerAct(t *testing.T) {
 		},
 	}
 	tableEngineOption := pokertable.NewTableEngineOptions()
-	tableEngineOption.Interval = 1
+	tableEngineOption.GameContinueInterval = 1
+	tableEngineOption.OpenGameTimeout = 2
 	tableEngineCallbacks := pokertable.NewTableEngineCallbacks()
 	tableEngineCallbacks.OnTableUpdated = func(table *pokertable.Table) {
 		// Update table state via adapter
@@ -54,6 +55,13 @@ func TestActor_ObserverRunner_PlayerAct(t *testing.T) {
 	tableEngineCallbacks.OnAutoGameOpenEnd = func(competitionID, tableID string) {
 		t.Log("AutoGameOpenEnd")
 		wg.Done()
+	}
+	tableEngineCallbacks.OnReadyOpenFirstTableGame = func(gameCount int, players []*pokertable.TablePlayerState) {
+		participants := map[string]int{}
+		for idx, p := range players {
+			participants[p.PlayerID] = idx
+		}
+		tableEngine.SetUpTableGame(gameCount, participants)
 	}
 	table, err := manager.CreateTable(tableEngineOption, tableEngineCallbacks, tableSetting)
 	assert.Nil(t, err, "create table failed")

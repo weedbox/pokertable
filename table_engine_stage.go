@@ -9,6 +9,66 @@ import (
 	"github.com/weedbox/pokerface/settlement"
 )
 
+func (te *tableEngine) tableGameOpen() error {
+	te.lock.Lock()
+	defer te.lock.Unlock()
+
+	if te.table.State.GameState != nil {
+		fmt.Printf("[DEBUG#tableGameOpen] Table (%s) game (%s) with game count (%d) is already opened.\n", te.table.ID, te.table.State.GameState.GameID, te.table.State.GameCount)
+		return nil
+	}
+
+	// 開局
+	newTable, err := te.openGame(te.table)
+
+	retry := 10
+	if err != nil {
+		// 30 秒內嘗試重新開局
+		if err == ErrTableOpenGameFailed {
+			reopened := false
+
+			for i := 0; i < retry; i++ {
+				time.Sleep(time.Second * 3)
+
+				// 已經開始新的一手遊戲，不做任何事
+				gameStartingStatuses := []TableStateStatus{
+					TableStateStatus_TableGameOpened,
+					TableStateStatus_TableGamePlaying,
+					TableStateStatus_TableGameSettled,
+				}
+				isGameRunning := funk.Contains(gameStartingStatuses, te.table.State.Status)
+				if isGameRunning {
+					return nil
+				}
+
+				newTable, err = te.openGame(te.table)
+				if err != nil {
+					if err == ErrTableOpenGameFailed {
+						fmt.Printf("table (%s): failed to open game. retry %d time(s)...\n", te.table.ID, i+1)
+						continue
+					} else {
+						return err
+					}
+				} else {
+					reopened = true
+					break
+				}
+			}
+
+			if !reopened {
+				return err
+			}
+		} else {
+			return err
+		}
+	}
+	te.table = newTable
+	te.emitEvent("tableGameOpen", "")
+
+	// 啟動本手遊戲引擎
+	return te.startGame()
+}
+
 func (te *tableEngine) openGame(oldTable *Table) (*Table, error) {
 	// Step 1: Check TableState
 	if !oldTable.State.BlindState.IsSet() {
@@ -257,7 +317,7 @@ func (te *tableEngine) continueGame(alivePlayers []*TablePlayerState) error {
 			return nil
 		}
 	} else {
-		nextMoveInterval = te.options.Interval
+		nextMoveInterval = te.options.GameContinueInterval
 		nextMoveHandler = func() error {
 			// 如果在 Interval 這期間，該桌已關閉，則不繼續動作
 			if te.table.State.Status == TableStateStatus_TableClosed {
@@ -284,7 +344,7 @@ func (te *tableEngine) continueGame(alivePlayers []*TablePlayerState) error {
 					for idx, player := range alivePlayers {
 						participants[player.PlayerID] = idx
 					}
-					te.ogm.Setup(nextGameCount, participants)
+					te.SetUpTableGame(nextGameCount, participants)
 					return nil
 				}
 
@@ -294,23 +354,6 @@ func (te *tableEngine) continueGame(alivePlayers []*TablePlayerState) error {
 			}
 			return nil
 		}
-
-		// te.rgForOpenGame.Stop()
-		// te.rgForOpenGame.OnCompleted(func(rg *syncsaga.ReadyGroup) {
-		// 	err := nextMoveHandler()
-		// 	if err != nil {
-		// 		fmt.Printf("[DEBUG#continueGame] rgForOpenGame.OnCompleted() -> nextMoveHandler error: %v\n", err)
-		// 	}
-		// })
-		// te.rgForOpenGame.ResetParticipants()
-		// for playerIdx := range te.table.State.PlayerStates {
-		// 	if te.table.State.PlayerStates[playerIdx].IsIn {
-		// 		// 目前入桌玩家才要放到 ready group 做處理
-		// 		te.rgForOpenGame.Add(int64(playerIdx), false)
-		// 	}
-		// }
-
-		// te.rgForOpenGame.Start()
 	}
 
 	return te.delay(nextMoveInterval, nextMoveHandler)

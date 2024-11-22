@@ -155,7 +155,13 @@ func (te *tableEngine) startGame() error {
 	}
 
 	te.table.State.Status = TableStateStatus_TableGamePlaying
-	te.table.State.GameBlindState = te.table.State.BlindState
+	te.table.State.GameBlindState = &TableBlindState{
+		Level:  blind.Level,
+		Ante:   blind.Ante,
+		Dealer: blind.Dealer,
+		SB:     blind.SB,
+		BB:     blind.BB,
+	}
 	return nil
 }
 

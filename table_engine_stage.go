@@ -290,8 +290,9 @@ func (te *tableEngine) settleGame() []*TablePlayerState {
 	// 更新 NextBBOrderPlayerIDs (移除沒有籌碼的玩家)
 	te.table.State.NextBBOrderPlayerIDs = te.refreshNextBBOrderPlayerIDs(te.sm.CurrentBBSeatID(), te.table.Meta.TableMaxSeatCount, te.table.State.PlayerStates, te.table.State.SeatMap)
 
-	te.emitEvent("SettleTableGameResult", "")
 	te.emitTableStateEvent(TableStateEvent_GameSettled)
+	time.Sleep(time.Millisecond * 100)
+	te.emitEvent("SettleTableGameResult", "")
 
 	return alivePlayers
 }

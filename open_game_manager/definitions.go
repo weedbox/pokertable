@@ -26,11 +26,13 @@ type openGameManager struct {
 type OpenGameOption struct {
 	Timeout         int
 	OnOpenGameReady func(state OpenGameState)
+	TableID         string
 }
 
 type OpenGameState struct {
-	Timeout      int                             `json:"timeout"`
+	TableID      string                          `json:"table_id"`
 	GameCount    int                             `json:"game_count"`
+	Timeout      int                             `json:"timeout"`
 	Participants map[string]*OpenGameParticipant `json:"participants"` // key: participant_id, value: participant
 }
 

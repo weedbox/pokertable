@@ -178,14 +178,9 @@ func (te *tableEngine) CreateTable(tableSetting TableSetting) (*Table, error) {
 
 	// init open game manager
 	te.ogm = open_game_manager.NewOpenGameManager(open_game_manager.OpenGameOption{
+		TableID: tableSetting.TableID,
 		Timeout: 2,
 		OnOpenGameReady: func(state open_game_manager.OpenGameState) {
-			// 小於等於一個人，不開局
-			if len(state.Participants) <= 1 {
-				return
-			}
-
-			// 大於一個人，開局
 			if err := te.tableGameOpen(); err != nil {
 				te.emitErrorEvent("OnOpenGameReady#tableGameOpen", "", err)
 			}

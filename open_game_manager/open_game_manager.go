@@ -23,6 +23,7 @@ func NewOpenGameManager(options OpenGameOption) OpenGameManager {
 		Timeout:      options.Timeout,
 		GameCount:    0,
 		Participants: make(map[string]*OpenGameParticipant),
+		TableID:      options.TableID,
 	}
 
 	return m
@@ -43,6 +44,7 @@ func NewOpenGameManagerFromState(state OpenGameState, options OpenGameOption) Op
 			Timeout:      options.Timeout,
 			GameCount:    state.GameCount,
 			Participants: make(map[string]*OpenGameParticipant),
+			TableID:      state.TableID,
 		},
 	}
 	m.rg.OnCompleted(func(rg *syncsaga.ReadyGroup) {
@@ -75,6 +77,7 @@ func (m *openGameManager) Ready(participantID string) error {
 }
 
 func (m *openGameManager) Setup(gameCount int, participants map[string]int) {
+	defer m.PrintState()
 	m.state.GameCount = gameCount
 
 	m.rg.Stop()

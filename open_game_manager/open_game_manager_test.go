@@ -5,12 +5,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/thoas/go-funk"
 )
 
 func TestOpenGameManager_Init(t *testing.T) {
 	options := OpenGameOption{
+		TableID: uuid.NewString(),
 		Timeout: 1,
 		OnOpenGameReady: func(state OpenGameState) {
 			fmt.Println("[TestOpenGameManager_Init] OpenGameReady for game count: ", state.GameCount)
@@ -32,7 +34,9 @@ func TestOpenGameManager_Init(t *testing.T) {
 
 func TestOpenGameManager_InitFromState(t *testing.T) {
 	fmt.Println("[TestOpenGameManager_InitFromState] Start: ", time.Now().Format(time.RFC3339))
+	tableID := uuid.NewString()
 	options := OpenGameOption{
+		TableID: tableID,
 		Timeout: 1,
 		OnOpenGameReady: func(state OpenGameState) {
 			fmt.Println("[TestOpenGameManager_InitFromState] OpenGameReady for game count: ", state.GameCount)
@@ -45,6 +49,7 @@ func TestOpenGameManager_InitFromState(t *testing.T) {
 		},
 	}
 	state := OpenGameState{
+		TableID:   tableID,
 		Timeout:   options.Timeout,
 		GameCount: 5,
 		Participants: map[string]*OpenGameParticipant{
@@ -83,6 +88,7 @@ func TestOpenGameManager_InitFromState(t *testing.T) {
 func TestOpenGameManager_Setup(t *testing.T) {
 	fmt.Println("[TestOpenGameManager_Setup] Start: ", time.Now().Format(time.RFC3339))
 	options := OpenGameOption{
+		TableID: uuid.NewString(),
 		Timeout: 5,
 		OnOpenGameReady: func(state OpenGameState) {
 			fmt.Println("[TestOpenGameManager_Setup] OpenGameReady for game count: ", state.GameCount)
@@ -129,6 +135,7 @@ func TestOpenGameManager_SetupAllReady(t *testing.T) {
 	fmt.Println("[TestOpenGameManager_SetupAllReady] Start: ", time.Now().Format(time.RFC3339))
 
 	options := OpenGameOption{
+		TableID: uuid.NewString(),
 		Timeout: 3, // 超時時間為 3 秒
 		OnOpenGameReady: func(state OpenGameState) {
 			fmt.Println("[TestOpenGameManager_SetupAllReady] OpenGameReady for game count: ", state.GameCount)
@@ -191,6 +198,7 @@ func TestOpenGameManager_SetupAllNotReady(t *testing.T) {
 	fmt.Println("[TestOpenGameManager_SetupNotAllReady] Start: ", time.Now().Format(time.RFC3339))
 
 	options := OpenGameOption{
+		TableID: uuid.NewString(),
 		Timeout: 2, // 超時時間為 2 秒
 		OnOpenGameReady: func(state OpenGameState) {
 			fmt.Println("[TestOpenGameManager_SetupNotAllReady] OpenGameReady for game count: ", state.GameCount)
@@ -244,6 +252,7 @@ func TestOpenGameManager_SetupPartialReady(t *testing.T) {
 	fmt.Println("[TestOpenGameManager_SetupPartialReady] Start: ", time.Now().Format(time.RFC3339))
 
 	options := OpenGameOption{
+		TableID: uuid.NewString(),
 		Timeout: 2, // 超時時間為 2 秒
 		OnOpenGameReady: func(state OpenGameState) {
 			fmt.Println("[TestOpenGameManager_SetupPartialReady] OpenGameReady for game count: ", state.GameCount)

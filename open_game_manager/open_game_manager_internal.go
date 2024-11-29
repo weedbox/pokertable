@@ -18,6 +18,7 @@ func (m *openGameManager) readyGroupOnCompleted() {
 	for participantID := range m.state.Participants {
 		m.state.Participants[participantID].IsReady = true
 	}
+	m.PrintState()
 	m.onOpenGameReady(m.GetState())
 }
 

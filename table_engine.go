@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/thoas/go-funk"
 	"github.com/weedbox/pokertable/open_game_manager"
 	"github.com/weedbox/pokertable/seat_manager"
 	"github.com/weedbox/syncsaga"
@@ -590,7 +591,11 @@ func (te *tableEngine) PlayerRaise(playerID string, chipLevel int64) error {
 			playerState.GameStatistics.IsCheckRaise = true
 		}
 
-		if playerState.GameStatistics.IsCBetChance {
+		if gs.Status.Round == GameRound_Preflop && !playerState.GameStatistics.IsCBetChance {
+			playerState.GameStatistics.IsCBetChance = true
+		}
+
+		if funk.Contains(GameRound_Postflops, gs.Status.Round) && playerState.GameStatistics.IsCBetChance {
 			playerState.GameStatistics.IsCBet = true
 		}
 	}

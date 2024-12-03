@@ -45,3 +45,11 @@ const (
 	GameRound_Turn    = "turn"
 	GameRound_River   = "river"
 )
+
+var (
+	GameRound_Postflops = []string{
+		GameRound_Flop,
+		GameRound_Turn,
+		GameRound_River,
+	}
+)

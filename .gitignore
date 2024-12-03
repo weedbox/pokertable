@@ -15,3 +15,4 @@
 # vendor/
 
 seat_manager/bug_test.go
+*_test.go

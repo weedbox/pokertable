@@ -15,7 +15,7 @@ const (
 	GameStatisticRound_ThreeBet = "three-bet"
 	GameStatisticRound_Ft3B     = "ft3b"
 
-	// Postlop GameStatistics
+	// Postflop GameStatistics
 	GameStatisticRound_CheckRaise = "check-raise"
 	GameStatisticRound_CBet       = "c-bet"
 	GameStatisticRound_FtCB       = "ftcb"
@@ -153,115 +153,120 @@ func (te *tableEngine) updateCurrentPlayerGameStatistics(gs *pokerface.GameState
 		currentPlayer := te.table.State.PlayerStates[currentPlayerIdx]
 
 		// 計算 VPIP
-		if te.isVPIPChance(currentGamePlayerIdx, gs) {
+		if IsVPIPChance(currentGamePlayerIdx, currentPlayerIdx, gs, currentPlayer) {
 			currentPlayer.GameStatistics.IsVPIPChance = true
 		}
 
 		// 計算 PFR
-		if te.isPFRChance(currentGamePlayerIdx, gs) {
+		if IsPFRChance(currentGamePlayerIdx, gs, currentPlayer) {
 			currentPlayer.GameStatistics.IsPFRChance = true
 		}
 
 		// 計算 ATS
-		if te.isATSChance(currentGamePlayerIdx, gs) {
+		if IsATSChance(currentGamePlayerIdx, gs, currentPlayer) {
 			currentPlayer.GameStatistics.IsATSChance = true
 		}
 
 		// 計算 3-Bet
-		if te.is3BChance(currentGamePlayerIdx, gs) {
+		if Is3BChance(currentGamePlayerIdx, gs) {
 			currentPlayer.GameStatistics.Is3BChance = true
 		}
 
 		// 計算 Ft3B
-		if te.IsFt3BChance(currentGamePlayerIdx, te.table.State.PlayerStates, gs) {
+		if IsFt3BChance(currentGamePlayerIdx, currentPlayerIdx, te.table.State.PlayerStates, gs) {
 			currentPlayer.GameStatistics.IsFt3BChance = true
 		}
 
 		// 計算 C/R
-		if te.isCheckRaiseChance(currentGamePlayerIdx, gs) {
+		if IsCheckRaiseChance(currentGamePlayerIdx, gs) {
 			currentPlayer.GameStatistics.IsCheckRaiseChance = true
 		}
 
-		// 計算 C-Bet
-		if te.isCBetChance(currentGamePlayerIdx, gs) {
-			currentPlayer.GameStatistics.IsCBetChance = true
-		}
-
 		// 計算 FtCB
-		if te.isFtCBChance(currentGamePlayerIdx, te.table.State.PlayerStates, gs) {
+		if IsFtCBChance(currentGamePlayerIdx, currentPlayerIdx, te.table.State.PlayerStates, gs) {
 			currentPlayer.GameStatistics.IsFtCBChance = true
 		}
 	}
 }
 
-// isVPIPChance: preflop 時還沒入池 (not VPIP)
-func (te *tableEngine) isVPIPChance(gamePlayerIdx int, gs *pokerface.GameState) bool {
-	if !te.validateGameStatisticGameState(gamePlayerIdx, gs) {
+/*
+IsVPIPChance: preflop 時還沒入池 (not VPIP)
+*/
+func IsVPIPChance(gamePlayerIdx, playerIdx int, gs *pokerface.GameState, player *TablePlayerState) bool {
+	if !validateGameStatisticGameState(gamePlayerIdx, gs) {
 		return false
 	}
 
-	if !te.validateGameRoundChance(gs.Status.Round, GameStatisticRound_VPIP) {
+	if !validateGameRoundChance(gs.Status.Round, GameStatisticRound_VPIP) {
 		return false
 	}
 
-	playerIdx := te.table.FindPlayerIndexFromGamePlayerIndex(gamePlayerIdx)
-	if playerIdx == UnsetValue {
-		fmt.Printf("[DEBUG#isVPIPChance] can't find player index from game player index (%d)", gamePlayerIdx)
+	// 已經是 VPIP 的話就沒有機會再次 VPIP
+	if player.GameStatistics.IsVPIP {
 		return false
 	}
 
-	if !te.table.State.PlayerStates[playerIdx].GameStatistics.IsVPIP {
-		return true
+	// 確認合法動作 (allin, raise, call)
+	validActions := []string{
+		WagerAction_AllIn,
+		WagerAction_Raise,
+		WagerAction_Call,
+	}
+	for _, action := range gs.Players[gamePlayerIdx].AllowedActions {
+		if funk.Contains(validActions, action) {
+
+			return true
+		}
 	}
 
+	// 沒有合法動作
 	return false
 }
 
-// isPFRChance: preflop 時，並且前位玩家皆跟注或棄牌
-func (te *tableEngine) isPFRChance(gamePlayerIdx int, gs *pokerface.GameState) bool {
-	if !te.validateGameStatisticGameState(gamePlayerIdx, gs) {
+/*
+IsPFRChance: preflop 時，並且前位玩家皆跟注或棄牌
+*/
+func IsPFRChance(gamePlayerIdx int, gs *pokerface.GameState, player *TablePlayerState) bool {
+	if !validateGameStatisticGameState(gamePlayerIdx, gs) {
 		return false
 	}
 
-	if !te.validateGameRoundChance(gs.Status.Round, GameStatisticRound_PFR) {
+	if !validateGameRoundChance(gs.Status.Round, GameStatisticRound_PFR) {
 		return false
 	}
 
-	allinCall := 0
-	call := 0
-	fold := 0
-	for _, p := range gs.Players {
-		if gamePlayerIdx == p.Idx {
-			continue
-		}
+	// 已經是 PFR 的話就沒有機會再次 PFR
+	if player.GameStatistics.IsPFR {
+		return false
+	}
 
-		if p.DidAction == WagerAction_AllIn {
-			if gs.Status.CurrentRaiser != p.Idx {
-				allinCall++
-			}
-		}
+	// 確認合法動作 (raise or allin-raiser)
+	p := gs.Players[gamePlayerIdx]
+	if funk.Contains(p.AllowedActions, WagerAction_Raise) {
+		return true
+	}
 
-		if p.DidAction == WagerAction_Call {
-			call++
-		}
-
-		if p.DidAction == WagerAction_Fold {
-			fold++
+	if funk.Contains(p.AllowedActions, WagerAction_AllIn) {
+		// 計算是否可能成為 Allin Raiser
+		if p.StackSize+p.Wager > gs.Status.MiniBet {
+			return true
 		}
 	}
 
-	return (allinCall + call + fold) == len(gs.Players)-1
+	// 沒有合法動作
+	return false
 }
 
 /*
-isATSChance preflop 時，SB/CO/Dealer 玩家在前位已行動玩家皆棄牌
+IsATSChance preflop 時，SB/CO/Dealer 玩家在前位已行動玩家皆棄牌
+TODO: 待驗證
 */
-func (te *tableEngine) isATSChance(gamePlayerIdx int, gs *pokerface.GameState) bool {
-	if !te.validateGameStatisticGameState(gamePlayerIdx, gs) {
+func IsATSChance(gamePlayerIdx int, gs *pokerface.GameState, player *TablePlayerState) bool {
+	if !validateGameStatisticGameState(gamePlayerIdx, gs) {
 		return false
 	}
 
-	if !te.validateGameRoundChance(gs.Status.Round, GameStatisticRound_ATS) {
+	if !validateGameRoundChance(gs.Status.Round, GameStatisticRound_ATS) {
 		return false
 	}
 
@@ -278,7 +283,14 @@ func (te *tableEngine) isATSChance(gamePlayerIdx int, gs *pokerface.GameState) b
 		}
 	}
 
-	validPositions := gs.HasPosition(gamePlayerIdx, Position_SB) || gs.HasPosition(gamePlayerIdx, Position_CO) || gs.HasPosition(gamePlayerIdx, Position_Dealer)
+	// validPositions := gs.HasPosition(gamePlayerIdx, Position_SB) || gs.HasPosition(gamePlayerIdx, Position_CO) || gs.HasPosition(gamePlayerIdx, Position_Dealer)
+	validPositions := false
+	for _, position := range player.Positions {
+		if funk.Contains([]string{Position_SB, Position_CO, Position_Dealer}, position) {
+			validPositions = true
+			break
+		}
+	}
 	if (fold == acted-1) && validPositions {
 		return true
 	}
@@ -286,9 +298,12 @@ func (te *tableEngine) isATSChance(gamePlayerIdx int, gs *pokerface.GameState) b
 	return false
 }
 
-// is3BChance: preflop 時前位只有一位玩家進行加注，且其餘玩家皆跟注或棄牌
-func (te *tableEngine) is3BChance(gamePlayerIdx int, gs *pokerface.GameState) bool {
-	if !te.validateGameRoundChance(gs.Status.Round, GameStatisticRound_ThreeBet) {
+/*
+Is3BChance: preflop 時前位只有一位玩家進行加注，且其餘玩家皆跟注或棄牌
+TODO: 待驗證
+*/
+func Is3BChance(gamePlayerIdx int, gs *pokerface.GameState) bool {
+	if !validateGameRoundChance(gs.Status.Round, GameStatisticRound_ThreeBet) {
 		return false
 	}
 
@@ -316,19 +331,16 @@ func (te *tableEngine) is3BChance(gamePlayerIdx int, gs *pokerface.GameState) bo
 	return false
 }
 
-// IsFt3BChance: preflop 時當玩家在加注或跟注後遇到其他玩家的3-Bet（Re-raise）
-func (te *tableEngine) IsFt3BChance(gamePlayerIdx int, players []*TablePlayerState, gs *pokerface.GameState) bool {
-	if !te.validateGameStatisticGameState(gamePlayerIdx, gs) {
+/*
+IsFt3BChance: preflop 時當玩家在加注或跟注後遇到其他玩家的3-Bet（Re-raise）
+TODO: 待驗證
+*/
+func IsFt3BChance(gamePlayerIdx, playerIdx int, players []*TablePlayerState, gs *pokerface.GameState) bool {
+	if !validateGameStatisticGameState(gamePlayerIdx, gs) {
 		return false
 	}
 
-	if !te.validateGameRoundChance(gs.Status.Round, GameStatisticRound_Ft3B) {
-		return false
-	}
-
-	playerIdx := te.table.FindPlayerIndexFromGamePlayerIndex(gamePlayerIdx)
-	if playerIdx == UnsetValue {
-		fmt.Printf("[DEBUG#IsFt3BChance] can't find player index from game player index (%d)", gamePlayerIdx)
+	if !validateGameRoundChance(gs.Status.Round, GameStatisticRound_Ft3B) {
 		return false
 	}
 
@@ -345,12 +357,16 @@ func (te *tableEngine) IsFt3BChance(gamePlayerIdx int, players []*TablePlayerSta
 	return false
 }
 
-func (te *tableEngine) isCheckRaiseChance(gamePlayerIdx int, gs *pokerface.GameState) bool {
-	if !te.validateGameStatisticGameState(gamePlayerIdx, gs) {
+/*
+IsCheckRaiseChance
+TODO: 待驗證
+*/
+func IsCheckRaiseChance(gamePlayerIdx int, gs *pokerface.GameState) bool {
+	if !validateGameStatisticGameState(gamePlayerIdx, gs) {
 		return false
 	}
 
-	if !te.validateGameRoundChance(gs.Status.Round, GameStatisticRound_CheckRaise) {
+	if !validateGameRoundChance(gs.Status.Round, GameStatisticRound_CheckRaise) {
 		return false
 	}
 
@@ -371,42 +387,16 @@ func (te *tableEngine) isCheckRaiseChance(gamePlayerIdx int, gs *pokerface.GameS
 	return false
 }
 
-func (te *tableEngine) isCBetChance(gamePlayerIdx int, gs *pokerface.GameState) bool {
-	if !te.validateGameStatisticGameState(gamePlayerIdx, gs) {
+/*
+IsFtCBChance
+TODO: 待驗證
+*/
+func IsFtCBChance(gamePlayerIdx, playerIdx int, players []*TablePlayerState, gs *pokerface.GameState) bool {
+	if !validateGameStatisticGameState(gamePlayerIdx, gs) {
 		return false
 	}
 
-	if !te.validateGameRoundChance(gs.Status.Round, GameStatisticRound_CBet) {
-		return false
-	}
-
-	// 自己在 preflop 時要是 raiser 且有下列任一動作: Bet or Raise or Allin (raiser): 後手/剩餘籌碼 > MiniBet
-	player := gs.GetPlayer(gamePlayerIdx)
-	isPreflopRaiser := gs.Status.CurrentRaiser == gamePlayerIdx
-	canBet := funk.Contains(player.AllowedActions, WagerAction_Bet)
-	canRaise := funk.Contains(player.AllowedActions, WagerAction_Raise)
-	canAllinRaiser := funk.Contains(player.AllowedActions, WagerAction_AllIn) && player.StackSize > gs.Status.MiniBet
-	validAction := canBet || canRaise || canAllinRaiser
-
-	if isPreflopRaiser && validAction {
-		return true
-	}
-
-	return false
-}
-
-func (te *tableEngine) isFtCBChance(gamePlayerIdx int, players []*TablePlayerState, gs *pokerface.GameState) bool {
-	if !te.validateGameStatisticGameState(gamePlayerIdx, gs) {
-		return false
-	}
-
-	if !te.validateGameRoundChance(gs.Status.Round, GameStatisticRound_FtCB) {
-		return false
-	}
-
-	playerIdx := te.table.FindPlayerIndexFromGamePlayerIndex(gamePlayerIdx)
-	if playerIdx == UnsetValue {
-		fmt.Printf("[DEBUG#isFtCBChance] can't find player index from game player index (%d)", gamePlayerIdx)
+	if !validateGameRoundChance(gs.Status.Round, GameStatisticRound_FtCB) {
 		return false
 	}
 
@@ -423,21 +413,13 @@ func (te *tableEngine) isFtCBChance(gamePlayerIdx int, players []*TablePlayerSta
 	return false
 }
 
-func (te *tableEngine) validateGameStatisticGameState(gamePlayerIdx int, gs *pokerface.GameState) bool {
-	validEvent := pokerface.GameEventSymbols[pokerface.GameEvent_Started]
+func validateGameStatisticGameState(gamePlayerIdx int, gs *pokerface.GameState) bool {
+	validEvent := pokerface.GameEventSymbols[pokerface.GameEvent_RoundStarted]
 	validRounds := []string{
 		GameRound_Preflop,
 		GameRound_Flop,
 		GameRound_Turn,
 		GameRound_River,
-	}
-	validActions := []string{
-		WagerAction_Fold,
-		WagerAction_Check,
-		WagerAction_Call,
-		WagerAction_AllIn,
-		WagerAction_Bet,
-		WagerAction_Raise,
 	}
 
 	if !(gs.Status.CurrentEvent == validEvent && funk.Contains(validRounds, gs.Status.Round)) {
@@ -445,24 +427,13 @@ func (te *tableEngine) validateGameStatisticGameState(gamePlayerIdx int, gs *pok
 	}
 
 	player := gs.Players[gamePlayerIdx]
-	if !player.Acted {
-		return false
-	}
-
 	if len(player.AllowedActions) <= 0 {
 		return false
 	}
-
-	for _, action := range player.AllowedActions {
-		if !funk.Contains(validActions, action) {
-			return false
-		}
-	}
-
 	return true
 }
 
-func (te *tableEngine) validateGameRoundChance(round, statisticRound string) bool {
+func validateGameRoundChance(round, statisticRound string) bool {
 	preflopChances := []string{
 		GameStatisticRound_VPIP,
 		GameStatisticRound_PFR,
@@ -470,7 +441,7 @@ func (te *tableEngine) validateGameRoundChance(round, statisticRound string) boo
 		GameStatisticRound_ThreeBet,
 		GameStatisticRound_Ft3B,
 	}
-	flopChances := []string{
+	postflopChances := []string{
 		GameStatisticRound_CheckRaise,
 		GameStatisticRound_CBet,
 		GameStatisticRound_FtCB,
@@ -478,9 +449,7 @@ func (te *tableEngine) validateGameRoundChance(round, statisticRound string) boo
 
 	if round == GameRound_Preflop {
 		return funk.Contains(preflopChances, statisticRound)
-	} else if round == GameRound_Flop {
-		return funk.Contains(flopChances, statisticRound)
-	} else {
-		return false
 	}
+
+	return funk.Contains(postflopChances, statisticRound)
 }
